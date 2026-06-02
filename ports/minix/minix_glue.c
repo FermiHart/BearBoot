@@ -43,6 +43,27 @@ const struct bbp_kctx *bbp_minix_boot_ctx(void)
     return g_ctx_valid ? &g_ctx : (const struct bbp_kctx *)0;
 }
 
+/*
+ * Return the ACPI RSDP physical address from the CRC-VERIFIED BBP ACPI tag, or
+ * 0 if there is no valid BBP context or no ACPI tag. Unlike reading the raw
+ * Limine response, this value only comes back non-zero after the tag's CRC-64
+ * passed in the parser — a corrupt ACPI tag is treated as absent (returns 0),
+ * so the kernel never feeds a tampered RSDP pointer to the ACPI subsystem.
+ * Plain u64 return: no BBP types cross into the MINIX -nostdinc TU.
+ */
+uint64_t bbp_minix_get_rsdp(void)
+{
+    if (!g_ctx_valid)
+        return 0;
+    /* g_ctx.verify_tag_crc is 1 (set by bbp_init_ex), so bbp_find_tag skips a
+     * CRC-failing tag — a returned tag is integrity-checked. */
+    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_ACPI);
+    if (!t)
+        return 0;
+    const struct bbp_tag_acpi *ac = (const struct bbp_tag_acpi *)t;
+    return ac->rsdp_address;
+}
+
 /* --- tiny number printers (no libc; OSIF log takes one string at a time) --- */
 static void glue_hex(const struct bbp_osif *o, uint64_t v)
 {
