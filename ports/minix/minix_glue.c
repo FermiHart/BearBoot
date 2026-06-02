@@ -64,6 +64,32 @@ uint64_t bbp_minix_get_rsdp(void)
     return ac->rsdp_address;
 }
 
+/*
+ * Fetch the kernel load address from the CRC-VERIFIED BBP KERNEL_ADDRESS tag.
+ * Writes *phys / *virt and returns 1 on success; returns 0 (and leaves the
+ * outputs untouched) if there is no valid context or no CRC-passing tag.
+ *
+ * HIGH-RISK consumer: these feed the kernel's vir<->phys translation in the
+ * paging setup (pg_utils/protect/memory). A wrong value triple-faults the box.
+ * The values originate from the same Limine response the kernel already had, so
+ * a successful round-trip here PROVES the BBP build->seal->parse->read pipeline
+ * preserves data byte-exact on the most critical path. Plain u64 out-params:
+ * no BBP types cross into the MINIX -nostdinc TU.
+ */
+int bbp_minix_get_kernel_address(uint64_t *phys, uint64_t *virt)
+{
+    if (!g_ctx_valid)
+        return 0;
+    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_KERNEL_ADDRESS);
+    if (!t)
+        return 0;
+    const struct bbp_tag_kernel_address *ka =
+        (const struct bbp_tag_kernel_address *)t;
+    if (phys) *phys = ka->physical_base;
+    if (virt) *virt = ka->virtual_base;
+    return 1;
+}
+
 /* --- tiny number printers (no libc; OSIF log takes one string at a time) --- */
 static void glue_hex(const struct bbp_osif *o, uint64_t v)
 {
