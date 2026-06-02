@@ -1,0 +1,17 @@
+# Build artifacts
+/build/
+*.o
+*.elf
+*.bin
+*.log
+
+# Editor / OS
+*.swp
+*~
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
