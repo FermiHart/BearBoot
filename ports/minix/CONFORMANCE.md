@@ -93,6 +93,29 @@ Verified: kernel.elf links bbp_minix_boot_glue / bbp_minix_adapter /
 bbp_init_ex / bbp_minix_osif; all BBP sources compile under the real kernel
 CFLAGS (-Werror -nostdinc + -idirafter destdir).
 
+## In-kernel consumers (tags actually used by MINIX, not just produced)
+
+Six distinct boot datums could be sourced from BBP. Final state: 3 consumed via
+CRC-verified tags, 3 deliberately left on the raw path with documented reasons.
+
+| # | datum            | BBP tag         | consumer                          | status |
+|---|------------------|-----------------|-----------------------------------|--------|
+| 1 | ACPI RSDP        | BBP_TAG_ACPI    | acpi.c get_acpi_rsdp()            | DONE — CRC-verified, raw fallback |
+| 2 | kernel load addr | KERNEL_ADDRESS  | limine_kinfo.c -> paging helpers  | DONE — CRC-verified, fail-safe to raw on mismatch |
+| 3 | (adapter itself) | HHDM/MEMORY_MAP/… | bbp_minix_adapter validates all | DONE — 5 tags CRC-checked at boot |
+| 4 | HHDM offset      | BBP_TAG_HHDM    | 23 call-sites (phys<->virt)       | NOT consumed — circular: the HHDM is needed to read the tag list itself, so re-sourcing it from its own tag is theatre, not integrity. Left raw by design. |
+| 5 | memory map       | MEMORY_MAP      | pg_utils/pre_init physical allocator | NOT consumed — runs before the adapter exists and is the most critical alloc path; high risk, marginal gain. Produced + CRC-checked, available for diagnostics. |
+| 6 | framebuffer / SMP| FRAMEBUFFER/SMP | (none in current MINIX)           | NOT consumed — no client; tag produced optionally. |
+
+Consumers #1 and #2 each fall back to / fail-safe to the raw Limine value if BBP
+is unavailable or a tag fails CRC, so the port never makes the kernel LESS
+robust than the legacy path — it only adds an integrity-checked preference.
+
+Evidence: test/serial.log (adapter ok, 5 tags), test/serial-acpi-consumer.log
+("RSDP via Bear Boot Protocol"), test/serial-kaddr-consumer.log ("kernel
+address: BBP CRC-verified (matches raw) -- paging uses BBP values"), each from a
+real MINIX boot that proceeds to the JASH userland shell.
+
 ## Deviations / known gaps (honest accounting)
 1. **Resolved.** Runtime boot evidence IS captured — test/serial.log from a real
    MINIX kernel boot shows bbp_init_ex==BBP_OK with 5 CRC-validated tags and the
@@ -101,3 +124,6 @@ CFLAGS (-Werror -nostdinc + -idirafter destdir).
 3. ACPI tag carries rsdp_address only (no RSDP/RSDT parse).
 4. Framebuffer EDID not forwarded (edid_crc=0); width/height/pitch/format are.
 5. Scratch arena is a 64 KiB static buffer (v1); swap to the kernel PMM later.
+6. HHDM/MEMORY_MAP consumers (datums #4/#5) intentionally not migrated — see the
+   consumers table above for the structural reasons (circularity / critical
+   pre-adapter alloc path). These are conscious scope decisions, not omissions.
