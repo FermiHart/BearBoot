@@ -37,7 +37,7 @@ FUZZCC   ?= clang
 
 BUILD := build
 
-.PHONY: all test abi freestanding kernel fuzz check clean qemu
+.PHONY: all test abi freestanding kernel fuzz check clean qemu ports-check
 
 all: test freestanding
 
@@ -113,6 +113,15 @@ $(BUILD)/roundtrip.elf: tests/boot32.S tests/qemu_roundtrip.c \
 # ---- everything that runs without a cross toolchain ------------------------
 check: abi test fuzz
 	@echo "ALL HOST CHECKS PASSED"
+
+# ---- compile-check every OS port against the frozen core -------------------
+ports-check:
+	@for p in ports/*/; do \
+	    if [ -f "$$p/Makefile" ]; then \
+	        echo "== $$p =="; $(MAKE) -C "$$p" scaffold-check CROSS=$(CROSS) || exit 1; \
+	    fi; \
+	done
+	@echo "ALL PORTS COMPILE AGAINST THE FROZEN CORE"
 
 clean:
 	rm -rf $(BUILD)
