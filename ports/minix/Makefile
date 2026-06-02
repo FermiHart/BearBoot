@@ -24,7 +24,7 @@ scaffold-check: $(BUILD)/port.elf
 
 # Link the port glue + the core parser + the core builder into one relocatable
 # object — proves every symbol the port uses exists in the core ABI.
-$(BUILD)/port.elf: osif.c adapter.c $(ROOT)/kernel/bbp_kernel.c $(ROOT)/bootloader/bbp_build.c
+$(BUILD)/port.elf: osif.c adapter.c minix_glue.c $(ROOT)/kernel/bbp_kernel.c $(ROOT)/bootloader/bbp_build.c
 	@mkdir -p $(BUILD)
 	$(CC) $(FREEFLAGS) $(INCLUDE) -r $^ -o $@
 	@echo "linked: $@"

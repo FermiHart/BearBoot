@@ -1,0 +1,7 @@
+# BBP MINIX port — build artifacts (not source).
+#   Author: F E R M I  ∞  H A R T  <contact@fermihart.com>
+build/
+test/build/
+
+# serial.log IS the deliverable evidence — keep it tracked once produced:
+!test/serial.log
