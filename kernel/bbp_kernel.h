@@ -30,6 +30,20 @@ struct bbp_kctx {
     const struct bbp_info *info;   /* virtual ptr to validated info */
     bbp_virt_t hhdm_offset;        /* phys->virt offset (0 until known) */
     int verify_tag_crc;            /* 1 = check each tag's CRC on lookup */
+
+    /* OPTIONAL walk window (ADR-0009). When walk_hi > walk_lo, EVERY tag
+     * pointer the parser dereferences must lie fully within the physical range
+     * [walk_lo, walk_hi). This closes a gap the fuzzer found: bbp_region_ok
+     * only bounds a pointer to the architectural max (BBP_MAX_PHYS, 256 TiB),
+     * but the HHDM maps only actual RAM — so a hostile next_tag in
+     * (top_of_RAM, BBP_MAX_PHYS) passes the arithmetic check yet page-faults on
+     * dereference. A kernel that knows the bootloader-reserved tag region is
+     * mapped sets this window to that region; then a pointer outside it is
+     * rejected as corruption rather than faulting. 0/0 (the default after
+     * bbp_init) disables the window — fully backward compatible. Set it with
+     * bbp_set_walk_window() AFTER bbp_init/bbp_init_ex. */
+    bbp_phys_t walk_lo;
+    bbp_phys_t walk_hi;
 };
 
 /* Translate a physical address to a kernel-virtual one using the HHDM
@@ -110,6 +124,26 @@ bbp_status_t bbp_verify_blob(const struct bbp_kctx *k, bbp_phys_t phys,
  * Pass hint=0 for identity-mapped handoff (same as bbp_init). */
 bbp_status_t bbp_init_ex(struct bbp_kctx *out, const struct bbp_info *info,
                          bbp_virt_t hhdm_hint);
+
+/* Like bbp_init_ex, but ALSO seeds the walk window (ADR-0009) BEFORE the
+ * internal HHDM-tag lookup runs — so even bbp_init's own first walk of the tag
+ * list is bounded to [walk_lo, walk_hi). Use this (not bbp_init + a later
+ * bbp_set_walk_window) when the producer's tag list is untrusted and you know
+ * the mapped region up front: it is the only way to bound the lookup that
+ * happens inside init itself. Pass walk_lo>=walk_hi to disable the window
+ * (then it behaves exactly like bbp_init_ex). */
+bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
+                          bbp_virt_t hhdm_hint, bbp_phys_t walk_lo,
+                          bbp_phys_t walk_hi);
+
+/* Restrict every subsequent tag-pointer dereference to the physical range
+ * [lo, hi) (ADR-0009). Call AFTER bbp_init/bbp_init_ex. A consumer that knows
+ * the bootloader-reserved region holding the tag list is mapped should pass
+ * that region; the parser then rejects any tag pointer outside it instead of
+ * trusting bbp_region_ok's architectural bound (which can point at unmapped
+ * RAM and fault on dereference). Passing lo>=hi (e.g. 0,0) disables the window.
+ * Returns BBP_ERR_NULL on a NULL ctx, else BBP_OK. */
+bbp_status_t bbp_set_walk_window(struct bbp_kctx *k, bbp_phys_t lo, bbp_phys_t hi);
 
 /* Human-readable status string (static storage). */
 const char *bbp_strstatus(bbp_status_t s);

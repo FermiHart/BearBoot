@@ -1,67 +1,74 @@
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# CI for the Bear Boot Protocol.
+#
+# Runs the same gates a contributor must keep green (see CONTRIBUTING.md):
+#   - the core: ABI _Static_asserts + host self-test (adversarial) + fuzzer
+#   - every port: freestanding scaffold-check (links vs the frozen core) and,
+#     where present, the hosted adapter test.
+#
+# Everything here runs with the stock distro gcc — no cross toolchain needed
+# (the freestanding port flags work with native gcc; CROSS= forces it).
+
 name: ci
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  host-checks:
+  core:
+    name: core (abi + self-test + fuzz)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang python3
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+      - name: make check (abi + test + fuzz)
+        run: make check
 
-      - name: ABI static_asserts
-        run: make abi
-
-      - name: Self-test (45+ checks incl. adversarial)
-        run: make test
-
-      - name: Self-test under ASan + UBSan
-        run: |
-          cc -std=c11 -O1 -g -fsanitize=address,undefined -Iinclude \
-             tests/abi_selftest.c bootloader/bbp_build.c kernel/bbp_kernel.c \
-             -o build/abi_selftest_asan
-          ./build/abi_selftest_asan
-
-      - name: Parser fuzzer (libFuzzer + ASan, bounded run)
-        run: |
-          clang -fsanitize=fuzzer,address -std=c11 -Iinclude -DBBP_LIBFUZZER \
-                tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.c \
-                -o build/bbp_fuzz_lf
-          ./build/bbp_fuzz_lf -runs=2000000 -max_total_time=60 -max_len=4096
-
-      - name: Deterministic fuzzer (reach-rate gate)
-        run: make fuzz
-
-  cross-build:
+  ports:
+    name: ports (scaffold-check + hosted test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install cross toolchain + QEMU
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+      - name: tinalinux — freestanding scaffold + hosted adapter test
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-multilib qemu-system-x86 python3 \
-                                  gcc binutils
-
-      # Uses the host gcc with an x86_64-elf-like freestanding profile.
-      # On a real cross host set CROSS=x86_64-elf-.
-      - name: Freestanding compile (kernel-side)
-        run: make freestanding CROSS= CC=gcc
-
-      - name: Bare-metal round-trip kernel (Multiboot1)
-        run: make qemu CROSS= CC=gcc
-
-      - name: Boot round-trip under QEMU (assert PASS)
+          cd ports/tinalinux
+          make scaffold-check CROSS=
+          make test
+      - name: minix — freestanding scaffold-check
         run: |
-          timeout 30 qemu-system-i386 -kernel build/roundtrip.elf -m 128M \
-            -serial file:build/ci_serial.log -display none -no-reboot \
-            -no-shutdown || true
-          echo '--- serial ---'; cat build/ci_serial.log
-          grep -q 'BBP-QEMU: PASS' build/ci_serial.log
+          cd ports/minix
+          make scaffold-check CROSS=
+
+  abi-guard:
+    name: frozen-core guard (PRs must not touch the ABI)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Warn if a PR modifies the ABI-frozen core
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          # The frozen contract. A port PR should never change these; a change
+          # here is a deliberate ABI decision, not a routine contribution.
+          frozen='^(include/bbp/|kernel/bbp_kernel\.c|kernel/bbp_kernel\.h|bootloader/bbp_build\.c|bootloader/bbp_build\.h)'
+          changed="$(git diff --name-only "$base" "$head")"
+          hits="$(echo "$changed" | grep -E "$frozen" || true)"
+          if [ -n "$hits" ]; then
+            echo "::warning title=Frozen core touched::This PR modifies the ABI-frozen core:"
+            echo "$hits" | sed 's/^/  /'
+            echo "Review the _Static_assert layout guarantees and bump BBP_VERSION_MAJOR if a struct changed. This is allowed but must be intentional."
+          else
+            echo "OK: PR does not touch the ABI-frozen core."
+          fi

@@ -18,6 +18,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
 
 #include <bbp/bbp.h>
 #include <bbp/bbp_crc64.h>
@@ -25,6 +28,51 @@
 #include "../kernel/bbp_kernel.h"
 
 static int failures = 0;
+
+/* ── Hang watchdog ─────────────────────────────────────────────────────────
+ * The parser is explicitly bounded against cyclic/forged tag chains
+ * (BBP_MAX_TAGS, the `&& steps < ...` loop guards). But a REGRESSION that drops
+ * one of those guards would turn a malformed input into an infinite loop — and
+ * a test with no timeout would then spin at 100% forever, a silent zombie that
+ * never reports failure. So the harness arms its OWN deadline: if any test does
+ * not finish within BBP_SELFTEST_TIMEOUT seconds, SIGALRM fires, we report the
+ * hanging test by name, and exit non-zero. A hang becomes a VISIBLE failure.
+ * (The Makefile `test` target also wraps this in `timeout` as a second belt.) */
+#ifndef BBP_SELFTEST_TIMEOUT
+#define BBP_SELFTEST_TIMEOUT 30   /* the whole suite runs in <1s normally */
+#endif
+
+static volatile const char *current_test = "(startup)";
+
+/* async-signal-safe: only write() + a manual strlen, no stdio in the handler. */
+static void watchdog_write(const char *s)
+{
+    size_t n = 0;
+    while (s[n]) n++;
+    (void)!write(STDERR_FILENO, s, n);
+}
+
+static void watchdog_handler(int sig)
+{
+    (void)sig;
+    watchdog_write("\nFAILED: self-test TIMED OUT in (or just after) test: ");
+    watchdog_write((const char *)current_test);
+    watchdog_write("\n  -> likely an INFINITE-LOOP REGRESSION in the parser "
+                   "(a dropped BBP_MAX_TAGS / loop guard).\n"
+                   "  -> the culprit is the LAST '[run]' line printed above.\n");
+    _exit(124);   /* 124 = timeout, distinct from 1 (assertion failures) */
+}
+
+/* Run a named test under the watchdog. The name is written to STDERR (which is
+ * unbuffered) the instant the test STARTS — so if it hangs, the last '[run]'
+ * line on the console is the definitive culprit, independent of stdout
+ * buffering or any compiler reordering of the volatile `current_test` hint. */
+#define RUN(fn) do { \
+    current_test = #fn; \
+    watchdog_write("[run] " #fn "\n"); \
+    fn(); \
+} while (0)
+
 #define CHECK(cond, ...) do { \
     if (!(cond)) { printf("FAIL: " __VA_ARGS__); printf("\n"); failures++; } \
     else         { printf("ok:   " __VA_ARGS__); printf("\n"); } \
@@ -393,21 +441,30 @@ static void test_hostile_wrapping_tag_ptr(void)
 
 int main(void)
 {
+    /* Arm the hang watchdog FIRST: install the SIGALRM handler and set the
+     * deadline. If any test below spins forever (an infinite-loop regression),
+     * the alarm fires, names the culprit, and exits 124 — a hang can never be a
+     * silent 100%-CPU zombie. */
+    signal(SIGALRM, watchdog_handler);
+    alarm(BBP_SELFTEST_TIMEOUT);
+
     printf("== Bear Boot Protocol self-test ==\n");
-    test_crc64_vector();
-    test_abi_sizes();
-    test_roundtrip();
-    test_iter_and_tamper();
+    RUN(test_crc64_vector);
+    RUN(test_abi_sizes);
+    RUN(test_roundtrip);
+    RUN(test_iter_and_tamper);
     printf("-- adversarial (untrusted bootloader) --\n");
-    test_hostile_undersized_tag();
-    test_hostile_huge_tag();
-    test_hostile_cycle();
-    test_hostile_misaligned_ptr();
-    test_for_each_skips_corrupt();
-    test_verify_header();
-    test_array_clamp();
-    test_verify_blob();
-    test_hostile_wrapping_tag_ptr();
+    RUN(test_hostile_undersized_tag);
+    RUN(test_hostile_huge_tag);
+    RUN(test_hostile_cycle);
+    RUN(test_hostile_misaligned_ptr);
+    RUN(test_for_each_skips_corrupt);
+    RUN(test_verify_header);
+    RUN(test_array_clamp);
+    RUN(test_verify_blob);
+    RUN(test_hostile_wrapping_tag_ptr);
+
+    alarm(0);   /* finished in time: disarm the watchdog */
     printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
            failures, failures == 1 ? "" : "s");
     return failures ? 1 : 0;
