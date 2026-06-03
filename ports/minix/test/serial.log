@@ -1,0 +1,90 @@
+limine: Loading executable `boot():/boot/kernel.elf`...
+limine: Loading module `boot():/boot/mod/ds`...
+limine: Loading module `boot():/boot/mod/rs`...
+limine: Loading module `boot():/boot/mod/pm`...
+limine: Loading module `boot():/boot/mod/sched`...
+limine: Loading module `boot():/boot/mod/vfs`...
+limine: Loading module `boot():/boot/mod/memory`...
+limine: Loading module `boot():/boot/mod/tty`...
+limine: Loading module `boot():/boot/mod/mib`...
+limine: Loading module `boot():/boot/mod/vm`...
+limine: Loading module `boot():/boot/mod/pfs`...
+limine: Loading module `boot():/boot/mod/mfs`...
+limine: Loading module `boot():/boot/mod/init`...
+
+[limine] translating boot info -> kinfo_t
+[limine] kinfo_t ready -- entering kmain()
+[limine] BBP adapter: ok
+
+  +========================================================+
+  |   B E A R   B O O T   P R O T O C O L   v1.1           |
+  |   the bear-grade kernel handoff  -  CRC64-sealed tags  |
+  +========================================================+
+     [*] Limine -> BBP adapter ......... ACTIVE
+     [*] handoff integrity ............. CRC-64/XZ verified
+     [*] HHDM reachability (SPEC 10.1b)  ok, offset=0xffff800000000000
+     [*] tags validated ................ 5
+     MINIX x86_64 now sees hardware through BBP.
+     F E R M I  ∞  H A R T
+  +========================================================+
+
+KM
+IJKLMmoNP01234567<>IJKLMmoNPBSP
+GI:0005:000d:000c:
+MINIX booting
+Hello from x86_64 MINIX!
+acpi: poweroff initialized
+APIC disabled, using legacy PIC
+cpu_features: NX=1 SMEP=1 SMAP=1 UMIP=1 FSGSBASE=0 PCIDE=0 OSXSAVE=0 LA57=0 X2APIC=0 TSCD=0 INVPCID=0 IBRS=0 IBPB=0 STIBP=0 SSBD=0 ERMS=0 FSRM=0 APIC=0
+cpu_features: SMEP enabled
+cpu_features: UMIP enabled
+cpu_features: SMAP enabled (CR4=0x300820, user-access #PF enforced)
+cpu_features: CR0.WP enforced
+
+MINIX 3.4.0. Copyright 2016, Vrije Universiteit, Amsterdam, The Netherlands
+MINIX is open source software, see http://www.minix3.org
+Initiating legacy i8253 timer
+CPU 0 freq 2313 MHz
+kernel: selecting amd syscall ipc style
+D10 VM main loop entered
+IRQ 4 handler registered by tty / 5
+IRQ 3 handler registered by tty / 5
+IRQ 4 handler registered by tty / 5
+IRQ 3 handler registered by tty / 5
+SYSTEM: denied request 44 from 11.
+SYSTEM: denied request 44 from 11.
+SYSTEM: denied request 44 from 11.
+jinit: fork ret=jinit: fork ret=0e
+
+jinit: child attempting execve /bin/sh
+jinit: parent waiting for child
+
+   [96m __  __ ___ _   _ ___ __  __[0m
+   [96m|  \/  |_ _| \ | |_ _|\ \/ /[0m
+   [36m| |\/| || ||  \| || | / .. \[0m
+   [36m|_|  |_|___|_| \_|___|/_/\_\[0m   [95m∞[0m
+
+   [95m     ◉─◉─◉[0m
+   [95m     │╲│╱│[0m   [2mMetatron's Cube[0m
+   [95m     ◉─◉─◉[0m   [2m— the blueprint · 13[0m
+   [95m     │╱│╲│[0m
+   [95m     ◉─◉─◉[0m
+
+   [96mMINIX 3.4 · x86_64 · ⬡ MMXXVI ⬡[0m
+   [2mLimine · HHDM · per-proc CR3[0m
+
+   [92mfermihart[0m@[36mminix[0m
+   [2m────────────────────────────────[0m
+   [95mOS      [0m [97mMinix 3.4.0 x86_64[0m
+   [95mArch    [0m [97mx86_64[0m
+   [95mShell   [0m [97mJ A S H  0.1 "Bear Libcs"[0m
+   [95mUptime  [0m [97m—[0m
+   [95mMemory  [0m [97m—[0m
+   [95mCPUs    [0m [97m—[0m
+   [95mPID     [0m [97m14[0m
+   [95mTerm    [0m [97mconsole → serial (tty00)[0m
+
+   [2m────────────────────────────────[0m
+   [95mF E R M I  ∞  H A R T[0m
+
+[K[92mfermihart[0m[95m@[0m[36mminix3.org[0m:[94m/[0m [97m[1m$[0m 

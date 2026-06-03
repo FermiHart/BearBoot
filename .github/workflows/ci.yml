@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  host-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang python3
+
+      - name: ABI static_asserts
+        run: make abi
+
+      - name: Self-test (45+ checks incl. adversarial)
+        run: make test
+
+      - name: Self-test under ASan + UBSan
+        run: |
+          cc -std=c11 -O1 -g -fsanitize=address,undefined -Iinclude \
+             tests/abi_selftest.c bootloader/bbp_build.c kernel/bbp_kernel.c \
+             -o build/abi_selftest_asan
+          ./build/abi_selftest_asan
+
+      - name: Parser fuzzer (libFuzzer + ASan, bounded run)
+        run: |
+          clang -fsanitize=fuzzer,address -std=c11 -Iinclude -DBBP_LIBFUZZER \
+                tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.c \
+                -o build/bbp_fuzz_lf
+          ./build/bbp_fuzz_lf -runs=2000000 -max_total_time=60 -max_len=4096
+
+      - name: Deterministic fuzzer (reach-rate gate)
+        run: make fuzz
+
+  cross-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross toolchain + QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib qemu-system-x86 python3 \
+                                  gcc binutils
+
+      # Uses the host gcc with an x86_64-elf-like freestanding profile.
+      # On a real cross host set CROSS=x86_64-elf-.
+      - name: Freestanding compile (kernel-side)
+        run: make freestanding CROSS= CC=gcc
+
+      - name: Bare-metal round-trip kernel (Multiboot1)
+        run: make qemu CROSS= CC=gcc
+
+      - name: Boot round-trip under QEMU (assert PASS)
+        run: |
+          timeout 30 qemu-system-i386 -kernel build/roundtrip.elf -m 128M \
+            -serial file:build/ci_serial.log -display none -no-reboot \
+            -no-shutdown || true
+          echo '--- serial ---'; cat build/ci_serial.log
+          grep -q 'BBP-QEMU: PASS' build/ci_serial.log
