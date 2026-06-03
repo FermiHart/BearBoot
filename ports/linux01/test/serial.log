@@ -1,0 +1,27 @@
+cc -Wall -Wextra -std=gnu11 -O2 -g -I../../include -I. test/harness.c osif.c adapter.c ../../kernel/bbp_kernel.c ../../bootloader/bbp_build.c -o build/harness
+running hosted adapter verification...
+================================================
+  BBP linux-0.01 port - native adapter VERIFICATION (hosted)
+  F E R M I ∞ H A R T  <contact@fermihart.com>
+================================================
+[harness] RAM model entries .... 3
+[harness] HIGH_MEMORY .......... 0x800000 (8 MiB, LINUS_HD)
+[harness] HHDM offset .......... 0x0 (identity map)
+
+[harness] calling bbp_l01_adapter()...
+[harness] bbp_init -> ok
+[harness] walking tags:
+       tag id=0x0002000000000002 size=40
+       tag id=0x0002000000000001 size=136
+       tag id=0x0002000000000003 size=48
+[harness] tags validated ....... 3
+[harness] HHDM tag ............. present
+[harness] MEMORY_MAP tag ....... present
+[harness] KERNEL_ADDRESS tag ... present
+[harness] MEMORY_MAP entries ... 3 usable=7808 KiB
+[harness] corrupt-tag rejection . ok
+
+================================================
+  bbp: linux-0.01 adapter ok, 3 tags, hhdm=0x0
+  RESULT: PASS - native adapter validated on the linux-0.01 RAM model
+================================================

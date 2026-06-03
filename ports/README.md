@@ -19,4 +19,7 @@ A port MUST NOT modify any core file. If the core needs a change, that is a
 core PR with a new ADR — not a silent edit from a port.
 
 Current ports:
-  - minix/   MINIX x86_64 (limine-boot branch) — Limine->BBP adapter.
+  - minix/      MINIX x86_64 (limine-boot branch) — Limine->BBP adapter.
+  - tinalinux/  TinaLinux x86_64 (Linux 6.12 derivative) — native Linux OSIF.
+  - linux01/    linux-0.01 (Linus' 1991 kernel, Limine-booted) — native i386
+                OSIF, identity-mapped (HHDM 0, SPEC §10.1(a)); the simplest port.
