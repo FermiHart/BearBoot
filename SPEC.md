@@ -11,11 +11,18 @@ major decision lives in `docs/adr/`.
 
 ## 1. Scope and model
 
-BBP defines the handoff between a bootloader (the *producer*) and a kernel
-(the *consumer*). The producer collects platform information into a set of
-TAGS, assembles them into a singly-linked list, prepends a fixed INFO
-structure, and transfers control to the kernel's entry point with a pointer
-to the INFO structure in a register.
+BBP defines the handoff between a *producer* and a *consumer* (kernel). It is a
+**complementary layer**: the producer is typically NOT a from-scratch bootloader
+but a thin component that runs alongside an existing boot mechanism — a Limine
+adapter, a UEFI-stub producer, or an in-kernel adapter on the native Linux boot
+path — and re-expresses the platform data that mechanism already discovered as a
+CRC-sealed tag list. BBP does not own the disk, the ELF loader, SMP bring-up, or
+`ExitBootServices`; it rides on top of whatever did.
+
+The producer collects platform information into a set of TAGS, assembles them
+into a singly-linked list, prepends a fixed INFO structure, and transfers
+control to the kernel's entry point with a pointer to the INFO structure in a
+register.
 
 The kernel publishes a fixed HEADER structure describing itself and the tags
 it requests. The producer reads the HEADER before loading.
@@ -223,6 +230,20 @@ field with the CRC-64/XZ of the referenced bytes. A consumer MUST call
 measurement log whose `measurements_crc` fails. A zero `*_crc` means
 "unchecked"; a consumer accepts it only if it explicitly opts in.
 
+### 10.3 Walk window (OPTIONAL, hardening — ADR-0009)
+
+The parser bounds every tag pointer to the architectural maximum
+(`BBP_MAX_PHYS`) before dereference. That prevents an out-of-bounds read but
+NOT a dereference of an address that is in-range yet UNMAPPED — on a real
+higher-half kernel the HHDM maps only actual RAM, so a forged pointer past the
+top of RAM passes the arithmetic check and page-faults. (Found by the parser
+fuzzer.) A consumer that knows the physical region holding the tag list is
+mapped MAY declare it as a walk window via `bbp_init_win(out, info, hint,
+walk_lo, walk_hi)` or `bbp_set_walk_window`; the parser then rejects any tag
+pointer outside `[walk_lo, walk_hi)` as corruption instead of faulting. The
+window is OPTIONAL and disabled by default (`bbp_init`/`bbp_init_ex` leave it
+unset, preserving v1.0/v1.1 behavior); it changes no on-the-wire structure.
+
 
 ## 11. Conformance
 
@@ -249,10 +270,16 @@ sizes match `include/bbp/bbp.h` and seals CRCs per §10.
 
 ## 12. Roadmap
 
-| Version | Milestone        | Features                                        |
-|---------|------------------|-------------------------------------------------|
-| v1.0    | Initial release  | x86_64 + UEFI, essential tags, basic TPM        |
-| v1.5    | Expansion        | AArch64 + Device Tree, RISC-V SBI               |
-| v2.0    | Full security    | remote attestation, encrypted boot, IMA         |
-| v2.5    | Performance      | zero-copy I/O, parallel module load, prefetch   |
-| v3.0    | Future           | native PXE, CXL memory, quantum-safe crypto     |
+BBP stays a **complementary handoff + integrity layer** — the roadmap is about
+deepening that layer and proving it on more targets, NOT about growing BBP into a
+standalone bootloader (PXE/disk/ELF-loading remain the job of Limine/UEFI/the
+Linux path that BBP rides on).
+
+| Version | Milestone        | Scope                                                  |
+|---------|------------------|--------------------------------------------------------|
+| v1.1    | **current**      | x86_64 proven end-to-end; native TinaLinux OSIF boots; frozen ABI; defensive parser; out-of-line CRC |
+| v1.5    | Exercise non-x86 | bring an AArch64 (Device Tree) and a RISC-V consumer up from ABI-only to a booted proof |
+| v2.0    | Measuring producer | a producer that actually extends TPM PCRs + fills the measurement log (today the SECURITY tags are definitions only) |
+| v2.x    | Authenticity     | optional signature layer over the CRC integrity layer (CRC ≠ authenticity, by design — see SECURITY.md) |
+
+See `STATUS.md` for the current live/skeleton/roadmap matrix.

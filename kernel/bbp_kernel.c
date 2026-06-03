@@ -77,6 +77,15 @@ static int bbp_region_ok(const struct bbp_kctx *k, bbp_phys_t phys, uint64_t len
     if (phys == 0 || len == 0)             return 0;
     if (len > BBP_MAX_PHYS)                return 0;
     if (phys > BBP_MAX_PHYS - len)         return 0;   /* phys+len wrap / OOB */
+    /* OPTIONAL walk window (ADR-0009): if the caller declared the mapped tag
+     * region, the WHOLE [phys, phys+len) must fit inside it. This rejects a
+     * hostile pointer that is within the architectural max but outside actual
+     * mapped RAM — which would otherwise pass the checks below and page-fault
+     * on dereference (found by the parser fuzzer). lo>=hi disables the window. */
+    if (k->walk_hi > k->walk_lo) {
+        if (phys < k->walk_lo)             return 0;
+        if (phys > k->walk_hi - len)       return 0;   /* phys+len past window */
+    }
     /* Translation must not wrap uintptr_t (e.g. hostile phys + high HHDM). */
     uintptr_t base = (uintptr_t)phys;
     uintptr_t off  = (uintptr_t)k->hhdm_offset;
@@ -125,14 +134,17 @@ bbp_status_t bbp_verify_blob(const struct bbp_kctx *k, bbp_phys_t phys,
     return (got == expected_crc) ? BBP_OK : BBP_ERR_TAG_CHECKSUM;
 }
 
-bbp_status_t bbp_init_ex(struct bbp_kctx *out, const struct bbp_info *info,
-                         bbp_virt_t hhdm_hint)
+bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
+                          bbp_virt_t hhdm_hint, bbp_phys_t walk_lo,
+                          bbp_phys_t walk_hi)
 {
     if (!out || !info) return BBP_ERR_NULL;
 
     out->info = info;
     out->hhdm_offset = hhdm_hint;
     out->verify_tag_crc = 1;
+    out->walk_lo = walk_lo;    /* set BEFORE the internal HHDM walk below, so */
+    out->walk_hi = walk_hi;    /* even bbp_init's own lookup is window-bounded */
 
     if (bbp_memcmp(info->magic, BBP_INFO_MAGIC, sizeof(BBP_INFO_MAGIC) - 1) != 0)
         return BBP_ERR_MAGIC;
@@ -155,7 +167,7 @@ bbp_status_t bbp_init_ex(struct bbp_kctx *out, const struct bbp_info *info,
      * The first_tag pointer is physical; with hhdm_hint applied the parser
      * can reach the tag list even when it lives outside the identity map.
      * If the HHDM tag is present it overrides the hint with the authoritative
-     * value the producer chose. */
+     * value the producer chose. This walk is already window-bounded above. */
     const struct bbp_tag_header *t = bbp_find_tag(out, BBP_TAG_HHDM);
     if (t) {
         const struct bbp_tag_hhdm *h = (const struct bbp_tag_hhdm *)t;
@@ -164,9 +176,23 @@ bbp_status_t bbp_init_ex(struct bbp_kctx *out, const struct bbp_info *info,
     return BBP_OK;
 }
 
+bbp_status_t bbp_init_ex(struct bbp_kctx *out, const struct bbp_info *info,
+                         bbp_virt_t hhdm_hint)
+{
+    return bbp_init_win(out, info, hhdm_hint, 0, 0);   /* window disabled */
+}
+
 bbp_status_t bbp_init(struct bbp_kctx *out, const struct bbp_info *info)
 {
     return bbp_init_ex(out, info, 0);
+}
+
+bbp_status_t bbp_set_walk_window(struct bbp_kctx *k, bbp_phys_t lo, bbp_phys_t hi)
+{
+    if (!k) return BBP_ERR_NULL;
+    k->walk_lo = lo;
+    k->walk_hi = hi;
+    return BBP_OK;
 }
 
 /* Validate ONE tag at physical address `cur` and return its virtual pointer

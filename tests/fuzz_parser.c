@@ -37,12 +37,24 @@
 #define ARENA 65536
 
 /* Drive every public parser path against an info pointer. Returns 1 if the
- * info validated and the tag walk was reached, else 0. */
-static int drive(struct bbp_info *info)
+ * info validated and the tag walk was reached, else 0.
+ *
+ * `lo`/`hi`, when hi>lo, are the bounds of the mapped arena holding the tags —
+ * the fuzzer passes them so the parser's optional walk window (ADR-0009) is
+ * exercised exactly as a real kernel uses it: a tag pointer outside the mapped
+ * region is rejected as corruption instead of being dereferenced (which, in
+ * this hosted harness, would be a wild host-pointer read). Pass 0,0 to leave
+ * the window disabled and exercise the architectural-bound path. */
+static int drive(struct bbp_info *info, bbp_phys_t lo, bbp_phys_t hi)
 {
     struct bbp_kctx k;
-    if (bbp_init(&k, info) != BBP_OK) {
+    /* Use bbp_init_win so the walk window is active even for the HHDM lookup
+     * bbp_init performs internally — that internal walk is the one a forged
+     * next_tag attacks. (bbp_init + a later set_walk_window would leave that
+     * first walk unbounded; the fuzzer proved that.) */
+    if (bbp_init_win(&k, info, 0, lo, hi) != BBP_OK) {
         struct bbp_kctx z; memset(&z, 0, sizeof(z)); z.info = info;
+        z.walk_lo = lo; z.walk_hi = hi;
         (void)bbp_find_tag(&z, BBP_TAG_MEMORY_MAP);   /* safe on rejected ctx */
         return 0;
     }
@@ -81,7 +93,9 @@ static int run_raw(const uint8_t *data, size_t len)
         uint64_t ft = info->first_tag;
         info->first_tag = (bbp_phys_t)(uintptr_t)arena + (ft % ARENA);
     }
-    return drive(info);
+    /* The mapped region in this harness is exactly the arena. */
+    bbp_phys_t lo = (bbp_phys_t)(uintptr_t)arena;
+    return drive(info, lo, lo + ARENA);
 }
 
 /* Harness 2: valid info, fuzzed tag arena — guaranteed to reach the walk. */
@@ -113,7 +127,9 @@ static int run_structured(const uint8_t *data, size_t len)
     for (size_t i = 0; i < len && off < tagcap; i++, off++)
         tagbase[off] ^= data[i];   /* XOR-mutate to keep some structure */
 
-    return drive(info);
+    /* The mapped region is exactly the arena; bound the walk to it. */
+    bbp_phys_t lo = (bbp_phys_t)(uintptr_t)arena;
+    return drive(info, lo, lo + ARENA);
 }
 
 #ifdef BBP_LIBFUZZER
@@ -126,13 +142,49 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 }
 #else
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+
+/* ── Hang watchdog (deterministic driver) ──────────────────────────────────
+ * Same rationale as the abi_selftest watchdog: the parser is bounded against
+ * cyclic/forged chains, but a REGRESSION dropping a loop guard would make one
+ * of the 50k iterations spin forever — a silent 100%-CPU zombie. Arm a SIGALRM
+ * deadline so a hang becomes a VISIBLE failure (exit 124) that names the
+ * iteration in flight. The Makefile `fuzz` target also wraps this in `timeout`
+ * as a second belt. */
+#ifndef BBP_FUZZ_TIMEOUT
+#define BBP_FUZZ_TIMEOUT 60   /* 50k iters + ASan run in well under this */
+#endif
+
+static volatile int   wd_phase = 0;        /* 0=seeds 1=sweep 2=files */
+static volatile long  wd_iter  = -1;       /* current sweep iteration */
+
+static void wd_write(const char *s){ size_t n=0; while(s[n])n++; (void)!write(2,s,n); }
+static void wd_num(long v){ char b[24]; int i=24; if(v<0){wd_write("?");return;}
+    if(v==0){wd_write("0");return;} while(v&&i){b[--i]='0'+(v%10);v/=10;} (void)!write(2,&b[i],24-i); }
+
+static void wd_handler(int sig)
+{
+    (void)sig;
+    wd_write("\nbbp_fuzz: FAILED — TIMED OUT (hang regression in the parser; "
+             "a dropped BBP_MAX_TAGS / loop guard).\n  phase=");
+    wd_num(wd_phase);
+    wd_write(" sweep_iter="); wd_num(wd_iter);
+    wd_write("\n");
+    _exit(124);
+}
 
 int main(int argc, char **argv)
 {
     uint8_t buf[256];
     unsigned long reached = 0, structured_total = 0;
 
+    signal(SIGALRM, wd_handler);
+    alarm(BBP_FUZZ_TIMEOUT);
+
     /* Targeted adversarial seeds (raw harness). */
+    wd_phase = 0;
     run_raw((const uint8_t *)"", 0);
     memset(buf, 0xAA, sizeof(buf)); run_raw(buf, sizeof(buf));
     memset(buf, 0, sizeof(buf));
@@ -144,8 +196,10 @@ int main(int argc, char **argv)
     run_raw(buf, sizeof(buf));
 
     /* Random sweep through BOTH harnesses (deterministic seed). */
+    wd_phase = 1;
     unsigned s = 0x1234567u;
     for (int it = 0; it < 50000; it++) {
+        wd_iter = it;
         for (size_t i = 0; i < sizeof(buf); i++) {
             s = s * 1103515245u + 12345u;
             buf[i] = (uint8_t)(s >> 16);
@@ -156,6 +210,7 @@ int main(int argc, char **argv)
     }
 
     /* Files named on argv go through both harnesses. */
+    wd_phase = 2;
     for (int i = 1; i < argc; i++) {
         FILE *f = fopen(argv[i], "rb");
         if (!f) continue;
@@ -166,6 +221,7 @@ int main(int argc, char **argv)
         run_structured(fb, n);
     }
 
+    alarm(0);   /* survived in time: disarm */
     printf("bbp_fuzz: corpus survived (no crash, no hang)\n");
     printf("bbp_fuzz: structured harness reached the tag walk %lu/%lu (%.1f%%)\n",
            reached, structured_total,

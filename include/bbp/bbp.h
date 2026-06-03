@@ -4,10 +4,10 @@
  *   Author: F E R M I  ∞  H A R T  <contact@fermihart.com>
  *   SPDX-License-Identifier: BSD-3-Clause
  *
- * BBP is a tag-based, UUID-versioned, multi-architecture boot protocol with
- * native measured-boot, observability and CRC64-checksummed structures.
- * It descends from the Aether Boot Protocol draft, rebranded and hardened
- * into a stable on-the-wire ABI shared between an UEFI/BIOS bootloader and a
+ * BBP is a tag-based, UUID-versioned, multi-architecture boot-handoff layer
+ * with CRC64-checksummed structures and a defensive, untrusted-input-safe
+ * kernel-side parser. It is a stable on-the-wire ABI shared between a producer
+ * (a bootloader, a UEFI-stub component, or an in-kernel adapter) and a
  * (possibly higher-half) kernel.
  *
  * ─────────────────────────────────────────────────────────────────────────

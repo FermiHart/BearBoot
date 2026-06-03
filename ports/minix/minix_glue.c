@@ -64,93 +64,6 @@ uint64_t bbp_minix_get_rsdp(void)
     return ac->rsdp_address;
 }
 
-/*
- * Fetch the kernel load address from the CRC-VERIFIED BBP KERNEL_ADDRESS tag.
- * Writes *phys / *virt and returns 1 on success; returns 0 (and leaves the
- * outputs untouched) if there is no valid context or no CRC-passing tag.
- *
- * HIGH-RISK consumer: these feed the kernel's vir<->phys translation in the
- * paging setup (pg_utils/protect/memory). A wrong value triple-faults the box.
- * The values originate from the same Limine response the kernel already had, so
- * a successful round-trip here PROVES the BBP build->seal->parse->read pipeline
- * preserves data byte-exact on the most critical path. Plain u64 out-params:
- * no BBP types cross into the MINIX -nostdinc TU.
- */
-int bbp_minix_get_kernel_address(uint64_t *phys, uint64_t *virt)
-{
-    if (!g_ctx_valid)
-        return 0;
-    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_KERNEL_ADDRESS);
-    if (!t)
-        return 0;
-    const struct bbp_tag_kernel_address *ka =
-        (const struct bbp_tag_kernel_address *)t;
-    if (phys) *phys = ka->physical_base;
-    if (virt) *virt = ka->virtual_base;
-    return 1;
-}
-
-/*
- * Consumer #4 — HHDM offset from the CRC-verified BBP HHDM tag.
- *
- * The "circularity" is only a BOOTSTRAP concern (you need an HHDM to walk the
- * physically-linked tag list at all). For CONSUMPTION it is the same safe
- * match-and-adopt pattern as KERNEL_ADDRESS: bbp_init_ex already read the HHDM
- * tag, CRC-checked it, and stored it in g_ctx.hhdm_offset (it drives every
- * subsequent tag translation). Returning it lets the kernel adopt a value that
- * survived the CRC round-trip for its own 23 phys<->virt call-sites, after
- * confirming it equals the raw Limine offset. Returns 1 + *offset on success.
- */
-int bbp_minix_ctx_hhdm(uint64_t *offset)
-{
-    if (!g_ctx_valid)
-        return 0;
-    /* g_ctx.hhdm_offset was set by bbp_init_ex from the CRC-verified HHDM tag. */
-    if (offset) *offset = g_ctx.hhdm_offset;
-    return 1;
-}
-
-/*
- * Consumer #5 — MEMORY_MAP cross-check (VERIFY, not replace).
- *
- * The physical allocator (pg_utils/pre_init) consumes the memory map BEFORE the
- * adapter exists, so we cannot source it from BBP without reworking the most
- * critical early path. Instead we VERIFY: walk the CRC-verified BBP MEMORY_MAP
- * tag, recompute the usable-RAM total, and compare it against the same total
- * derived from the raw Limine entries the kernel imported. A match proves the
- * map the kernel allocates from is byte-consistent with the CRC-sealed copy.
- *
- * `raw_usable_bytes` is the kernel's own sum over LIMINE_MEMMAP_USABLE entries.
- * Returns 1 and writes *bbp_usable_bytes / *bbp_entry_count on success.
- */
-int bbp_minix_verify_memmap(uint64_t raw_usable_bytes,
-                            uint64_t *bbp_usable_bytes, uint32_t *bbp_entry_count)
-{
-    if (!g_ctx_valid)
-        return 0;
-    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_MEMORY_MAP);
-    if (!t)
-        return 0;
-    const struct bbp_tag_memory_map *mm = (const struct bbp_tag_memory_map *)t;
-    uint32_t cnt = 0;
-    const struct bbp_memory_entry *e =
-        bbp_tag_array(t, sizeof(*mm), sizeof(struct bbp_memory_entry),
-                      mm->entry_count, &cnt);
-    uint64_t usable = 0;
-    for (uint32_t i = 0; i < cnt; i++)
-        if (e[i].type == BBP_MEM_USABLE)
-            usable += e[i].length;
-    if (bbp_usable_bytes) *bbp_usable_bytes = usable;
-    if (bbp_entry_count)  *bbp_entry_count  = cnt;
-
-    const struct bbp_osif *osif = bbp_minix_osif();
-    if (usable == raw_usable_bytes)
-        osif->log("[bbp] memory map: BBP CRC-verified usable RAM matches raw Limine\n");
-    else
-        osif->log("[bbp] memory map: MISMATCH between BBP and raw usable totals\n");
-    return 1;
-}
-
 /* --- tiny number printers (no libc; OSIF log takes one string at a time) --- */
 static void glue_hex(const struct bbp_osif *o, uint64_t v)
 {
@@ -216,10 +129,6 @@ static int glue_count_cb(const struct bbp_tag_header *tag, void *user)
  *   entries     Limine memmap_request.response->entries (void**), or NULL
  *   count       memmap entry_count
  *   cmdline     NUL-terminated boot cmdline, or NULL
- *   cpu_count   number of logical CPUs (0 => no SMP tag)
- *   bsp_lapic   BSP LAPIC id
- *   lapic_ids   array of cpu_count LAPIC ids (void* -> uint32_t*), or NULL
- *   x2apic      1 if x2APIC mode
  *
  * Returns the BBP status as int (0 == BBP_OK). Logs a one-line verdict to the
  * serial console via the OSIF. NON-FATAL by contract: on any error MINIX keeps
@@ -228,9 +137,7 @@ static int glue_count_cb(const struct bbp_tag_header *tag, void *user)
 int bbp_minix_boot_glue(uint64_t hhdm, uint64_t kphys, uint64_t kvirt,
                         int have_kaddr, uint64_t rsdp,
                         void **entries, uint64_t count,
-                        const char *cmdline,
-                        uint32_t cpu_count, uint32_t bsp_lapic,
-                        void *lapic_ids, int x2apic)
+                        const char *cmdline)
 {
     struct bbp_minix_bootinfo bi;
     for (unsigned z = 0; z < sizeof(bi); z++)
@@ -258,11 +165,6 @@ int bbp_minix_boot_glue(uint64_t hhdm, uint64_t kphys, uint64_t kvirt,
     bi.mmap_count = m;
     bi.cmdline    = cmdline;
 
-    bi.cpu_count    = cpu_count;
-    bi.bsp_lapic_id = bsp_lapic;
-    bi.lapic_ids    = (const uint32_t *)lapic_ids;
-    bi.x2apic       = x2apic ? 1 : 0;
-
     bbp_status_t st = bbp_minix_adapter(&g_ctx, &bi);
 
     const struct bbp_osif *osif = bbp_minix_osif();
@@ -276,17 +178,6 @@ int bbp_minix_boot_glue(uint64_t hhdm, uint64_t kphys, uint64_t kvirt,
         uint32_t ntags = 0;
         bbp_for_each_tag(&g_ctx, glue_count_cb, &ntags);
         bbp_minix_banner(osif, g_ctx.hhdm_offset, ntags);
-
-        /* Consumer #6 -- report the CRC-verified SMP topology. */
-        const struct bbp_tag_header *st6 = bbp_find_tag(&g_ctx, BBP_TAG_SMP);
-        if (st6) {
-            const struct bbp_tag_smp *sm = (const struct bbp_tag_smp *)st6;
-            osif->log("[bbp] SMP tag CRC-verified: cpu_count=");
-            glue_dec(osif, sm->cpu_count);
-            osif->log(" bsp_lapic=");
-            glue_dec(osif, sm->bsp_id);
-            osif->log((sm->flags & BBP_SMP_FLAG_X2APIC) ? " x2APIC\n" : " xAPIC\n");
-        }
     }
     return (int)st;
 }

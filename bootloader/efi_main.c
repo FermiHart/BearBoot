@@ -1,14 +1,18 @@
 /*
- * efi_main.c — reference UEFI bootloader entry for the Bear Boot Protocol.
+ * efi_main.c — reference UEFI producer SKELETON for the Bear Boot Protocol.
  *
  *   Author: F E R M I  ∞  H A R T  <contact@fermihart.com>
  *   SPDX-License-Identifier: BSD-3-Clause
  *
- * This is a SKELETON showing the BBP handoff sequence with gnu-efi. The
- * hardware-collection functions (collect_*) are declared here and must be
- * implemented against your firmware; what matters for the protocol is the
- * ORDER and that every tag is sealed before ExitBootServices, and the info
- * CRC is sealed last. Pointer in RDI at the jump (System V / kernel ABI).
+ * STATUS: this is a REFERENCE SKELETON / BASE, not a finished bootloader. It
+ * shows the BBP producer handoff sequence with gnu-efi. The hardware-collection
+ * functions (collect_*), the ELF loader (bbp_load_kernel) and page allocator
+ * (bbp_alloc_pages) are declared `extern` and MUST be implemented against your
+ * firmware/loader. What this file pins down — and what matters for the protocol
+ * — is the ORDER: every tag is sealed before ExitBootServices, the info CRC is
+ * sealed last, and the physical info pointer is passed in RDI (System V / kernel
+ * ABI). Port the collect_* glue; the builder API (bbp_build.c) is firmware-
+ * agnostic. See STATUS.md (🟡 SKELETON) for what is and is not exercised.
  */
 #include <efi.h>
 #include <efilib.h>

@@ -48,8 +48,22 @@ abi:
 	@echo "ABI static_asserts OK"
 
 # ---- hosted self-test ------------------------------------------------------
+# Belt-and-suspenders against a hang regression: the binary arms its own SIGALRM
+# watchdog (see abi_selftest.c), AND we wrap it in `timeout` here so even a hang
+# that somehow escapes the in-process alarm (e.g. before main, or a blocked
+# signal) becomes a hard, visible failure instead of a 100%-CPU zombie. The
+# `timeout` is a no-op when absent (portable fallback runs the binary directly).
+TEST_TIMEOUT ?= 60
 test: $(BUILD)/abi_selftest
-	$(BUILD)/abi_selftest
+	@if command -v timeout >/dev/null 2>&1; then \
+	    timeout --foreground -k 5 $(TEST_TIMEOUT) $(BUILD)/abi_selftest; rc=$$?; \
+	    if [ $$rc -eq 124 ]; then \
+	        echo "FAILED: self-test exceeded $(TEST_TIMEOUT)s (hang regression — see SIGALRM note in abi_selftest.c)"; \
+	    fi; \
+	    exit $$rc; \
+	else \
+	    $(BUILD)/abi_selftest; \
+	fi
 
 $(BUILD)/abi_selftest: tests/abi_selftest.c bootloader/bbp_build.c kernel/bbp_kernel.c
 	@mkdir -p $(BUILD)
@@ -79,15 +93,33 @@ $(BUILD)/kernel.elf: $(BUILD)/kernel_header.o $(BUILD)/bbp_kernel.o examples/lin
 	$(PYTHON) tools/bbp_stamp.py $@ --check
 
 # ---- fuzzer ----------------------------------------------------------------
+# Bounded so `make fuzz` always TERMINATES and a hang is a visible failure:
+#  - libFuzzer build: -max_total_time caps the campaign (no-arg libFuzzer would
+#    otherwise fuzz forever).
+#  - deterministic build: its own SIGALRM watchdog (in fuzz_parser.c) caps it.
+#  - either way, a `timeout` wrapper is the outer belt (exit 124 on overrun).
+FUZZ_SECONDS ?= 30
+FUZZ_TIMEOUT ?= 90
 fuzz: $(BUILD)/bbp_fuzz
-	@echo "running fuzz smoke (deterministic corpus)..."
-	$(BUILD)/bbp_fuzz
+	@echo "running fuzz smoke..."
+	@if [ -f $(BUILD)/.bbp_fuzz_libfuzzer ]; then \
+	    run="$(BUILD)/bbp_fuzz -max_total_time=$(FUZZ_SECONDS) -print_final_stats=1"; \
+	else \
+	    run="$(BUILD)/bbp_fuzz"; \
+	fi; \
+	if command -v timeout >/dev/null 2>&1; then \
+	    timeout --foreground -k 5 $(FUZZ_TIMEOUT) $$run; rc=$$?; \
+	    if [ $$rc -eq 124 ]; then echo "FAILED: fuzz exceeded $(FUZZ_TIMEOUT)s (hang regression)"; fi; \
+	    exit $$rc; \
+	else $$run; fi
 
 $(BUILD)/bbp_fuzz: tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.c
 	@mkdir -p $(BUILD)
+	@rm -f $(BUILD)/.bbp_fuzz_libfuzzer
 	@if $(FUZZCC) -fsanitize=fuzzer,address -std=c11 $(INCLUDE) \
 	    -DBBP_LIBFUZZER tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.c -o $@ 2>/dev/null; then \
 	    echo "[fuzz] built with libFuzzer ($(FUZZCC))"; \
+	    touch $(BUILD)/.bbp_fuzz_libfuzzer; \
 	else \
 	    echo "[fuzz] libFuzzer unavailable; building deterministic driver (+ASan if available)"; \
 	    $(HOSTCC) $(HOSTFLAGS) -fsanitize=address $(INCLUDE) tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.c -o $@ 2>/dev/null \

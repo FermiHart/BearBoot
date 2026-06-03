@@ -211,36 +211,6 @@ bbp_status_t bbp_minix_adapter(struct bbp_kctx *out,
         }
     }
 
-    /* --- SMP / MP topology (optional) ---------------------------------- */
-    if (bi->cpu_count > 0) {
-        size_t total = sizeof(struct bbp_tag_smp)
-                     + (size_t)bi->cpu_count * sizeof(struct bbp_cpu_info);
-        struct bbp_tag_smp *smp = bbp_alloc_tag(&b, BBP_TAG_SMP, 1, total);
-        if (smp) {
-            smp->cpu_count = bi->cpu_count;
-            smp->bsp_id    = bi->bsp_lapic_id;
-            smp->flags     = bi->x2apic ? BBP_SMP_FLAG_X2APIC : 0;
-            struct bbp_cpu_info *ci =
-                (struct bbp_cpu_info *)bbp_tag_payload(&smp->header,
-                                            sizeof(struct bbp_tag_smp));
-            for (uint32_t i = 0; i < bi->cpu_count; i++) {
-                uint32_t lid = bi->lapic_ids ? bi->lapic_ids[i] : i;
-                ci[i].processor_id   = i;
-                ci[i].apic_id        = lid;
-                ci[i].state          = 0;
-                ci[i].flags          = 0;
-                ci[i].package_id     = 0;
-                ci[i].core_id        = 0;
-                ci[i].thread_id      = 0;
-                ci[i].numa_node      = 0;
-                ci[i].capabilities   = 0;
-                ci[i].clock_frequency= 0;
-                ci[i].wakeup_vector  = 0;
-                ci[i].extra_argument = 0;
-            }
-        }
-    }
-
     /* --- finalize: seal every tag CRC + info CRC ----------------------- */
     bbp_builder_finalize(&b, info, (bbp_phys_t)tagbase_phys
                                    - (bbp_phys_t)(sizeof(struct bbp_info)));

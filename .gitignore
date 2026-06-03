@@ -1,17 +1,17 @@
 # Build artifacts
-/build/
+build/
+**/build/
 *.o
+*.a
 *.elf
 *.bin
-*.log
+*.iso
 
-# Editor / OS
+# Test harness binaries (sources are tracked; binaries are not)
+ports/*/build/
+tests/**/*.out
+
+# Editor / OS noise
 *.swp
 *~
 .DS_Store
-.vscode/
-.idea/
-
-# Python
-__pycache__/
-*.pyc
