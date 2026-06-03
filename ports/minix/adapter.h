@@ -63,6 +63,16 @@ struct bbp_minix_bootinfo {
     /* Command line (optional). NUL-terminated, caller-owned; the adapter
      * copies it into the arena and seals its string_crc. NULL => omit. */
     const char *cmdline;
+
+    /* SMP / MP topology (Limine multiprocessor response). The caller flattens
+     * the per-CPU LAPIC ids into `lapic_ids` (caller-owned, valid for the call).
+     * cpu_count == 0 => Limine gave no MP response => the adapter omits the
+     * SMP tag (uniprocessor-by-omission). cpu_count >= 1 emits a BBP_TAG_SMP
+     * with one bbp_cpu_info per CPU. */
+    const uint32_t *lapic_ids;
+    uint32_t   smp_cpu_count;
+    uint32_t   smp_bsp_lapic;
+    int        smp_x2apic;        /* nonzero => BBP_SMP_FLAG_X2APIC */
 };
 
 /* Build + validate a BBP context from `bi`. On BBP_OK, *out is a validated

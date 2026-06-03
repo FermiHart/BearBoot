@@ -70,11 +70,14 @@ the port keeps them distinct (see osif.c alias note + adapter.c).
         [*] Limine -> BBP adapter ......... ACTIVE
         [*] handoff integrity ............. CRC-64/XZ verified
         [*] HHDM reachability (SPEC 10.1b)  ok, offset=0xffff800000000000
-        [*] tags validated ................ 5
+        [*] tags validated ................ 6
         MINIX x86_64 now sees hardware through BBP.
       The kernel then continues to the interactive JASH shell.
 - [x] bbp_init_ex returned BBP_OK on real boot data (the "BBP adapter: ok" line
-      is bbp_strstatus(st) with st==BBP_OK; 5 tags CRC-validated by the parser).
+      is bbp_strstatus(st) with st==BBP_OK; 6 tags CRC-validated by the parser:
+      HHDM, MEMORY_MAP, KERNEL_ADDRESS, SMP, ACPI, CMDLINE. The SMP tag carries
+      the Limine MP topology (cpu_count/bsp/LAPIC ids); a uniprocessor boot still
+      emits a valid 1-CPU tag, so the count is 6 with or without -smp).
 - [x] bbp_verify_blob called on every out-of-line payload consumed — the
       harness calls it on the CMDLINE before reading the string (the
       standalone test/harness.c path; the MINIX glue passes cmdline through and

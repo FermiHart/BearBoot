@@ -64,6 +64,101 @@ uint64_t bbp_minix_get_rsdp(void)
     return ac->rsdp_address;
 }
 
+/*
+ * Consumer #4 — HHDM offset from the CRC-verified BBP HHDM tag.
+ * Writes the tag's offset into *out and returns 1 on success; returns 0 (and
+ * leaves *out untouched) when there is no valid context or no integrity-checked
+ * HHDM tag. The kernel adopts the value only if it matches the raw Limine HHDM,
+ * so this is a pure integrity gate. Plain u64* signature — no BBP types cross
+ * into the MINIX -nostdinc TU. F E R M I ∞ H A R T
+ */
+int bbp_minix_ctx_hhdm(uint64_t *out)
+{
+    if (!g_ctx_valid || !out)
+        return 0;
+    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_HHDM);
+    if (!t)
+        return 0;
+    const struct bbp_tag_hhdm *h = (const struct bbp_tag_hhdm *)t;
+    *out = (uint64_t)h->offset;
+    return 1;
+}
+
+/*
+ * Consumer #5 — MEMORY_MAP cross-check (verify, not replace). Sums the usable
+ * RAM in the CRC-verified BBP MEMORY_MAP tag and compares it to raw_usable
+ * (the total the kernel imported from the raw Limine map). Pure diagnostic:
+ * the allocator keeps running on the raw map. Returns 1 if the BBP usable total
+ * equals raw_usable (integrity OK), 0 otherwise or when no tag/context. The
+ * optional out params (bbp_usable, entries) receive the computed totals when
+ * non-NULL. F E R M I ∞ H A R T
+ */
+int bbp_minix_verify_memmap(uint64_t raw_usable, uint64_t *bbp_usable,
+                            uint32_t *entries)
+{
+    if (!g_ctx_valid)
+        return 0;
+    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_MEMORY_MAP);
+    if (!t)
+        return 0;
+    const struct bbp_tag_memory_map *mm = (const struct bbp_tag_memory_map *)t;
+    const struct bbp_memory_entry *e =
+        (const struct bbp_memory_entry *)((const char *)mm + sizeof(*mm));
+    uint64_t usable = 0;
+    uint32_t i;
+    for (i = 0; i < mm->entry_count; i++)
+        if (e[i].type == BBP_MEM_USABLE)
+            usable += e[i].length;
+    if (bbp_usable) *bbp_usable = usable;
+    if (entries)    *entries = mm->entry_count;
+    return usable == raw_usable;
+}
+
+/*
+ * Consumer #6 — SMP topology from the CRC-verified BBP SMP tag. Returns 1 and
+ * fills *cpu_count / *bsp_id / *x2apic when the tag is present and valid, else 0
+ * (outputs untouched). Plain scalar* signature — no BBP types cross into the
+ * MINIX -nostdinc TU. The kernel uses this purely to confirm the 6th tag
+ * round-tripped through the builder + parser; AP bring-up reads the live Limine
+ * MP response directly.  F E R M I ∞ H A R T
+ */
+int bbp_minix_verify_smp(uint32_t *cpu_count, uint32_t *bsp_id, int *x2apic)
+{
+    if (!g_ctx_valid)
+        return 0;
+    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_SMP);
+    if (!t)
+        return 0;
+    const struct bbp_tag_smp *smp = (const struct bbp_tag_smp *)t;
+    if (cpu_count) *cpu_count = smp->cpu_count;
+    if (bsp_id)    *bsp_id    = smp->bsp_id;
+    if (x2apic)    *x2apic    = (int)(smp->flags & BBP_SMP_FLAG_X2APIC);
+    return 1;
+}
+
+/*
+ * Consumer #3 — kernel load address from the CRC-verified BBP KERNEL_ADDRESS
+ * tag. Writes physical_base into *phys and virtual_base into *virt, returning 1
+ * on success; returns 0 (leaving outputs untouched) with no valid context or
+ * tag. The kernel adopts the values only if they match the raw Limine bases, so
+ * this is a pure integrity gate before they feed paging/KASLR-slide math. Plain
+ * u64* signatures — no BBP types cross into the MINIX -nostdinc TU.
+ * F E R M I ∞ H A R T
+ */
+int bbp_minix_get_kernel_address(uint64_t *phys, uint64_t *virt)
+{
+    if (!g_ctx_valid || !phys || !virt)
+        return 0;
+    const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_KERNEL_ADDRESS);
+    if (!t)
+        return 0;
+    const struct bbp_tag_kernel_address *k =
+        (const struct bbp_tag_kernel_address *)t;
+    *phys = (uint64_t)k->physical_base;
+    *virt = (uint64_t)k->virtual_base;
+    return 1;
+}
+
 /* --- tiny number printers (no libc; OSIF log takes one string at a time) --- */
 static void glue_hex(const struct bbp_osif *o, uint64_t v)
 {
@@ -137,7 +232,9 @@ static int glue_count_cb(const struct bbp_tag_header *tag, void *user)
 int bbp_minix_boot_glue(uint64_t hhdm, uint64_t kphys, uint64_t kvirt,
                         int have_kaddr, uint64_t rsdp,
                         void **entries, uint64_t count,
-                        const char *cmdline)
+                        const char *cmdline,
+                        uint32_t cpu_count, uint32_t bsp_lapic,
+                        void *lapic_ids, int x2apic)
 {
     struct bbp_minix_bootinfo bi;
     for (unsigned z = 0; z < sizeof(bi); z++)
@@ -164,6 +261,12 @@ int bbp_minix_boot_glue(uint64_t hhdm, uint64_t kphys, uint64_t kvirt,
     bi.mmap       = g_mmap;
     bi.mmap_count = m;
     bi.cmdline    = cmdline;
+
+    /* SMP topology (Limine MP response, already flattened by the caller). */
+    bi.lapic_ids     = (const uint32_t *)lapic_ids;
+    bi.smp_cpu_count = cpu_count;
+    bi.smp_bsp_lapic = bsp_lapic;
+    bi.smp_x2apic    = x2apic;
 
     bbp_status_t st = bbp_minix_adapter(&g_ctx, &bi);
 

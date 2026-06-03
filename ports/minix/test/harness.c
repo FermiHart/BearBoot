@@ -209,6 +209,16 @@ void harness_main(void)
     bi.cmdline = harness_cmdline;
     log_s("[harness] cmdline .............. "); log_s(harness_cmdline); log_s("\n");
 
+    /* SMP: synthesize a 2-CPU topology so the harness exercises the BBP SMP
+     * tag path the same way the live MINIX adapter does (cpu_count>=1 emits
+     * the tag; the live integration flattens the Limine MP response). */
+    static const uint32_t harness_lapic_ids[2] = { 0, 1 };
+    bi.lapic_ids     = harness_lapic_ids;
+    bi.smp_cpu_count = 2;
+    bi.smp_bsp_lapic = 0;
+    bi.smp_x2apic    = 0;
+    log_s("[harness] SMP cpu_count ........ "); log_dec(bi.smp_cpu_count); log_s("\n");
+
     /* ---- Run the REAL adapter (the shipped port code). ----------------- */
     log_s("\n[harness] calling bbp_minix_adapter()...\n");
     struct bbp_kctx k;
@@ -236,10 +246,25 @@ void harness_main(void)
     const struct bbp_tag_header *mm   = bbp_find_tag(&k, BBP_TAG_MEMORY_MAP);
     const struct bbp_tag_header *ka   = bbp_find_tag(&k, BBP_TAG_KERNEL_ADDRESS);
     const struct bbp_tag_header *acpi = bbp_find_tag(&k, BBP_TAG_ACPI);
+    const struct bbp_tag_header *smp  = bbp_find_tag(&k, BBP_TAG_SMP);
     log_s("[harness] HHDM tag ............. "); log_s(hhdm ? "present\n" : "MISSING\n");
     log_s("[harness] MEMORY_MAP tag ....... "); log_s(mm   ? "present\n" : "MISSING\n");
     log_s("[harness] KERNEL_ADDRESS tag ... "); log_s(ka   ? "present\n" : "MISSING\n");
     log_s("[harness] ACPI tag ............. "); log_s(acpi ? "present\n" : "absent (no RSDP)\n");
+    log_s("[harness] SMP tag .............. "); log_s(smp  ? "present\n" : "MISSING\n");
+
+    if (smp) {
+        const struct bbp_tag_smp *s = (const struct bbp_tag_smp *)smp;
+        log_s("[harness] SMP cpu_count ........ "); log_dec(s->cpu_count);
+        log_s(" bsp="); log_dec(s->bsp_id); log_s("\n");
+        if (s->cpu_count != bi.smp_cpu_count) {
+            log_s("[harness] RESULT: FAIL (SMP cpu_count round-trip mismatch)\n");
+            qemu_exit(0xBAD);
+        }
+    } else {
+        log_s("[harness] RESULT: FAIL (SMP tag missing after cpu_count>=1)\n");
+        qemu_exit(0xBAD);
+    }
 
     if (mm) {
         const struct bbp_tag_memory_map *m = (const struct bbp_tag_memory_map *)mm;

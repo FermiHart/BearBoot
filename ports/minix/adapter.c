@@ -145,6 +145,43 @@ bbp_status_t bbp_minix_adapter(struct bbp_kctx *out,
         }
     }
 
+    /* --- SMP / MP topology (CORE) -------------------------------------- */
+    /* cpu_count == 0 means Limine gave no MP response: omit the tag and the
+     * handoff is uniprocessor-by-omission. cpu_count >= 1 (including a single
+     * BSP) emits a BBP_TAG_SMP with one bbp_cpu_info per CPU. The variable-
+     * length payload is bbp_cpu_info[cpu_count], exactly as the spec lays out
+     * (struct bbp_tag_smp is followed by the array). */
+    if (bi->smp_cpu_count && bi->lapic_ids) {
+        size_t total = sizeof(struct bbp_tag_smp)
+                     + (size_t)bi->smp_cpu_count * sizeof(struct bbp_cpu_info);
+        struct bbp_tag_smp *smp = bbp_alloc_tag(&b, BBP_TAG_SMP, 1, total);
+        if (smp) {
+            smp->cpu_count = bi->smp_cpu_count;
+            smp->bsp_id    = bi->smp_bsp_lapic;
+            smp->flags     = bi->smp_x2apic ? BBP_SMP_FLAG_X2APIC : 0;
+            struct bbp_cpu_info *ci =
+                (struct bbp_cpu_info *)bbp_tag_payload(&smp->header,
+                                            sizeof(struct bbp_tag_smp));
+            for (uint32_t i = 0; i < bi->smp_cpu_count; i++) {
+                uint32_t lid = bi->lapic_ids[i];
+                ci[i].processor_id   = i;
+                ci[i].apic_id        = lid;
+                ci[i].state          = (lid == bi->smp_bsp_lapic)
+                                       ? BBP_CPU_STATE_RUNNING
+                                       : BBP_CPU_STATE_STOPPED;
+                ci[i].flags          = 0;
+                ci[i].package_id     = 0;
+                ci[i].core_id        = (uint16_t)i;
+                ci[i].thread_id      = 0;
+                ci[i].numa_node      = 0;
+                ci[i].capabilities   = 0;
+                ci[i].clock_frequency= 0;
+                ci[i].wakeup_vector  = 0;
+                ci[i].extra_argument = 0;
+            }
+        }
+    }
+
     /* --- ACPI ---------------------------------------------------------- */
     if (bi->rsdp_phys) {
         struct bbp_tag_acpi *ac = bbp_alloc_tag(&b, BBP_TAG_ACPI, 1, sizeof(*ac));
