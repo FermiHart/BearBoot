@@ -19,11 +19,18 @@ MINOR on backward-compatible additions. Rationale for major decisions is in
   (ADR-0005); normative HHDM reachability contract in SPEC §10.1.
 - `bbp_tag_array()` — clamps a tag's claimed element count to what physically
   fits in `tag_size`, preventing OOB reads from a forged count.
+- `bbp_init_win()` / `bbp_set_walk_window()` — optional walk window (ADR-0009):
+  a consumer that knows the mapped tag region declares it, and the parser
+  rejects any tag pointer outside it. Closes a gap a fuzzer found (a pointer
+  in-range but past real RAM passed the architectural bound yet would fault on
+  dereference). Disabled by default → backward compatible; no ABI change.
 - `tools/bbp_stamp.py` — post-link header stamper (entry/requests/checksum),
   cross-verified against the C runtime CRC.
 - Reference higher-half `examples/linker.ld` (KEEP/AT/NOLOAD, 0 linter warnings).
-- Bare-metal QEMU round-trip test, structure-aware fuzzer (100% walk reach,
-  ASan-clean), ADRs 0001–0008, CI, SECURITY.md.
+- Bare-metal QEMU round-trip test; structure-aware libFuzzer+ASan parser fuzzer
+  (survives 380k+ executions, zero crashes); hang watchdog (SIGALRM + `timeout`
+  wrapper) on the hosted gates so an infinite-loop regression fails visibly
+  instead of spinning at 100% CPU; ADRs 0001–0009, CI, SECURITY.md.
 
 ### Fixed / hardened
 - Integer underflow in `bbp_crc_skip` (`tag_size < 32` → ~16 EiB scan): gated.

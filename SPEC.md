@@ -230,6 +230,20 @@ field with the CRC-64/XZ of the referenced bytes. A consumer MUST call
 measurement log whose `measurements_crc` fails. A zero `*_crc` means
 "unchecked"; a consumer accepts it only if it explicitly opts in.
 
+### 10.3 Walk window (OPTIONAL, hardening — ADR-0009)
+
+The parser bounds every tag pointer to the architectural maximum
+(`BBP_MAX_PHYS`) before dereference. That prevents an out-of-bounds read but
+NOT a dereference of an address that is in-range yet UNMAPPED — on a real
+higher-half kernel the HHDM maps only actual RAM, so a forged pointer past the
+top of RAM passes the arithmetic check and page-faults. (Found by the parser
+fuzzer.) A consumer that knows the physical region holding the tag list is
+mapped MAY declare it as a walk window via `bbp_init_win(out, info, hint,
+walk_lo, walk_hi)` or `bbp_set_walk_window`; the parser then rejects any tag
+pointer outside `[walk_lo, walk_hi)` as corruption instead of faulting. The
+window is OPTIONAL and disabled by default (`bbp_init`/`bbp_init_ex` leave it
+unset, preserving v1.0/v1.1 behavior); it changes no on-the-wire structure.
+
 
 ## 11. Conformance
 
