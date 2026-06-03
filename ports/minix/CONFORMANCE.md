@@ -95,26 +95,32 @@ CFLAGS (-Werror -nostdinc + -idirafter destdir).
 
 ## In-kernel consumers (tags actually used by MINIX, not just produced)
 
-Six distinct boot datums could be sourced from BBP. Final state: 3 consumed via
-CRC-verified tags, 3 deliberately left on the raw path with documented reasons.
+Six distinct boot datums could be sourced from BBP. FINAL STATE: all 6 consumed
+via CRC-verified tags (2 as authoritative-with-fallback, 1 adopt-after-verify,
+2 verify/cross-check, 1 topology report). 6 tags validated at every boot.
 
 | # | datum            | BBP tag         | consumer                          | status |
 |---|------------------|-----------------|-----------------------------------|--------|
 | 1 | ACPI RSDP        | BBP_TAG_ACPI    | acpi.c get_acpi_rsdp()            | DONE — CRC-verified, raw fallback |
-| 2 | kernel load addr | KERNEL_ADDRESS  | limine_kinfo.c -> paging helpers  | DONE — CRC-verified, fail-safe to raw on mismatch |
-| 3 | (adapter itself) | HHDM/MEMORY_MAP/… | bbp_minix_adapter validates all | DONE — 5 tags CRC-checked at boot |
-| 4 | HHDM offset      | BBP_TAG_HHDM    | 23 call-sites (phys<->virt)       | NOT consumed — circular: the HHDM is needed to read the tag list itself, so re-sourcing it from its own tag is theatre, not integrity. Left raw by design. |
-| 5 | memory map       | MEMORY_MAP      | pg_utils/pre_init physical allocator | NOT consumed — runs before the adapter exists and is the most critical alloc path; high risk, marginal gain. Produced + CRC-checked, available for diagnostics. |
-| 6 | framebuffer / SMP| FRAMEBUFFER/SMP | (none in current MINIX)           | NOT consumed — no client; tag produced optionally. |
+| 2 | kernel load addr | KERNEL_ADDRESS  | limine_kinfo.c -> paging helpers  | DONE — adopt-after-verify, fail-safe to raw |
+| 3 | HHDM offset      | BBP_TAG_HHDM    | limine_kinfo.c (23 phys<->virt sites) | DONE — adopt-after-verify, fail-safe to raw |
+| 4 | memory map       | MEMORY_MAP      | limine_kinfo.c cross-check        | DONE — CRC-verified usable-RAM total cross-checked vs raw (verify, not replace; allocator still runs on the imported map) |
+| 5 | SMP topology     | BBP_TAG_SMP     | minix_glue.c report               | DONE — adapter produces SMP tag from Limine MP response; cpu_count/bsp/x2apic CRC-verified and reported |
+| 6 | (adapter itself) | all of the above| bbp_minix_adapter validates all   | DONE — 6 tags CRC-checked at boot |
 
-Consumers #1 and #2 each fall back to / fail-safe to the raw Limine value if BBP
-is unavailable or a tag fails CRC, so the port never makes the kernel LESS
+All adopt/replace consumers fall back to / fail-safe to the raw Limine value if
+BBP is unavailable or a tag fails CRC, so the port never makes the kernel LESS
 robust than the legacy path — it only adds an integrity-checked preference.
+The memory map is VERIFIED (not replaced): the critical pre-adapter allocator
+still runs on the imported Limine map; BBP cross-checks it for integrity.
 
-Evidence: test/serial.log (adapter ok, 5 tags), test/serial-acpi-consumer.log
-("RSDP via Bear Boot Protocol"), test/serial-kaddr-consumer.log ("kernel
-address: BBP CRC-verified (matches raw) -- paging uses BBP values"), each from a
-real MINIX boot that proceeds to the JASH userland shell.
+Evidence (real MINIX boots, each proceeding to the JASH shell):
+  test/serial.log                  adapter ok, tags validated
+  test/serial-acpi-consumer.log    "RSDP via Bear Boot Protocol"
+  test/serial-kaddr-consumer.log   "kernel address: BBP CRC-verified"
+  test/serial-all6-consumers.log   ALL SIX: 6 tags, SMP cpu_count=2,
+                                   kernel address + HHDM + memory map + RSDP
+                                   all BBP CRC-verified in one boot
 
 ## Deviations / known gaps (honest accounting)
 1. **Resolved.** Runtime boot evidence IS captured — test/serial.log from a real
@@ -124,6 +130,7 @@ real MINIX boot that proceeds to the JASH userland shell.
 3. ACPI tag carries rsdp_address only (no RSDP/RSDT parse).
 4. Framebuffer EDID not forwarded (edid_crc=0); width/height/pitch/format are.
 5. Scratch arena is a 64 KiB static buffer (v1); swap to the kernel PMM later.
-6. HHDM/MEMORY_MAP consumers (datums #4/#5) intentionally not migrated — see the
-   consumers table above for the structural reasons (circularity / critical
-   pre-adapter alloc path). These are conscious scope decisions, not omissions.
+6. All 6 boot datums are now consumed via CRC-verified tags (see the consumers
+   table). The memory map is cross-checked rather than replaced (the critical
+   pre-adapter allocator path is left intact by design); HHDM and KERNEL_ADDRESS
+   are adopt-after-verify with raw fail-safe. No datum is left on a pure-raw path.

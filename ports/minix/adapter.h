@@ -63,6 +63,15 @@ struct bbp_minix_bootinfo {
     /* Command line (optional). NUL-terminated, caller-owned; the adapter
      * copies it into the arena and seals its string_crc. NULL => omit. */
     const char *cmdline;
+
+    /* SMP / MP topology (optional). The adapter emits a BBP_TAG_SMP carrying
+     * cpu_count entries when cpu_count > 0. lapic_ids points to caller-owned
+     * storage valid for the call; entry i becomes cpu_info[i].apic_id. A
+     * uniprocessor boot (cpu_count==1) still produces a valid 1-entry tag. */
+    uint32_t        cpu_count;
+    uint32_t        bsp_lapic_id;
+    const uint32_t *lapic_ids;     /* cpu_count entries, or NULL */
+    int             x2apic;        /* 1 if x2APIC mode */
 };
 
 /* Build + validate a BBP context from `bi`. On BBP_OK, *out is a validated
