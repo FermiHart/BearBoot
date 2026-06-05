@@ -1,0 +1,7 @@
+# BBP Josh-Bear port — build artifacts (not source).
+#   Author: F E R M I  ∞  H A R T  <contact@fermihart.com>
+build/
+test/build/
+
+# run.log IS the harness evidence — keep it tracked once produced:
+!test/run.log

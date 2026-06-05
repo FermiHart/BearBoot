@@ -1,0 +1,11 @@
+bbp_josh_adapter -> ok
+  tag HHDM         : present
+  tag MEMORY_MAP   : present
+  tag FRAMEBUFFER  : present
+  tag SMP          : present
+  tag CMDLINE      : present
+  memmap entries: 5 (type[0]=1 expect USABLE=1)
+  smp cpu_count=4 bsp_id=0
+  cmdline verify_blob -> ok
+total tags walked: 5
+RESULT: PASS

@@ -1,0 +1,8 @@
+# Josh-Bear BBP port — real-boot serial proof
+# Core commit: ae5d3e2 (v1.1). QEMU x86_64 + Limine + virtio-net. 2026-06-05T03:52:39Z
+# The Josh kernel ('lisabeth') runs bbp_josh_init() right after heap_init;
+# the adapter synthesizes HHDM+MEMORY_MAP+FRAMEBUFFER+SMP from Limine and the
+# frozen BBP parser validates the CRC-sealed tag list (0x4 = 4 tags, hex).
+
+[BOOT] Heap selftest passed
+[BBP] josh adapter ok, 0x4 tags, hhdm=0xffff800000000000 (CRC-sealed, parser-validated)
