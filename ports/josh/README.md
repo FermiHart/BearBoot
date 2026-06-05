@@ -40,6 +40,7 @@ The net result: `osif.c` is direct (every hook real, no slide math) and
 | FRAMEBUFFER | Limine framebuffer[0]        | optional (omitted if Limine gave none)   |
 | SMP         | Limine SMP response          | Josh is MULTICORE — the MINIX port never emitted this tag; it is the clearest Josh-specific addition |
 | CMDLINE     | Limine kernel cmdline        | optional, out-of-line string + string_crc |
+| SECURITY    | boot entropy gather (RDSEED/RDRAND/TSC) | optional — 48 B root-of-trust seed, out-of-line + entropy_crc. Josh verifies it (bbp_verify_blob) and seeds its CSPRNG from it. |
 
 ## Flow
 

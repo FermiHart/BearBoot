@@ -64,6 +64,16 @@ struct bbp_josh_bootinfo {
     /* Command line (optional). NUL-terminated, caller-owned; copied into the
      * arena with its string_crc sealed. NULL => omit. */
     const char *cmdline;
+
+    /* Boot entropy (optional). Caller-owned CSPRNG seed gathered from the best
+     * hardware source available (RDSEED > RDRAND > TSC jitter). The adapter
+     * copies it into the arena and emits a BBP_TAG_SECURITY whose entropy_data
+     * carries it with entropy_crc sealed (ADR-0006). entropy==NULL/len==0 =>
+     * omit the SECURITY tag. This is the boot root-of-trust seed: the consumer
+     * verifies entropy_crc, then seeds its kernel CSPRNG (and, later, the
+     * capability HMAC keys) from it. */
+    const uint8_t *entropy;
+    uint32_t       entropy_len;
 };
 
 /* Build + validate a BBP context from `bi`. On BBP_OK, *out is a validated kctx

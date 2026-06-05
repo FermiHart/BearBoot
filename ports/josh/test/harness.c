@@ -86,6 +86,13 @@ int main(void)
     bi.cpu_count      = (uint32_t)(sizeof(cpus) / sizeof(cpus[0]));
     bi.bsp_id         = 0;
     bi.cmdline        = "josh.test=1 root=/dev/ram0";
+    static const uint8_t seed[48] = {
+        0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08, 0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,
+        0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28, 0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,
+        0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48, 0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,
+    };
+    bi.entropy        = seed;
+    bi.entropy_len    = sizeof(seed);
 
     struct bbp_kctx k;
     bbp_status_t st = bbp_josh_adapter(&k, &bi);
@@ -99,6 +106,7 @@ int main(void)
         { BBP_TAG_FRAMEBUFFER, "FRAMEBUFFER", 1 },
         { BBP_TAG_SMP,         "SMP",         1 },
         { BBP_TAG_CMDLINE,     "CMDLINE",     1 },
+        { BBP_TAG_SECURITY,    "SECURITY",    1 },
     };
     for (unsigned i = 0; i < sizeof(want)/sizeof(want[0]); i++) {
         const struct bbp_tag_header *t = bbp_find_tag(&k, want[i].id);
@@ -135,6 +143,17 @@ int main(void)
                                           cl->string_crc, 0);
         printf("  cmdline verify_blob -> %s\n", bbp_strstatus(bs));
         if (bs != BBP_OK) fails++;
+    }
+
+    /* Verify the SECURITY tag's out-of-line entropy blob (ADR-0006). */
+    const struct bbp_tag_security *se =
+        (const struct bbp_tag_security *)bbp_find_tag(&k, BBP_TAG_SECURITY);
+    if (se) {
+        bbp_status_t bs = bbp_verify_blob(&k, se->entropy_data, se->entropy_size,
+                                          se->entropy_crc, 0);
+        printf("  security entropy: %u bytes, verify_blob -> %s\n",
+               se->entropy_size, bbp_strstatus(bs));
+        if (bs != BBP_OK || se->entropy_size != bi.entropy_len) fails++;
     }
 
     uint32_t total = 0;

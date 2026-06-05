@@ -190,6 +190,30 @@ bbp_status_t bbp_josh_adapter(struct bbp_kctx *out,
         }
     }
 
+    /* --- SECURITY (optional: boot entropy = root-of-trust seed) -------- *
+     * Only the entropy fields are populated (no TPM/measured-boot in v1). The
+     * seed is copied into the arena as an out-of-line blob and entropy_crc is
+     * sealed so the consumer can bbp_verify_blob() it before seeding its CSPRNG
+     * (ADR-0006). */
+    if (bi->entropy && bi->entropy_len) {
+        struct bbp_tag_security *se =
+            bbp_alloc_tag(&b, BBP_TAG_SECURITY, 1, sizeof(*se));
+        if (se) {
+            bbp_phys_t ephys = bbp_arena_blob(&b, bi->entropy, bi->entropy_len);
+            se->entropy_size = bi->entropy_len;
+            se->entropy_data = ephys;
+            if (ephys) {
+                const uint8_t *copy =
+                    (const uint8_t *)(tagbase + (size_t)(ephys - tagbase_phys));
+                se->entropy_crc = bbp_crc64(copy, bi->entropy_len);
+            } else {
+                se->entropy_size = 0;
+                se->entropy_crc  = 0;
+            }
+            /* TPM / secure-boot / measurements: none in v1 (left zeroed). */
+        }
+    }
+
     /* --- CMDLINE (optional, out-of-line string + string_crc) ---------- */
     if (bi->cmdline && bi->cmdline[0]) {
         struct bbp_tag_cmdline *cl =

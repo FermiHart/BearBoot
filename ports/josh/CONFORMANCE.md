@@ -54,7 +54,7 @@ bring-up bug cannot occur.
 | FRAMEBUFFER      | optional | yes (if present) | EDID not forwarded (edid_crc=0); w/h/pitch/format set |
 | SMP              | yes      | yes (harness) | n/a — **Josh-specific: the MINIX port never emitted this tag** |
 | CMDLINE          | optional | yes (if present) | string_crc — SET via bbp_crc64 over the arena copy |
-| SECURITY         | no       | n/a      | n/a (out of scope for v1) |
+| SECURITY         | optional | **yes (real boot)** | entropy_crc — SET; carries 48 B boot entropy (root-of-trust seed). Josh bbp_verify_blob()s it, then seeds its CSPRNG. TPM/measured-boot fields zeroed in v1. |
 
 ## Validation evidence (REQUIRED — no green claims without these)
 - [x] `make scaffold-check` passes (compiles+links against frozen core)
@@ -83,10 +83,13 @@ bring-up bug cannot occur.
 - [x] Real/QEMU Josh serial log showing the parser validated — **CONFIRMED.**
       `bbp_josh_init()` is wired into `kernel/boot/lisabeth_kernel.c` right after
       `heap_init` per ../integration.md §4. Captured proof (test/serial.log):
-        [BBP] josh adapter ok, 0x4 tags, hhdm=0xffff800000000000 (CRC-sealed, parser-validated)
-      4 tags = HHDM + MEMORY_MAP + FRAMEBUFFER + SMP (count is hex via Josh's
-      kserial_puthex; no CMDLINE on real boot — see gap 4). hhdm is Limine's
-      canonical higher-half base. QEMU x86_64 + Limine + virtio-net.
+        [BBP] josh adapter ok, 0x5 tags, hhdm=0xffff800000000000 (CRC-sealed, parser-validated)
+        [BBP] boot entropy: 0x30 bytes via rdrand, CRC ok (root-of-trust seed)
+        [NET] crypto: CSPRNG seeded from BBP root-of-trust entropy
+      5 tags = HHDM + MEMORY_MAP + FRAMEBUFFER + SMP + SECURITY (count is hex via
+      Josh's kserial_puthex; no CMDLINE on real boot — see gap 4). Josh VERIFIES
+      the SECURITY entropy blob (bbp_verify_blob) and seeds its CSPRNG from it —
+      BBP in the read path. hhdm is Limine's canonical higher-half base.
 
 ## Deviations / known gaps (honest accounting)
 1. **Real-Josh-boot serial proof: CONFIRMED** (test/serial.log). The hosted
@@ -94,8 +97,9 @@ bring-up bug cannot occur.
    data (5 tags incl. CMDLINE); the live Josh boot shows the adapter validating
    4 real Limine-derived tags (no CMDLINE — Josh has no Limine command line).
 2. now_ns uses a nominal 1 GHz TSC assumption (relative boot metrics only).
-3. No KERNEL_ADDRESS / ACPI / SECURITY tags in v1 — out of scope. KERNEL_ADDRESS
-   is unnecessary because the single direct map needs no slide reconciliation.
+3. No KERNEL_ADDRESS / ACPI tags in v1 — out of scope. KERNEL_ADDRESS is
+   unnecessary because the single direct map needs no slide reconciliation.
+   SECURITY is now produced (entropy only; TPM/measured-boot still out of scope).
 4. No CMDLINE on real boot (Josh boots with no Limine kernel command line in v1);
    the tag + string_crc path is exercised by the harness and ready for when a
    cmdline is added.
