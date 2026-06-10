@@ -1,0 +1,13 @@
+# Josh-Bear BBP port — real-boot serial proof
+# Core commit: ae5d3e2 (v1.1). QEMU x86_64 + Limine + virtio-net.
+# The Josh kernel ('lisabeth') runs bbp_josh_init() right after heap_init; the
+# adapter synthesizes HHDM+MEMORY_MAP+FRAMEBUFFER+SMP+SECURITY from Limine + a
+# boot-entropy gather, and the frozen BBP parser validates the CRC-sealed list.
+# Josh then VERIFIES the SECURITY entropy blob (bbp_verify_blob) and seeds its
+# CSPRNG from it — BBP in the read path, not just synthesis. (0x5 = 5 tags hex.)
+
+[BOOT] Heap selftest passed
+[BBP] josh adapter ok, 0x5 tags, hhdm=0xffff800000000000 (CRC-sealed, parser-validated)
+[BBP] boot entropy: 0x30 bytes via rdrand, CRC ok (root-of-trust seed)
+[NET] crypto: CSPRNG seeded from BBP root-of-trust entropy
+[NET] TLS+HTTPS ALIVE — RUST CAN REACH HTTPS (LLM PATH OPEN)
