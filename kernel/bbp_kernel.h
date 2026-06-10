@@ -145,6 +145,29 @@ bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
  * Returns BBP_ERR_NULL on a NULL ctx, else BBP_OK. */
 bbp_status_t bbp_set_walk_window(struct bbp_kctx *k, bbp_phys_t lo, bbp_phys_t hi);
 
+/* ── BOOT EVIDENCE (v1.2) ────────────────────────────────────────────
+ * Feed the ENTIRE validated handoff — the info struct plus every tag
+ * that passes the walk/CRC gates, in chain order — into a caller-
+ * supplied hash function. The caller owns the hash (BLAKE3, SHA-256,
+ * whatever its trust stack uses); the core stays dependency-free.
+ *
+ * Why this exists: CRC-64 is integrity against ACCIDENT, not against
+ * an adversary, and on every shipping OS the boot handoff dies after
+ * consumption — measured boot stops at kernel load. bbp_evidence lets
+ * a kernel reduce its boot input to ONE digest and anchor it in a
+ * runtime attestation chain (audit log, TPM PCR, sealed store) the
+ * moment its crypto comes up. The handoff becomes link zero of the
+ * system's tamper-evident history instead of a forgotten struct.
+ *
+ * Determinism contract: same info + same tag chain → same byte stream
+ * into `update`, namely: info[info_size] then, per surviving tag,
+ * tag[tag_size]. CRC-skipped tags are NOT fed (they are not trusted
+ * input). Returns the number of tags fed, or 0 on a NULL ctx/cb.
+ */
+typedef void (*bbp_hash_update_fn)(void *state, const void *data, size_t len);
+uint32_t bbp_evidence(const struct bbp_kctx *k,
+                      bbp_hash_update_fn update, void *state);
+
 /* Human-readable status string (static storage). */
 const char *bbp_strstatus(bbp_status_t s);
 

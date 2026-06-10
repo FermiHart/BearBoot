@@ -278,6 +278,34 @@ uint32_t bbp_for_each_tag(const struct bbp_kctx *k, bbp_tag_cb cb, void *user)
     return n;
 }
 
+struct bbp_evidence_walk {
+    bbp_hash_update_fn update;
+    void *state;
+};
+
+static int bbp_evidence_cb(const struct bbp_tag_header *tag, void *user)
+{
+    struct bbp_evidence_walk *w = (struct bbp_evidence_walk *)user;
+    w->update(w->state, tag, (size_t)tag->tag_size);
+    return 0;
+}
+
+uint32_t bbp_evidence(const struct bbp_kctx *k,
+                      bbp_hash_update_fn update, void *state)
+{
+    if (!k || !k->info || !update) return 0;
+
+    /* The info struct first (its own checksum field included — it is
+     * part of what the producer handed over), then every tag that
+     * survives the same walk-window + CRC gates as bbp_for_each_tag.
+     * One byte stream, deterministic, replayable by an auditor who
+     * holds a copy of the handoff. */
+    update(state, k->info, (size_t)k->info->info_size);
+
+    struct bbp_evidence_walk w = { update, state };
+    return bbp_for_each_tag(k, bbp_evidence_cb, &w);
+}
+
 const char *bbp_strstatus(bbp_status_t s)
 {
     switch (s) {

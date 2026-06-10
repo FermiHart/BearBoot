@@ -408,6 +408,57 @@ static void test_verify_blob(void)
           == BBP_ERR_SIZE, "blob crossing BBP_MAX_PHYS rejected");
 }
 
+/* ── bbp_evidence (v1.2) ─────────────────────────────────────────────
+ * Determinism + integrity-sensitivity, with a toy FNV-1a 64 as the
+ * caller hash (the API is hash-agnostic; the kernel will use BLAKE3).
+ */
+static void fnv_update(void *state, const void *data, size_t len)
+{
+    uint64_t *h = (uint64_t *)state;
+    const uint8_t *p = (const uint8_t *)data;
+    for (size_t i = 0; i < len; i++) {
+        *h ^= p[i];
+        *h *= 0x100000001B3ULL;
+    }
+}
+
+static void test_evidence(void)
+{
+    struct bbp_builder b;
+    struct bbp_info *info = (struct bbp_info *)arena;
+    memset(arena, 0, sizeof(arena));
+    bbp_builder_init(&b, arena + sizeof(struct bbp_info),
+                     (bbp_phys_t)(uintptr_t)(arena + sizeof(struct bbp_info)),
+                     sizeof(arena) - sizeof(struct bbp_info));
+
+    struct bbp_tag_hhdm *h = bbp_alloc_tag(&b, BBP_TAG_HHDM, 1, sizeof(*h));
+    h->offset = 0;
+    struct bbp_tag_acpi *a = bbp_alloc_tag(&b, BBP_TAG_ACPI, 1, sizeof(*a));
+    a->rsdp_address = 0xE0000;
+    bbp_builder_finalize(&b, info, (bbp_phys_t)(uintptr_t)info);
+
+    struct bbp_kctx k;
+    CHECK(bbp_init(&k, info) == BBP_OK, "evidence: init ok");
+
+    uint64_t h1 = 0xcbf29ce484222325ULL, h2 = 0xcbf29ce484222325ULL;
+    uint32_t n1 = bbp_evidence(&k, fnv_update, &h1);
+    uint32_t n2 = bbp_evidence(&k, fnv_update, &h2);
+    CHECK(n1 == 2 && n2 == 2, "evidence fed both tags (%u/%u)", n1, n2);
+    CHECK(h1 == h2, "evidence is deterministic (same digest twice)");
+
+    /* Flip one byte INSIDE a sealed tag body: CRC gate must drop the
+     * tag from the evidence stream → digest changes AND tag count
+     * drops. The digest is integrity-sensitive end to end. */
+    a->rsdp_address ^= 1;
+    uint64_t h3 = 0xcbf29ce484222325ULL;
+    uint32_t n3 = bbp_evidence(&k, fnv_update, &h3);
+    CHECK(n3 == 1, "tampered tag excluded from evidence (%u)", n3);
+    CHECK(h3 != h1, "tamper changes the evidence digest");
+
+    CHECK(bbp_evidence(NULL, fnv_update, &h1) == 0, "NULL ctx returns 0");
+    CHECK(bbp_evidence(&k, NULL, &h1) == 0, "NULL update returns 0");
+}
+
 static void test_hostile_wrapping_tag_ptr(void)
 {
     /* A4: first_tag set to a near-top address. Translating + reading the tag
@@ -463,6 +514,8 @@ int main(void)
     RUN(test_array_clamp);
     RUN(test_verify_blob);
     RUN(test_hostile_wrapping_tag_ptr);
+    printf("-- evidence (v1.2) --\n");
+    RUN(test_evidence);
 
     alarm(0);   /* finished in time: disarm the watchdog */
     printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
