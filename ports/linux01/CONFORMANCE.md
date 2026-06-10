@@ -52,21 +52,33 @@ kernel's fixed RAM model + identity map can truthfully describe.
 - [x] Adversarial in-situ test: corrupting the MEMORY_MAP tag's entry_count makes
       the parser reject it (CRC mismatch) — "corrupt-tag rejection . ok".
 - [x] MEMORY_MAP total verified: 640 KiB + (8 MiB − 1 MiB) = 7808 KiB usable.
-- [ ] In-kernel QEMU boot log — PENDING the §3 call-site wiring in init/main.c
-      (the linux-0.01-modern tree is edited separately; this port ships the glue
-      + the exact one-line call site, verified by the hosted rig above). The
-      kernel boot proof will be captured as the `[bbp] linux-0.01 adapter: ok`
-      console line once the call is wired and the ISO is booted.
+- [x] In-kernel QEMU boot log — DONE. The call site `bbp_linux01_init()` is
+      wired into init/main.c (after hd_init()) in the linux-0.01-modern tree, and
+      the kernel boots headless under QEMU to the interactive shell with:
+        [bbp] linux-0.01 adapter: ok, 3 tags, hhdm=0x0
+        Partition table ok. / ... / linux 0.01 — interactive shell
+      The adapter is additive and non-fatal: the kernel reaches userspace
+      normally with BBP validation running inside it.
+
+## Notes from the in-kernel bring-up
+- A latent pre-existing bug surfaced during wiring (NOT a BBP defect): the 1991
+  kernel/vsprintf.c is miscompiled by modern GCC at -O2 in the `%s` case — a
+  non-empty %s renders garbage (the va_arg(char*) is fetched off by a slot),
+  while %x/%c/%d are fine. The original boot path only ever passed empty strings
+  to %s (hd.c "Partition table%s"), so it went unseen until the adapter printed
+  a real status string. Same heisenbug class the project already documents for
+  fs/buffer.c and fs/bitmap.c. Fixed in the kernel Makefile by compiling
+  kernel/vsprintf.o at -O1 (root-caused via -O0/-O1 bisection + monitor pmemsave
+  confirming the table/pointer were correct; the corruption was purely in the
+  -O2 codegen). The BBP adapter itself always returned BBP_OK correctly.
 
 ## Deviations / known gaps
 - bbp_verify_blob is NOT exercised: the port produces no out-of-line payloads
   (no CMDLINE/SECURITY/EDID), so there is nothing to verify. This is correct,
   not a gap — the 3 tags are fully self-contained.
-- The in-kernel boot log is the one remaining evidence item (above). It depends
-  on a one-line edit to init/main.c in the linux-0.01-modern repo, which is a
-  separate tree under separate authorization. The hosted rig proves the SAME
-  adapter code on the SAME RAM-model field shape the call site fills, so the
-  integration is wiring-only.
+- The in-kernel integration is COMPLETE and booted (see evidence above). The
+  hosted rig and the real kernel boot agree: same adapter code, same RAM-model
+  field shape, same `adapter ok` verdict.
 - now_ns / arena are documented tech debt (see integration.md §6), not defects:
   honest approximations with a clear upgrade path and the binding seam in place.
 

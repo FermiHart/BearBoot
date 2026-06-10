@@ -20,7 +20,9 @@
  * and the handoff is SPEC §10.1(a). The call is additive + non-fatal.
  *
  * Build note: linux-0.01 is -nostdinc -m32 gnu89. The BBP core headers pull
- * <stdint.h>/<stddef.h>, satisfied by ports/linux01/compat via -idirafter.
+ * <stdint.h>/<stddef.h>, satisfied by the compat shims on the include path
+ * (-Ibbp/compat when vendored into the kernel; -I.../ports/linux01/compat in
+ * the standalone scaffold Makefile).
  */
 #include <bbp/bbp.h>
 #include "../../kernel/bbp_kernel.h"
@@ -89,14 +91,21 @@ bbp_status_t bbp_linux01_init(void)
     bi.kernel_virt_base    = 0;
     bi.have_kernel_address = 1;
 
-    /* the fixed RAM model (BBP_MEM_* directly — no firmware map to decode) */
+    /* the fixed RAM model (BBP_MEM_* directly — no firmware map to decode):
+     * 0..640K usable, 640K..1M reserved (legacy video + BIOS), 1M..ceiling
+     * usable. The third region is emitted only if the ceiling is above 1 MiB
+     * (it always is for both LINUS_HD=8M and LASU_HD=4M); the guard keeps the
+     * length from underflowing to a huge value should a future config shrink
+     * HIGH_MEMORY at or below 1 MiB. */
     mmap[m].base = 0x0;             mmap[m].length = L01_LOW_RAM_TOP;
     mmap[m].type = BBP_MEM_USABLE;                                  m++;
     mmap[m].base = L01_LOW_RAM_TOP; mmap[m].length = L01_RESERVED_TOP - L01_LOW_RAM_TOP;
     mmap[m].type = BBP_MEM_RESERVED;                                m++;
-    mmap[m].base = L01_RESERVED_TOP;
-    mmap[m].length = (uint64_t)BBP_L01_HIGH_MEMORY - L01_RESERVED_TOP;
-    mmap[m].type = BBP_MEM_USABLE;                                  m++;
+    if ((uint64_t)BBP_L01_HIGH_MEMORY > L01_RESERVED_TOP) {
+        mmap[m].base   = L01_RESERVED_TOP;
+        mmap[m].length = (uint64_t)BBP_L01_HIGH_MEMORY - L01_RESERVED_TOP;
+        mmap[m].type   = BBP_MEM_USABLE;                            m++;
+    }
 
     bi.mmap       = mmap;
     bi.mmap_count = m;
