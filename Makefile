@@ -15,6 +15,7 @@
 #   make sdk-check     verify C/host packages and the no_std Rust wire crate
 #   make sdk-package   build reproducible local SDK archives
 #   make release-metadata-test verify support-matrix and SPDX generation
+#   make v2-test       verify the experimental offline v2 capsule and bridge
 #   make abi           just verify the _Static_asserts compile (fastest gate)
 #   make check         run host gates plus generated documentation checks
 #   make clean
@@ -48,11 +49,12 @@ IMPORT_SOURCES := bootloader/bbp_import.c bootloader/bbp_import_limine.c \
 IMPORT_OBJECTS := $(patsubst bootloader/%.c,$(BUILD)/%.o,$(IMPORT_SOURCES))
 BBP_HEADERS := include/bbp/bbp.h include/bbp/bbp_crc64.h \
 	bootloader/bbp_build.h bootloader/bbp_import.h kernel/bbp_kernel.h
+V2_HEADERS := include/bbp/bbp_v2.h bridge/bbp_bridge.h
 
 .PHONY: all test abi freestanding kernel fuzz check clean qemu uefi qemu-uefi \
 	importers-test bbpctl-test ports-check readme-art verify-readme verify-site \
 	site-preview sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test \
-	sdk-check sdk-package release-metadata-test
+	sdk-check sdk-package release-metadata-test v2-test
 
 all: test freestanding
 
@@ -88,7 +90,7 @@ $(BUILD)/abi_selftest: tests/abi_selftest.c bootloader/bbp_build.c \
 
 # ---- cross-compile the kernel-side + example as freestanding objects -------
 freestanding: $(BUILD)/bbp_kernel.o $(BUILD)/kernel_header.o $(BUILD)/bbp_build.o \
-	$(IMPORT_OBJECTS)
+	$(IMPORT_OBJECTS) $(BUILD)/bbp_v2.o $(BUILD)/bbp_bridge.o
 	@echo "freestanding objects built with $(CC)"
 
 $(BUILD)/bbp_kernel.o: kernel/bbp_kernel.c
@@ -100,6 +102,15 @@ $(BUILD)/kernel_header.o: examples/kernel_header.c
 	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
 
 $(BUILD)/bbp_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
+
+$(BUILD)/bbp_v2.o: v2/bbp_v2.c $(V2_HEADERS) include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
+
+$(BUILD)/bbp_bridge.o: bridge/bbp_bridge.c $(V2_HEADERS) \
 		include/bbp/bbp.h include/bbp/bbp_crc64.h
 	@mkdir -p $(BUILD)
 	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
@@ -301,6 +312,16 @@ sdk-package:
 release-metadata-test:
 	$(PYTHON) -m unittest tests.test_release_metadata
 
+# ---- experimental BBP v2 contiguous capsule and explicit v1.1 bridge ------
+v2-test: $(BUILD)/v2_selftest
+	$(BUILD)/v2_selftest
+
+$(BUILD)/v2_selftest: tests/v2_selftest.c v2/bbp_v2.c bridge/bbp_bridge.c \
+		bootloader/bbp_build.c kernel/bbp_kernel.c $(BBP_HEADERS) $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/v2_selftest.c v2/bbp_v2.c \
+		bridge/bbp_bridge.c bootloader/bbp_build.c kernel/bbp_kernel.c -o $@
+
 # ---- deterministic project identity + local Pages prototype ----------------
 readme-art:
 	$(PYTHON) tools/generate_readme_art.py
@@ -316,7 +337,7 @@ site-preview: verify-site
 	$(PYTHON) -m http.server 8042 --bind 127.0.0.1
 
 # ---- everything that runs without a cross toolchain ------------------------
-check: abi test fuzz importers-test bbpctl-test sdk-check release-metadata-test verify-site
+check: abi test v2-test fuzz importers-test bbpctl-test sdk-check release-metadata-test verify-site
 	@echo "ALL HOST CHECKS PASSED"
 
 # ---- compile-check every OS port against the frozen core -------------------

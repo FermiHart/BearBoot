@@ -76,11 +76,13 @@ include/bbp/bbp.h          Canonical frozen ABI: header, info, tag structs.
                            Every struct guarded by _Static_assert(sizeof).
 include/bbp/bbp_crc64.h    CRC-64/XZ (ECMA-182), freestanding, header-only.
 include/bbp/bbp_osif.h     OS-interface contract: the seam a port implements.
+include/bbp/bbp_v2.h       Experimental offline v2 capsule byte layout/API.
 
 kernel/bbp_kernel.{c,h}    Defensive kernel-side parser. HHDM-aware, no libc,
                            treats the whole handoff as untrusted input.
 bootloader/bbp_build.{c,h} Producer-side tag builder (arena + CRC sealing).
 bootloader/bbp_import*.c   Bounded Limine, Multiboot2, and UEFI translators.
+v2/ and bridge/            Freestanding v2 capsule core and explicit v1.1 bridge.
 bootloader/efi_main.c      Reference UEFI producer SKELETON (gnu-efi). A base to
                            port against your firmware — not a finished loader.
 
@@ -114,6 +116,7 @@ make qemu          # build + boot the bare-metal round-trip under QEMU/TCG
 make qemu-uefi     # OVMF-load an x86_64 EFI builder/parser proof under TCG
 make importers-test # host-test bounded boot-source translation and failures
 make bbpctl-test   # verify host capture parsing, evidence, and corrupt fixtures
+make v2-test       # adversarial v2 capsule, digest, and v1.1 bridge proof
 make sdk-check     # extracted C/host packages + no_std Rust parity tests
 make sdk-package   # reproducible local archives under build/dist/
 ```
@@ -127,6 +130,11 @@ its collectors, paging, EBS, and kernel-transfer path.
 the same canonical evidence stream as the core. BBPC is an archival/test
 container, not a boot handoff or preview of the future BBP v2 wire format. See
 `docs/bbpc-v1.md`.
+
+The separate BBP v2 contiguous capsule is an offline-only Draft. It does not
+change or negotiate the frozen v1.1 ABI. `make v2-test` proves its bounded
+parser, deterministic builder, layout-independent digest stream, and explicit
+v1.1 bridge; see `docs/rfc/0001-bbp-v2-capsule.md`.
 
 The importer suite translates bounded Limine snapshots, raw Multiboot2 bytes,
 and normalized final UEFI snapshots into the same BBP builder. It proves

@@ -4,6 +4,17 @@ All notable changes. BBP wire compatibility uses `MAJOR.MINOR`: MAJOR bumps on
 an ABI break and MINOR on backward-compatible wire additions. SDK packages use
 independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
+## Unreleased (BBP v2 Draft, offline only)
+
+### Added
+- Experimental contiguous v2 capsule with mandatory extent, relative payload
+  offsets, bounded directory parsing, zero-padding rules, and CRC-64/XZ.
+- Deterministic freestanding builder and layout-independent canonical digest
+  stream with a caller-supplied hash callback.
+- Explicit, bounded v1.1 bridge with opt-in policy for preserved external
+  physical references. This does not alter or negotiate the frozen v1.1 ABI.
+- `make v2-test` adversarial host proof; the draft also compiles freestanding.
+
 ## BearBoot SDK 1.2.0 (BBP wire 1.1) - 2026-08-22
 
 ### Added

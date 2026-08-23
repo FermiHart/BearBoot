@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   core:
-    name: core (abi + self-test + importers + fuzz + qemu)
+    name: core (v1.1 + v2 draft + importers + fuzz + qemu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,7 +70,7 @@ jobs:
           head="${{ github.event.pull_request.head.sha }}"
           # The frozen contract. A port PR should never change these; a change
           # here is a deliberate ABI decision, not a routine contribution.
-          frozen='^(include/bbp/|kernel/bbp_kernel\.c|kernel/bbp_kernel\.h|bootloader/bbp_build\.c|bootloader/bbp_build\.h)'
+          frozen='^(include/bbp/(bbp\.h|bbp_crc64\.h|bbp_osif\.h)|kernel/bbp_kernel\.c|kernel/bbp_kernel\.h|bootloader/bbp_build\.c|bootloader/bbp_build\.h)'
           changed="$(git diff --name-only "$base" "$head")"
           hits="$(echo "$changed" | grep -E "$frozen" || true)"
           if [ -n "$hits" ]; then

@@ -28,6 +28,7 @@ Legend:
 | Producer-side tag builder (`bbp_build.c`) | 🟢 LIVE | round-trip: builder → parser agree on CRCs |
 | Bare-metal round-trip proof | 🟢 LIVE | `make qemu` boots under QEMU/TCG, requires serial `BBP-QEMU: PASS` plus guest status 33, and fails on timeout/error |
 | UEFI/OVMF builder-parser proof | 🟢 LIVE | `make qemu-uefi` OVMF-loads an x86_64 PE/COFF app and requires `BBP-UEFI: PASS` plus guest status 33; not a full loader proof |
+| BBP v2 contiguous capsule Draft | 🟢 HOST-TESTED | offline-only parser, deterministic builder, canonical digest stream, and explicit v1.1 bridge under `make v2-test`; layout is experimental, not frozen or deployed |
 
 ## OS integrations (the OSIF seam)
 

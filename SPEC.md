@@ -8,6 +8,10 @@ The authoritative machine-readable definition is `include/bbp/bbp.h`; where
 this prose and the header disagree, the header wins. Design rationale for each
 major decision lives in `docs/adr/`.
 
+This specification remains exclusively normative for frozen BBP v1.1. The
+experimental contiguous v2 capsule is a separate offline-only Draft in
+`docs/rfc/0001-bbp-v2-capsule.md`; there is no implicit v1/v2 negotiation.
+
 
 ## 1. Scope and model
 
