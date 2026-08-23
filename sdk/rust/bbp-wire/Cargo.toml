@@ -1,0 +1,13 @@
+[package]
+name = "bbp-wire"
+version = "1.2.0"
+edition = "2021"
+rust-version = "1.77"
+license = "BSD-3-Clause"
+description = "Dependency-free, no_std Bear Boot Protocol v1.1 wire framing"
+repository = "https://github.com/FermiHart/BearBoot"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
