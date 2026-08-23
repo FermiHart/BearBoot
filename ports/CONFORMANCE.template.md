@@ -23,7 +23,7 @@ Copy to your port dir as CONFORMANCE.md and fill every field. A port is not
 ## Adapter / boot path
 - Mode: [ ] Limine->BBP adapter   [ ] native BBP boot (.bbp_hdr + stamp)
 - HHDM offset source:             <e.g. Limine HHDM response = 0x...>
-- bbp_init / bbp_init_ex used:     <which, and the hint value>
+- parser initializer used:         <prefer bbp_init_bounded; include hint/span>
 
 ## Tags produced (adapter mode) / consumed
 | tag              | produced | consumed | out-of-line *_crc set? |

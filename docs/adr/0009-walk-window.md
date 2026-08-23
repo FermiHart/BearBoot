@@ -4,7 +4,7 @@ Status: Accepted (introduced in protocol v1.1, backward compatible)
 
 ## Context
 The kernel-side parser treats the whole handoff as untrusted input (ADR-0004).
-Before dereferencing any physical tag pointer it runs `bbp_region_ok`, which
+Before dereferencing any physical tag pointer it runs `bbp_tag_region_ok`, which
 bounds the pointer to the architectural maximum (`BBP_MAX_PHYS`, 256 TiB) and
 rejects zero/overflow/wrap. That is sufficient to prevent an out-of-bounds READ
 of the harness's address space — but it does NOT guarantee the pointer lands on
@@ -29,23 +29,30 @@ region, and the parser then rejects any pointer outside it as corruption instead
 of trusting the architectural bound.
 
 API (kernel/bbp_kernel.h):
+- `bbp_init_bounded(out, info, hhdm_hint, arena_phys, arena_bytes)` is the
+  preferred fail-closed API. Empty, wrapping, or out-of-range spans are errors,
+  and `out` is untouched unless INFO validation succeeds.
 - `bbp_init_win(out, info, hhdm_hint, walk_lo, walk_hi)` — seeds the window
   BEFORE init's own internal HHDM-tag lookup, so even that first walk is bounded
   (the fuzzer showed init itself walks the list, so a window set only afterwards
   is too late).
 - `bbp_set_walk_window(k, lo, hi)` — set/adjust the window after init.
-- The window is enforced inside `bbp_region_ok`, the single chokepoint every
-  dereference already passes through.
+- The window is enforced inside `bbp_tag_region_ok`, the single chokepoint every
+  tag dereference passes through. Generic address validation remains separate,
+  so `bbp_verify_blob` can validate an allocation outside the tag arena.
 
-Default behavior is UNCHANGED: `bbp_init`/`bbp_init_ex` leave the window at
+Legacy behavior is unchanged: `bbp_init`/`bbp_init_ex` leave the window at
 `{0,0}` (disabled), so existing consumers and the architectural-bound path are
 fully preserved. The window is a hardening opt-in, not an ABI change — no struct
-layout moved.
+layout moved. It is nevertheless required for any integration claiming the
+no-fault property against hostile, architecturally valid but unmapped pointers.
+New integrations use `bbp_init_bounded`; `bbp_init_win` remains for source
+compatibility and can still explicitly disable bounds.
 
 ## Consequences
-+ Closes the fuzzer-found gap: with the window set, an in-range-but-unmapped
-  pointer is rejected, not dereferenced. The "no fault from a hostile producer"
-  promise holds for this case.
++ Closes the fuzzer-found gap: with a correct window set, an
+  in-range-but-outside-window pointer is rejected, not dereferenced. The
+  no-fault claim is conditional on that window describing mapped memory.
 + Backward compatible: no on-the-wire struct changed; the new fields live only
   in the in-memory `struct bbp_kctx`. Disabled by default.
 + The parser fuzzer now drives the window (bounds = its arena) and survives

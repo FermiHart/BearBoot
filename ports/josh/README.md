@@ -47,7 +47,7 @@ The net result: `osif.c` is direct (every hook real, no slide math) and
     Limine -> josh entry -> bbp_josh_init()        (josh_glue.c: reads limine_get_*)
                               fills bbp_josh_bootinfo
                          -> bbp_josh_adapter()      (adapter.c: builds bbp_info + tags)
-                         -> bbp_init_win()          (core parser validates + bounds the walk)
+                         -> bbp_init_bounded()      (core parser validates + bounds the walk)
                          -> Josh consumes tags via bbp_find_tag() / bbp_for_each_tag()
 
 On success `bbp_josh_init()` logs one proof line:
@@ -65,7 +65,7 @@ On success `bbp_josh_init()` logs one proof line:
 
 2. adapter.c — `bbp_josh_adapter()`: Limine snapshot → HHDM / MEMORY_MAP /
    FRAMEBUFFER / SMP / CMDLINE tags into one PMM arena, sealed via
-   `bbp_builder_finalize`, validated via `bbp_init_win`.
+   `bbp_builder_finalize`, validated via `bbp_init_bounded`.
 
 3. josh_glue.c — the ONE file coupled to Josh's headers: reads the
    `limine_get_*()` accessors, fills `struct bbp_josh_bootinfo`, calls the
@@ -91,7 +91,7 @@ On success `bbp_josh_init()` logs one proof line:
   the Josh consumer MUST call `bbp_verify_blob` before trusting it (ADR-0006).
 - Honor SPEC §10.1(b): the adapter runs inside Josh which is already on its own
   higher-half page tables, so tag pointers are TRUE physicals (the PMM arena)
-  and the parser is seeded with the HHDM offset via `bbp_init_win`. Do not
+  and the parser is seeded with the HHDM offset via `bbp_init_bounded`. Do not
   assume identity.
 - Report results in CONFORMANCE.md + test/ logs. Do not claim it works on real
   Josh without a serial log proving the parser validated on real/QEMU Josh.

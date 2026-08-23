@@ -21,8 +21,9 @@ Two-part contract:
 1. API: `bbp_init_ex(out, info, hhdm_hint)` lets the kernel seed the offset
    when it already knows where the producer direct-mapped RAM (from its own
    linker layout / boot agreement). `bbp_init` == `bbp_init_ex(...,0)` for the
-   identity-mapped case. Once the HHDM tag is read, its authoritative value
-   overrides the hint.
+   identity-mapped case. A nonzero consumer hint is authoritative and cannot be
+   replaced by producer-controlled tag data. In the zero-hint identity case, a
+   well-sized, CRC-valid HHDM tag supplies the offset for later walks.
 
 2. Normative requirement on the producer (SPEC §10): at handoff the producer
    MUST satisfy at least one of:

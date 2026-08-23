@@ -35,18 +35,25 @@ and validates structure BEFORE touching bytes:
    count to what physically fits in `tag_size`; callers iterate the clamped
    count, never the raw field.
 6. Header validation. The producer validates the kernel's Bear Header
-   (`bbp_verify_header`) before trusting `entry_point`/`requests`.
+   (`bbp_verify_header`) before trusting `entry_point`/`requests`; HEADER and
+   INFO magic comparisons cover all 16 bytes.
+7. Typed-body gate. A recognized tag is not cast to its concrete structure
+   until `tag_size` covers that structure. In particular, an undersized HHDM
+   tag cannot expose adjacent bytes as its offset.
+8. Consumer authority. A nonzero HHDM hint supplied by the consumer is not
+   replaced by the producer-controlled HHDM tag.
 
 ## Consequences
-+ BBP is the only boot protocol whose conformance the kernel can verify
-  without faith in the producer. A hostile/buggy loader can make the kernel
-  REFUSE to boot, but cannot make it fault, hang, or consume forged data.
++ BBP framing can be checked without trusting producer-provided lengths or tag
+  counts. With a correct mapped walk window and immutable handoff memory,
+  malformed framing is rejected without an unbounded read or walk.
 + Every rule has an adversarial regression test (undersized, oversized, cycle,
-  misaligned, corrupt-skip, header-tamper, array-overclaim).
+  misaligned, corrupt-skip, full-magic, window-extent, HHDM-hint,
+  header-tamper, array-overclaim).
 - Defense is structural, not cryptographic: a malicious producer can still
   hand semantically wrong-but-well-formed data (e.g. a bogus memory map). That
   is the domain of measured boot, not the parser.
-- The parser cannot fully validate that a physical pointer is mapped/safe
-  without a memory map; it enforces alignment + plausibility and relies on the
-  HHDM contract (ADR-0005). A full bounds check against the memory-map tag is
-  future hardening.
+- Without a caller-supplied walk window, the parser cannot prove that an
+  architecturally plausible physical pointer is mapped. It also cannot prevent
+  producer/DMA mutation after validation or establish semantic truth. Those are
+  explicit consumer preconditions, not properties supplied by CRC framing.

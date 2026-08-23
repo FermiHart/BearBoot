@@ -23,3 +23,5 @@ Current ports:
   - tinalinux/  TinaLinux x86_64 (Linux 6.12 derivative) — native Linux OSIF.
   - linux01/    linux-0.01 (Linus' 1991 kernel, Limine-booted) — native i386
                 OSIF, identity-mapped (HHDM 0, SPEC §10.1(a)); the simplest port.
+  - josh/       Josh-Bear x86_64 (Limine-booted) — PMM-backed adapter with a
+                bounded walk window and CRC-verified boot entropy.

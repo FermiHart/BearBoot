@@ -105,8 +105,74 @@ static void test_abi_sizes(void)
     CHECK(sizeof(struct bbp_tag_devicetree) == 80,  "sizeof bbp_tag_devicetree == 80 (%zu)", sizeof(struct bbp_tag_devicetree));
 }
 
+static void test_builder_bounds(void)
+{
+    uint8_t bytes[128];
+    struct bbp_builder b;
+    struct bbp_info info;
+
+    bbp_builder_init(&b, bytes, UINT64_MAX - 7, sizeof(bytes));
+    CHECK(bbp_alloc_tag(&b, BBP_TAG_ACPI, 1, sizeof(struct bbp_tag_acpi)) == NULL,
+          "builder rejects a physical extent beyond its architectural ceiling");
+
+    bbp_builder_init(&b, bytes, 0x1000, sizeof(bytes));
+    CHECK(bbp_alloc_tag(&b, BBP_TAG_ACPI, 1, 16u * 1024u * 1024u + 1u) == NULL,
+          "builder rejects tags larger than the parser ceiling");
+
+    bbp_builder_init(&b, bytes, 0x1000, sizeof(bytes));
+    b.tag_count = 1024;
+    CHECK(bbp_alloc_tag(&b, BBP_TAG_ACPI, 1, sizeof(struct bbp_tag_acpi)) == NULL,
+          "builder rejects tags beyond the consumer walk ceiling");
+
+    bbp_builder_init(&b, bytes, 0, sizeof(bytes));
+    CHECK(b.overflow
+          && bbp_alloc_tag(&b, BBP_TAG_ACPI, 1,
+                           sizeof(struct bbp_tag_acpi)) == NULL,
+          "builder rejects the null physical-chain sentinel as an arena base");
+
+    bbp_builder_init(&b, bytes, 0x1001, sizeof(bytes));
+    CHECK(b.overflow
+          && bbp_alloc_tag(&b, BBP_TAG_ACPI, 1,
+                           sizeof(struct bbp_tag_acpi)) == NULL,
+          "builder rejects a misaligned physical arena base");
+
+    bbp_builder_init(&b, bytes, 0x1000, sizeof(bytes));
+    CHECK(bbp_arena_blob(&b, NULL, 8) == 0 && b.overflow,
+          "builder rejects a nonempty NULL blob");
+    memset(&info, 0, sizeof(info));
+    CHECK(bbp_builder_finalize(&b, &info, 0x800) == 0,
+          "builder cannot finalize a partial result after overflow");
+
+    bbp_builder_init(&b, bytes, 0x1000, sizeof(bytes));
+    CHECK(bbp_arena_strdup_n(&b, "unterminated", 5, NULL) == 0 && b.overflow,
+          "bounded string copy rejects a missing NUL");
+
+    memset(&info, 0, sizeof(info));
+    bbp_builder_init(&b, bytes, 0x1000, sizeof(bytes));
+    b.used = 64u * 1024u * 1024u;
+    b.capacity = b.used;
+    CHECK(bbp_builder_finalize(&b, &info, 0x800) == 0 && b.overflow,
+          "builder rejects info_size beyond the parser ceiling");
+
+    memset(&info, 0xff, sizeof(info));
+    bbp_builder_init(&b, bytes, 0x1000, sizeof(bytes));
+    CHECK(bbp_builder_finalize(&b, &info, 0x800) == 0x800,
+          "builder finalizes an empty valid handoff");
+    CHECK(memcmp(info.magic, BBP_INFO_MAGIC, sizeof(BBP_INFO_MAGIC) - 1) == 0
+          && info.magic[sizeof(BBP_INFO_MAGIC) - 1] == 0
+          && info.magic[sizeof(info.magic) - 1] == 0,
+          "builder canonicalizes all INFO magic bytes");
+}
+
 /* Build a realistic arena and round-trip it through the kernel parser. */
 static uint8_t arena[64 * 1024];
+
+static uint64_t test_info_crc(const struct bbp_info *info)
+{
+    struct bbp_info copy = *info;
+    copy.checksum = 0;
+    return bbp_crc64(&copy, sizeof(copy));
+}
 
 static void test_roundtrip(void)
 {
@@ -203,11 +269,18 @@ static void test_iter_and_tamper(void)
     info->cpu_count = 99; /* mutate after seal */
     struct bbp_kctx k2;
     CHECK(bbp_init(&k2, info) == BBP_ERR_CHECKSUM, "tampered info rejected by CRC");
+
+    bbp_builder_finalize(&b, info, (bbp_phys_t)(uintptr_t)info);
+    info->magic[15] = 1;
+    info->checksum = test_info_crc(info);
+    CHECK(bbp_init(&k2, info) == BBP_ERR_MAGIC,
+          "nonzero INFO magic padding rejected across all 16 bytes");
 }
 
 /* ── Adversarial tests: the bootloader/firmware is UNTRUSTED. ──────────────
  * These inject malformed tags directly into the arena and prove the parser
- * refuses to fault, loop, or hand corrupt data to a subsystem. */
+ * bounds framing inside the test's known-mapped arena, terminates walks, and
+ * does not hand CRC-corrupt data to a subsystem. */
 
 static void test_hostile_undersized_tag(void)
 {
@@ -341,7 +414,124 @@ static void test_verify_header(void)
     hdr.entry_point = 0x100000; hdr.checksum = bbp_header_crc(&hdr);
     hdr.magic[0] = 'X';
     CHECK(bbp_verify_header(&hdr) == BBP_ERR_MAGIC, "bad header magic rejected");
+
+    memcpy(hdr.magic, BBP_HEADER_MAGIC, sizeof(BBP_HEADER_MAGIC) - 1);
+    hdr.magic[15] = 1;
+    hdr.checksum = bbp_header_crc(&hdr);
+    CHECK(bbp_verify_header(&hdr) == BBP_ERR_MAGIC,
+          "nonzero magic padding rejected across all 16 bytes");
     CHECK(bbp_verify_header(NULL) == BBP_ERR_NULL, "NULL header rejected");
+}
+
+static void test_undersized_hhdm(void)
+{
+    struct bbp_builder b;
+    struct bbp_info *info = (struct bbp_info *)arena;
+    memset(arena, 0, sizeof(arena));
+    bbp_builder_init(&b, arena + sizeof(struct bbp_info),
+                     (bbp_phys_t)(uintptr_t)(arena + sizeof(struct bbp_info)),
+                     sizeof(arena) - sizeof(struct bbp_info));
+
+    struct bbp_tag_header *tag =
+        bbp_alloc_tag(&b, BBP_TAG_HHDM, 1, sizeof(struct bbp_tag_header));
+    bbp_builder_finalize(&b, info, (bbp_phys_t)(uintptr_t)info);
+    memset((uint8_t *)tag + sizeof(*tag), 0xA5, sizeof(uint64_t));
+
+    struct bbp_kctx k;
+    bbp_status_t st = bbp_init_win(
+        &k, info, 0, (bbp_phys_t)(uintptr_t)tag,
+        (bbp_phys_t)(uintptr_t)tag + sizeof(*tag));
+    CHECK(st == BBP_OK, "undersized HHDM framing does not fail INFO validation");
+    CHECK(k.hhdm_offset == 0,
+          "undersized HHDM cannot expose bytes beyond its validated extent");
+}
+
+static void test_walk_window_extent(void)
+{
+    static uint8_t low_arena[128];
+    static struct bbp_info info;
+    struct bbp_builder b;
+    memset(low_arena, 0, sizeof(low_arena));
+    memset(&info, 0, sizeof(info));
+
+    bbp_builder_init(&b, low_arena, 8, sizeof(low_arena));
+    struct bbp_tag_acpi *acpi =
+        bbp_alloc_tag(&b, BBP_TAG_ACPI, 1, sizeof(*acpi));
+    acpi->rsdp_address = 0xE0000;
+    bbp_builder_finalize(&b, &info, 0);
+
+    struct bbp_kctx k;
+    bbp_status_t st = bbp_init_win(
+        &k, &info, (bbp_virt_t)(uintptr_t)low_arena - 8, 8, 24);
+    CHECK(st == BBP_OK, "INFO remains valid with a deliberately narrow tag window");
+    CHECK(bbp_find_tag(&k, BBP_TAG_ACPI) == NULL,
+          "tag extent larger than walk window is rejected without unsigned wrap");
+}
+
+static void test_hhdm_hint_is_authoritative(void)
+{
+    static uint8_t tag_arena[128];
+    static struct bbp_info info;
+    const bbp_virt_t hint = 0x1000;
+    const bbp_phys_t tag_phys = (bbp_phys_t)(uintptr_t)tag_arena - hint;
+    struct bbp_builder b;
+    memset(tag_arena, 0, sizeof(tag_arena));
+    memset(&info, 0, sizeof(info));
+
+    bbp_builder_init(&b, tag_arena, tag_phys, sizeof(tag_arena));
+    struct bbp_tag_hhdm *hhdm =
+        bbp_alloc_tag(&b, BBP_TAG_HHDM, 1, sizeof(*hhdm));
+    hhdm->offset = 0xBAD000;
+    bbp_builder_finalize(&b, &info, 0);
+
+    struct bbp_kctx k;
+    bbp_status_t st = bbp_init_win(&k, &info, hint, tag_phys,
+                                    tag_phys + sizeof(*hhdm));
+    CHECK(st == BBP_OK, "trusted HHDM hint can reach a non-identity tag arena");
+    CHECK(k.hhdm_offset == hint,
+          "producer HHDM tag cannot replace an explicit consumer hint");
+}
+
+static void test_bounded_init(void)
+{
+    static uint8_t storage[512];
+    struct bbp_info *info = (struct bbp_info *)storage;
+    uint8_t *tagbase = storage + sizeof(*info);
+    const size_t tag_capacity = 128;
+    static const uint8_t payload[] = "outside-the-tag-arena";
+    uint8_t *blob = storage + 384;
+    struct bbp_builder b;
+    memset(storage, 0, sizeof(storage));
+    memcpy(blob, payload, sizeof(payload));
+
+    bbp_builder_init(&b, tagbase, (bbp_phys_t)(uintptr_t)tagbase, tag_capacity);
+    struct bbp_tag_acpi *acpi =
+        bbp_alloc_tag(&b, BBP_TAG_ACPI, 1, sizeof(*acpi));
+    acpi->rsdp_address = 0xE0000;
+    bbp_builder_finalize(&b, info, (bbp_phys_t)(uintptr_t)info);
+
+    struct bbp_kctx k;
+    CHECK(bbp_init_bounded(&k, info, 0, (bbp_phys_t)(uintptr_t)tagbase,
+                           tag_capacity) == BBP_OK,
+          "strict bounded init accepts a valid mapped tag arena");
+    CHECK(bbp_find_tag(&k, BBP_TAG_ACPI) != NULL,
+          "strict bounded init exposes tags inside its arena");
+    CHECK(bbp_verify_blob(&k, (bbp_phys_t)(uintptr_t)blob, sizeof(payload),
+                          bbp_crc64(blob, sizeof(payload)), 0) == BBP_OK,
+          "tag walk bounds do not reject a valid external blob");
+
+    struct bbp_kctx untouched;
+    struct bbp_kctx before;
+    memset(&untouched, 0xA5, sizeof(untouched));
+    before = untouched;
+    CHECK(bbp_init_bounded(&untouched, info, 0,
+                           (bbp_phys_t)(uintptr_t)tagbase, 0) == BBP_ERR_SIZE,
+          "strict bounded init rejects an empty arena");
+    CHECK(memcmp(&untouched, &before, sizeof(before)) == 0,
+          "strict bounded init does not publish a partial context on failure");
+    CHECK(bbp_init_bounded(&untouched, info, 0, ~(bbp_phys_t)7, 16)
+              == BBP_ERR_SIZE,
+          "strict bounded init rejects a wrapping arena extent");
 }
 
 static void test_array_clamp(void)
@@ -408,7 +598,7 @@ static void test_verify_blob(void)
           == BBP_ERR_SIZE, "blob crossing BBP_MAX_PHYS rejected");
 }
 
-/* ── bbp_evidence (v1.2) ─────────────────────────────────────────────
+/* ── bbp_evidence (SDK 1.2) ──────────────────────────────────────────
  * Determinism + integrity-sensitivity, with a toy FNV-1a 64 as the
  * caller hash (the API is hash-agnostic; the kernel will use BLAKE3).
  */
@@ -420,6 +610,20 @@ static void fnv_update(void *state, const void *data, size_t len)
         *h ^= p[i];
         *h *= 0x100000001B3ULL;
     }
+}
+
+struct evidence_trace {
+    size_t lengths[8];
+    size_t calls;
+};
+
+static void trace_update(void *state, const void *data, size_t len)
+{
+    struct evidence_trace *trace = (struct evidence_trace *)state;
+    (void)data;
+    if (trace->calls < sizeof(trace->lengths) / sizeof(trace->lengths[0]))
+        trace->lengths[trace->calls] = len;
+    trace->calls++;
 }
 
 static void test_evidence(void)
@@ -445,6 +649,20 @@ static void test_evidence(void)
     uint32_t n2 = bbp_evidence(&k, fnv_update, &h2);
     CHECK(n1 == 2 && n2 == 2, "evidence fed both tags (%u/%u)", n1, n2);
     CHECK(h1 == h2, "evidence is deterministic (same digest twice)");
+
+    struct evidence_trace trace = {{0}, 0};
+    CHECK(bbp_evidence(&k, trace_update, &trace) == 2,
+          "evidence trace includes both validated tags");
+    CHECK(trace.calls == 4, "evidence stream has domain, INFO, and two tag frames (%zu)",
+          trace.calls);
+    CHECK(trace.lengths[0] == 16, "evidence domain separator is 16 bytes (%zu)",
+          trace.lengths[0]);
+    CHECK(trace.lengths[1] == sizeof(struct bbp_info),
+          "evidence hashes fixed INFO bytes once, not info_size (%zu)", trace.lengths[1]);
+    CHECK(trace.lengths[2] == sizeof(struct bbp_tag_hhdm)
+          && trace.lengths[3] == sizeof(struct bbp_tag_acpi),
+          "evidence hashes each validated tag exactly once (%zu/%zu)",
+          trace.lengths[2], trace.lengths[3]);
 
     /* Flip one byte INSIDE a sealed tag body: CRC gate must drop the
      * tag from the evidence stream → digest changes AND tag count
@@ -502,6 +720,7 @@ int main(void)
     printf("== Bear Boot Protocol self-test ==\n");
     RUN(test_crc64_vector);
     RUN(test_abi_sizes);
+    RUN(test_builder_bounds);
     RUN(test_roundtrip);
     RUN(test_iter_and_tamper);
     printf("-- adversarial (untrusted bootloader) --\n");
@@ -511,10 +730,14 @@ int main(void)
     RUN(test_hostile_misaligned_ptr);
     RUN(test_for_each_skips_corrupt);
     RUN(test_verify_header);
+    RUN(test_undersized_hhdm);
+    RUN(test_walk_window_extent);
+    RUN(test_hhdm_hint_is_authoritative);
+    RUN(test_bounded_init);
     RUN(test_array_clamp);
     RUN(test_verify_blob);
     RUN(test_hostile_wrapping_tag_ptr);
-    printf("-- evidence (v1.2) --\n");
+    printf("-- evidence (SDK 1.2) --\n");
     RUN(test_evidence);
 
     alarm(0);   /* finished in time: disarm the watchdog */

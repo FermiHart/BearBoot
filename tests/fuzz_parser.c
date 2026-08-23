@@ -39,20 +39,18 @@
 /* Drive every public parser path against an info pointer. Returns 1 if the
  * info validated and the tag walk was reached, else 0.
  *
- * `lo`/`hi`, when hi>lo, are the bounds of the mapped arena holding the tags —
- * the fuzzer passes them so the parser's optional walk window (ADR-0009) is
+ * `lo`/`hi` are the bounds of the mapped arena holding the tags — the fuzzer
+ * passes them through the strict bounded initializer so the walk window is
  * exercised exactly as a real kernel uses it: a tag pointer outside the mapped
  * region is rejected as corruption instead of being dereferenced (which, in
- * this hosted harness, would be a wild host-pointer read). Pass 0,0 to leave
- * the window disabled and exercise the architectural-bound path. */
+ * this hosted harness, would be a wild host-pointer read). */
 static int drive(struct bbp_info *info, bbp_phys_t lo, bbp_phys_t hi)
 {
     struct bbp_kctx k;
-    /* Use bbp_init_win so the walk window is active even for the HHDM lookup
-     * bbp_init performs internally — that internal walk is the one a forged
-     * next_tag attacks. (bbp_init + a later set_walk_window would leave that
-     * first walk unbounded; the fuzzer proved that.) */
-    if (bbp_init_win(&k, info, 0, lo, hi) != BBP_OK) {
+    /* Bounds are active for the internal HHDM lookup as well as later walks. */
+    size_t span = (hi > lo && hi - lo <= (bbp_phys_t)(size_t)-1)
+                ? (size_t)(hi - lo) : 0;
+    if (bbp_init_bounded(&k, info, 0, lo, span) != BBP_OK) {
         struct bbp_kctx z; memset(&z, 0, sizeof(z)); z.info = info;
         z.walk_lo = lo; z.walk_hi = hi;
         (void)bbp_find_tag(&z, BBP_TAG_MEMORY_MAP);   /* safe on rejected ctx */

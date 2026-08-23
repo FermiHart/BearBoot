@@ -247,7 +247,6 @@ bbp_status_t bbp_josh_adapter(struct bbp_kctx *out,
      * Bound the parser's walk to the arena region (ADR-0009): every tag pointer
      * must lie within [arena_phys, arena_phys + arena_bytes), so a corrupt
      * next_tag is rejected as corruption instead of faulting on unmapped RAM. */
-    return bbp_init_win(out, info, bi->hhdm_offset,
-                        (bbp_phys_t)arena_phys,
-                        (bbp_phys_t)arena_phys + BBP_JOSH_ARENA_BYTES);
+    return bbp_init_bounded(out, info, bi->hhdm_offset, tagbase_phys,
+                            BBP_JOSH_ARENA_BYTES - sizeof(struct bbp_info));
 }

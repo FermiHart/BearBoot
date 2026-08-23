@@ -1,5 +1,5 @@
 /*
- * bbp.h — Bear Boot Protocol (BBP) v1.0  —  canonical ABI contract.
+ * bbp.h — Bear Boot Protocol (BBP) v1.1  —  canonical ABI contract.
  *
  *   Author: F E R M I  ∞  H A R T  <contact@fermihart.com>
  *   SPDX-License-Identifier: BSD-3-Clause

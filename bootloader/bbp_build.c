@@ -20,7 +20,12 @@ static void bbp_memcpy(void *d, const void *s, size_t n)
     while (n--) *dd++ = *ss++;
 }
 
-static size_t bbp_align8(size_t x) { return (x + 7u) & ~(size_t)7u; }
+#define BBP_BUILDER_MAX_TAG  (16u * 1024u * 1024u)
+#define BBP_BUILDER_MAX_INFO (64u * 1024u * 1024u)
+#define BBP_BUILDER_MAX_PHYS (1ULL << 48)
+#define BBP_BUILDER_MAX_TAGS 1024u
+#define BBP_BUILDER_SIZE_MAX ((size_t)-1)
+#define BBP_BUILDER_U32_MAX  ((uint32_t)-1)
 
 /* CRC64 over a struct with its 8-byte checksum field zeroed. */
 static uint64_t bbp_crc_skip(const void *base, size_t len, size_t off)
@@ -36,6 +41,7 @@ static uint64_t bbp_crc_skip(const void *base, size_t len, size_t off)
 void bbp_builder_init(struct bbp_builder *b, void *arena,
                       bbp_phys_t arena_phys, size_t capacity)
 {
+    if (!b) return;
     b->arena      = (uint8_t *)arena;
     b->arena_phys = arena_phys;
     b->capacity   = capacity;
@@ -44,20 +50,39 @@ void bbp_builder_init(struct bbp_builder *b, void *arena,
     b->first_phys = 0;
     b->tag_count  = 0;
     b->overflow   = 0;
-    bbp_memzero(arena, capacity);
+    if (arena)
+        bbp_memzero(arena, capacity);
+    else if (capacity)
+        b->overflow = 1;
+    if (arena && (arena_phys == 0 || (arena_phys & 7u) != 0
+                  || arena_phys >= BBP_BUILDER_MAX_PHYS))
+        b->overflow = 1;
 }
 
 /* Bump-allocate `len` bytes (8-byte aligned), return virtual ptr or NULL. */
 static void *arena_bump(struct bbp_builder *b, size_t len, bbp_phys_t *out_phys)
 {
-    size_t start = bbp_align8(b->used);
+    if (!b || !b->arena || b->overflow
+        || b->used > BBP_BUILDER_SIZE_MAX - 7u) {
+        if (b) b->overflow = 1;
+        return (void *)0;
+    }
+    size_t start = (b->used + 7u) & ~(size_t)7u;
     /* Overflow-safe bound: check against remaining room, never compute
      * start+len (which can wrap on a huge untrusted len). */
     if (start > b->capacity || len > b->capacity - start) {
         b->overflow = 1; return (void *)0;
     }
+    if (b->arena_phys > BBP_BUILDER_MAX_PHYS
+        || (bbp_phys_t)start > BBP_BUILDER_MAX_PHYS - b->arena_phys) {
+        b->overflow = 1; return (void *)0;
+    }
+    bbp_phys_t phys = b->arena_phys + (bbp_phys_t)start;
+    if (len > BBP_BUILDER_MAX_PHYS - phys) {
+        b->overflow = 1; return (void *)0;
+    }
     void *p = b->arena + start;
-    if (out_phys) *out_phys = b->arena_phys + start;
+    if (out_phys) *out_phys = phys;
     b->used = start + len;
     return p;
 }
@@ -65,7 +90,13 @@ static void *arena_bump(struct bbp_builder *b, size_t len, bbp_phys_t *out_phys)
 void *bbp_alloc_tag(struct bbp_builder *b, uint64_t tag_id,
                     uint16_t tag_version, size_t total_size)
 {
-    if (total_size < sizeof(struct bbp_tag_header)) { b->overflow = 1; return (void *)0; }
+    if (!b || total_size < sizeof(struct bbp_tag_header)
+        || total_size > BBP_BUILDER_MAX_TAG
+        || total_size > BBP_BUILDER_U32_MAX
+        || b->tag_count >= BBP_BUILDER_MAX_TAGS) {
+        if (b) b->overflow = 1;
+        return (void *)0;
+    }
 
     bbp_phys_t phys;
     struct bbp_tag_header *tag =
@@ -101,21 +132,41 @@ static void *builder_phys_to_virt(struct bbp_builder *b, bbp_phys_t p)
     return b->arena + (size_t)(p - b->arena_phys);
 }
 
-bbp_phys_t bbp_arena_strdup(struct bbp_builder *b, const char *s, uint32_t *out_len)
+bbp_phys_t bbp_arena_strdup_n(struct bbp_builder *b, const char *s,
+                              size_t source_bytes, uint32_t *out_len)
 {
-    uint32_t len = 0;
-    while (s[len]) len++;
+    size_t len = 0;
+    if (out_len) *out_len = 0;
+    if (!b || !s || source_bytes == 0) {
+        if (b) b->overflow = 1;
+        return 0;
+    }
+    while (len < source_bytes && s[len]) len++;
+    if (len == source_bytes || len > BBP_BUILDER_U32_MAX) {
+        b->overflow = 1;
+        return 0;
+    }
     bbp_phys_t phys;
-    void *p = arena_bump(b, (size_t)len + 1, &phys);
+    void *p = arena_bump(b, len + 1, &phys);
     if (!p) return 0;
     bbp_memcpy(p, s, len);
     ((uint8_t *)p)[len] = 0;
-    if (out_len) *out_len = len;
+    if (out_len) *out_len = (uint32_t)len;
     return phys;
+}
+
+bbp_phys_t bbp_arena_strdup(struct bbp_builder *b, const char *s, uint32_t *out_len)
+{
+    return bbp_arena_strdup_n(b, s, BBP_BUILDER_SIZE_MAX, out_len);
 }
 
 bbp_phys_t bbp_arena_blob(struct bbp_builder *b, const void *data, size_t len)
 {
+    if (!b || (!data && len != 0)) {
+        if (b) b->overflow = 1;
+        return 0;
+    }
+    if (len == 0) return 0;
     bbp_phys_t phys;
     void *p = arena_bump(b, len, &phys);
     if (!p) return 0;
@@ -124,8 +175,15 @@ bbp_phys_t bbp_arena_blob(struct bbp_builder *b, const void *data, size_t len)
 }
 
 bbp_phys_t bbp_builder_finalize(struct bbp_builder *b, struct bbp_info *info,
-                                bbp_phys_t info_phys)
+                                 bbp_phys_t info_phys)
 {
+    if (!b || !info) return 0;
+    if (b->overflow || b->tag_count > BBP_BUILDER_MAX_TAGS
+        || b->used > b->capacity
+        || b->used > BBP_BUILDER_MAX_INFO - sizeof(struct bbp_info)) {
+        b->overflow = 1;
+        return 0;
+    }
     /* Re-seal EVERY tag now that the chain (next_tag) is fully wired. A tag's
      * next_tag is written when its successor is appended, AFTER any earlier
      * bbp_seal_tag() call — so the authoritative CRC can only be computed once
@@ -141,6 +199,7 @@ bbp_phys_t bbp_builder_finalize(struct bbp_builder *b, struct bbp_info *info,
 
     info->version_major = BBP_VERSION_MAJOR;
     info->version_minor = BBP_VERSION_MINOR;
+    bbp_memzero(info->magic, sizeof(info->magic));
     bbp_memcpy(info->magic, BBP_INFO_MAGIC, sizeof(BBP_INFO_MAGIC) - 1);
 
     info->tag_count    = b->tag_count;
