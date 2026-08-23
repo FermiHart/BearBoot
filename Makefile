@@ -8,8 +8,15 @@
 #   make freestanding  cross-compile kernel-side + example as a kernel would
 #   make kernel        link the example into a stamped, bootable kernel.elf
 #   make fuzz          build + smoke-run the parser fuzzer
+#   make qemu          build + boot the bare-metal round-trip proof under TCG
+#   make qemu-uefi     build + boot the EFI builder/parser proof under OVMF
+#   make importers-test verify bounded Limine, Multiboot2, and UEFI translation
+#   make bbpctl-test   verify the host-only BBPC capture tool and fixtures
+#   make sdk-check     verify C/host packages and the no_std Rust wire crate
+#   make sdk-package   build reproducible local SDK archives
+#   make release-metadata-test verify support-matrix and SPDX generation
 #   make abi           just verify the _Static_asserts compile (fastest gate)
-#   make check         run everything that does not need a cross toolchain
+#   make check         run host gates plus generated documentation checks
 #   make clean
 
 CROSS    ?= x86_64-elf-
@@ -36,8 +43,16 @@ HOSTFLAGS := -Wall -Wextra -Werror -std=c11 -O2 -g
 FUZZCC   ?= clang
 
 BUILD := build
+IMPORT_SOURCES := bootloader/bbp_import.c bootloader/bbp_import_limine.c \
+	bootloader/bbp_import_multiboot2.c bootloader/bbp_import_uefi.c
+IMPORT_OBJECTS := $(patsubst bootloader/%.c,$(BUILD)/%.o,$(IMPORT_SOURCES))
+BBP_HEADERS := include/bbp/bbp.h include/bbp/bbp_crc64.h \
+	bootloader/bbp_build.h bootloader/bbp_import.h kernel/bbp_kernel.h
 
-.PHONY: all test abi freestanding kernel fuzz check clean qemu ports-check
+.PHONY: all test abi freestanding kernel fuzz check clean qemu uefi qemu-uefi \
+	importers-test bbpctl-test ports-check readme-art verify-readme verify-site \
+	site-preview sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test \
+	sdk-check sdk-package release-metadata-test
 
 all: test freestanding
 
@@ -65,12 +80,15 @@ test: $(BUILD)/abi_selftest
 	    $(BUILD)/abi_selftest; \
 	fi
 
-$(BUILD)/abi_selftest: tests/abi_selftest.c bootloader/bbp_build.c kernel/bbp_kernel.c
+$(BUILD)/abi_selftest: tests/abi_selftest.c bootloader/bbp_build.c \
+		kernel/bbp_kernel.c $(BBP_HEADERS)
 	@mkdir -p $(BUILD)
-	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) $^ -o $@
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/abi_selftest.c \
+		bootloader/bbp_build.c kernel/bbp_kernel.c -o $@
 
 # ---- cross-compile the kernel-side + example as freestanding objects -------
-freestanding: $(BUILD)/bbp_kernel.o $(BUILD)/kernel_header.o $(BUILD)/bbp_build.o
+freestanding: $(BUILD)/bbp_kernel.o $(BUILD)/kernel_header.o $(BUILD)/bbp_build.o \
+	$(IMPORT_OBJECTS)
 	@echo "freestanding objects built with $(CC)"
 
 $(BUILD)/bbp_kernel.o: kernel/bbp_kernel.c
@@ -81,7 +99,12 @@ $(BUILD)/kernel_header.o: examples/kernel_header.c
 	@mkdir -p $(BUILD)
 	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
 
-$(BUILD)/bbp_build.o: bootloader/bbp_build.c
+$(BUILD)/bbp_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
+
+$(IMPORT_OBJECTS): $(BUILD)/%.o: bootloader/%.c $(BBP_HEADERS)
 	@mkdir -p $(BUILD)
 	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
 
@@ -126,24 +149,174 @@ $(BUILD)/bbp_fuzz: tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.
 	    || $(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.c -o $@; \
 	fi
 
+# ---- boot-source translation -----------------------------------------------
+importers-test: $(BUILD)/importers_selftest
+	$(BUILD)/importers_selftest
+
+$(BUILD)/importers_selftest: tests/importers_selftest.c bootloader/bbp_build.c \
+		$(IMPORT_SOURCES) \
+		kernel/bbp_kernel.c $(BBP_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/importers_selftest.c \
+		bootloader/bbp_build.c $(IMPORT_SOURCES) kernel/bbp_kernel.c -o $@
+
 # ---- bare-metal round-trip kernel (Multiboot1, qemu -kernel) ---------------
 # 32-bit freestanding; exercises bbp_build + bbp_kernel on real hardware.
+QEMU         ?= qemu-system-i386
+QEMU_CC      ?= $(HOSTCC)
+QEMU_TIMEOUT ?= 30
+QEMU_SERIAL  ?= $(BUILD)/qemu-serial.log
 QEMU_CFLAGS := -m32 -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
-               -mno-sse -mno-mmx -mno-red-zone -Wall -Wextra -std=c11 -O2 -g
+                -mno-sse -mno-mmx -mno-red-zone -Wall -Wextra -std=c11 -O2 -g
 qemu: $(BUILD)/roundtrip.elf
+	@rm -f "$(QEMU_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" "$(QEMU)" \
+	    -accel tcg -machine pc -m 64M -kernel "$(BUILD)/roundtrip.elf" \
+	    -display none -monitor none -serial "file:$(QEMU_SERIAL)" -no-reboot \
+	    -device isa-debug-exit,iobase=0xf4,iosize=0x04; \
+	rc=$$?; set -e; \
+	if [ -f "$(QEMU_SERIAL)" ]; then cat "$(QEMU_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: QEMU exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 33 ]; then \
+	    echo "FAILED: QEMU guest exit status $$rc (expected 33)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-QEMU: FAIL:' "$(QEMU_SERIAL)"; then \
+	    echo "FAILED: guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-QEMU: PASS' "$(QEMU_SERIAL)"; then \
+	    echo "FAILED: missing BBP-QEMU: PASS"; exit 1; \
+	fi
 $(BUILD)/roundtrip.elf: tests/boot32.S tests/qemu_roundtrip.c \
-                        bootloader/bbp_build.c kernel/bbp_kernel.c tests/linker32.ld
+                        bootloader/bbp_build.c kernel/bbp_kernel.c tests/linker32.ld \
+                        Makefile
 	@mkdir -p $(BUILD)
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/boot32.S        -o $(BUILD)/boot32.o
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/qemu_roundtrip.c -o $(BUILD)/qrt.o
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c bootloader/bbp_build.c -o $(BUILD)/qrt_build.o
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c kernel/bbp_kernel.c    -o $(BUILD)/qrt_kernel.o
-	$(CC) $(QEMU_CFLAGS) -nostdlib -no-pie -Wl,-melf_i386 -T tests/linker32.ld \
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/boot32.S        -o $(BUILD)/boot32.o
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/qemu_roundtrip.c -o $(BUILD)/qrt.o
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c bootloader/bbp_build.c -o $(BUILD)/qrt_build.o
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c kernel/bbp_kernel.c    -o $(BUILD)/qrt_kernel.o
+	$(QEMU_CC) $(QEMU_CFLAGS) -nostdlib -no-pie -Wl,-melf_i386,--build-id=none \
+	    -T tests/linker32.ld \
 	    $(BUILD)/boot32.o $(BUILD)/qrt.o $(BUILD)/qrt_build.o $(BUILD)/qrt_kernel.o \
 	    -o $@
 
+# ---- OVMF-loaded x86_64 EFI builder/parser proof ---------------------------
+UEFI_CC       ?= clang
+UEFI_LD       ?= lld-link
+UEFI_TARGET   ?= x86_64-pc-win32-coff
+UEFI_CFLAGS   := --target=$(UEFI_TARGET) -ffreestanding -fshort-wchar \
+	-mno-red-zone -fno-stack-protector \
+	-Wall -Wextra -Werror -std=c11 -O2 $(INCLUDE)
+UEFI_ESP      ?= $(BUILD)/uefi-esp
+UEFI_APP      := $(UEFI_ESP)/EFI/BOOT/BOOTX64.EFI
+UEFI_SERIAL   ?= $(BUILD)/uefi-serial.log
+OVMF_CODE     ?= /usr/share/OVMF/OVMF_CODE_4M.fd
+OVMF_VARS     ?= /usr/share/OVMF/OVMF_VARS_4M.fd
+OVMF_TEST_VARS := $(BUILD)/OVMF_VARS_4M.test.fd
+
+uefi: $(UEFI_APP)
+
+$(BUILD)/uefi_roundtrip.obj: tests/uefi_roundtrip.c kernel/bbp_kernel.h \
+		bootloader/bbp_build.h include/bbp/bbp.h Makefile
+	@mkdir -p $(BUILD)
+	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(BUILD)/uefi_build.obj: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h Makefile
+	@mkdir -p $(BUILD)
+	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(BUILD)/uefi_kernel.obj: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+		include/bbp/bbp.h Makefile
+	@mkdir -p $(BUILD)
+	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(UEFI_APP): $(BUILD)/uefi_roundtrip.obj $(BUILD)/uefi_build.obj \
+		$(BUILD)/uefi_kernel.obj
+	@mkdir -p "$(UEFI_ESP)/EFI/BOOT"
+	$(UEFI_LD) /subsystem:efi_application /entry:efi_main /nodefaultlib \
+	    /machine:x64 /out:$@ $^
+
+qemu-uefi: $(UEFI_APP)
+	@cp "$(OVMF_VARS)" "$(OVMF_TEST_VARS)"
+	@rm -f "$(UEFI_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" qemu-system-x86_64 \
+	    -accel tcg -machine q35 -m 128M \
+	    -drive if=pflash,unit=0,format=raw,readonly=on,file="$(OVMF_CODE)" \
+	    -drive if=pflash,unit=1,format=raw,file="$(OVMF_TEST_VARS)" \
+	    -drive format=raw,file=fat:rw:"$(abspath $(UEFI_ESP))" \
+	    -boot order=c,menu=off -display none -monitor none \
+	    -serial "file:$(UEFI_SERIAL)" -nic none -no-reboot \
+	    -device isa-debug-exit,iobase=0xf4,iosize=0x04; \
+	rc=$$?; set -e; \
+	if [ -f "$(UEFI_SERIAL)" ]; then cat "$(UEFI_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: OVMF exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 33 ]; then \
+	    echo "FAILED: OVMF guest exit status $$rc (expected 33)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-UEFI: FAIL:' "$(UEFI_SERIAL)"; then \
+	    echo "FAILED: EFI guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-UEFI: PASS' "$(UEFI_SERIAL)"; then \
+	    echo "FAILED: missing BBP-UEFI: PASS"; exit 1; \
+	fi
+
+# ---- host-only BBP v1 capture tooling -------------------------------------
+bbpctl-test:
+	$(PYTHON) tests/test_bbpctl.py
+
+# ---- versioned SDK, extracted onboarding, and no_std Rust parity ------------
+sdk-c-test:
+	$(MAKE) -f sdk/c/Makefile ROOT=. BUILD=$(BUILD)/sdk onboarding
+
+sdk-package-test:
+	$(PYTHON) -m unittest tests.test_sdk_package
+
+sdk-rust-test:
+	cargo test --manifest-path sdk/rust/bbp-wire/Cargo.toml
+	cargo fmt --manifest-path sdk/rust/bbp-wire/Cargo.toml -- --check
+	@if cargo clippy --version >/dev/null 2>&1; then \
+		cargo clippy --manifest-path sdk/rust/bbp-wire/Cargo.toml --all-targets -- -D warnings; \
+	elif cargo +stable clippy --version >/dev/null 2>&1; then \
+		cargo +stable clippy --manifest-path sdk/rust/bbp-wire/Cargo.toml --all-targets -- -D warnings; \
+	else \
+		echo "cargo-clippy unavailable; lint skipped (CI installs and requires it)"; \
+	fi
+
+sdk-rust-msrv-test:
+	cargo +1.77.0 test --manifest-path sdk/rust/bbp-wire/Cargo.toml
+	cargo +1.77.0 package --manifest-path sdk/rust/bbp-wire/Cargo.toml --allow-dirty
+
+sdk-check: sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test
+	@echo "ALL SDK CHECKS PASSED"
+
+sdk-package:
+	$(PYTHON) tools/package_sdk.py
+
+release-metadata-test:
+	$(PYTHON) -m unittest tests.test_release_metadata
+
+# ---- deterministic project identity + local Pages prototype ----------------
+readme-art:
+	$(PYTHON) tools/generate_readme_art.py
+
+verify-readme:
+	$(PYTHON) tools/generate_readme_art.py --check
+
+verify-site: verify-readme
+	$(PYTHON) scripts/verify_site.py
+
+site-preview: verify-site
+	@echo "BearBoot preview: http://127.0.0.1:8042/website/"
+	$(PYTHON) -m http.server 8042 --bind 127.0.0.1
+
 # ---- everything that runs without a cross toolchain ------------------------
-check: abi test fuzz
+check: abi test fuzz importers-test bbpctl-test sdk-check release-metadata-test verify-site
 	@echo "ALL HOST CHECKS PASSED"
 
 # ---- compile-check every OS port against the frozen core -------------------
@@ -156,4 +329,4 @@ ports-check:
 	@echo "ALL PORTS COMPILE AGAINST THE FROZEN CORE"
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) sdk/rust/bbp-wire/target

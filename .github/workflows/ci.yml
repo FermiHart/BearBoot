@@ -22,14 +22,22 @@ permissions:
 
 jobs:
   core:
-    name: core (abi + self-test + fuzz)
+    name: core (abi + self-test + importers + fuzz + qemu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain
-        run: sudo apt-get update && sudo apt-get install -y build-essential
-      - name: make check (abi + test + fuzz)
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang lld gcc-multilib ovmf qemu-system-x86
+      - name: Install Rust SDK gates
+        run: |
+          rustup component add rustfmt clippy
+          rustup toolchain install 1.77.0 --profile minimal
+      - name: make check (core + importers + SDK + fuzz + docs)
         run: make check
+      - name: bare-metal QEMU proof (TCG)
+        run: make qemu
+      - name: UEFI/OVMF builder-parser proof (TCG)
+        run: make qemu-uefi
 
   ports:
     name: ports (scaffold-check + hosted test)

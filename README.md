@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(max-width: 600px)" srcset="readme/hero-proof-geometry-mobile.svg">
+    <img src="readme/hero-proof-geometry.svg" width="100%" alt="BearBoot proof geometry derived from the frozen ABI, parser, builder, and adversarial tests">
+  </picture>
+</p>
+
 # Bear Boot Protocol (BBP)
 
 **A complementary, verifiable boot-handoff layer.** BBP does not replace your
@@ -9,7 +16,7 @@ parsed by a hardened, adversarial-input-safe consumer.**
 ```
    Author:  F E R M I  ∞  H A R T  <contact@fermihart.com>
    License: BSD-3-Clause + Patent Grant (see LICENSE)
-   Status:  v1.1 — ABI frozen. x86_64 proven end-to-end (see STATUS.md).
+    Status:  SDK 1.2.0 / BBP wire 1.1 — ABI frozen. x86_64 proven end-to-end.
 ```
 
 > **What BBP is:** a thin integrity + portability layer between *whatever booted
@@ -43,15 +50,17 @@ You keep your bootloader. You gain an integrity-checked, portable handoff.
 
 ---
 
-## Proven today: two real OS integrations
+## Proven today: four OS integrations
 
-BBP is not a paper ABI. The same frozen core is wired into two different kernels
+BBP is not a paper ABI. The same frozen core is wired into four different kernels
 through the OSIF seam, each with its own producer of tags:
 
 | Integration | How it produces tags | Status |
 |-------------|----------------------|--------|
 | **`ports/tinalinux/`** | **native** Linux path — `e820_table`, `acpi_os_get_root_pointer()`, `saved_command_line`, `page_offset_base` | **boots under QEMU+KVM**; serial log shows `bbp: tinalinux adapter ok, 5 tags` (see `ports/tinalinux/test/serial.log`) |
-| **`ports/minix/`** | **Limine adapter** — translates Limine responses into BBP tags | builds + links against the frozen core; standalone Limine harness |
+| **`ports/minix/`** | **Limine adapter** — translates Limine responses into BBP tags | real MINIX boot record shows 6 validated tags in `ports/minix/test/serial.log` |
+| **`ports/linux01/`** | **native identity-mapped adapter** — describes the 1991 fixed RAM model without inventing modern firmware | in-kernel QEMU record shows 3 validated tags and a normal userspace handoff |
+| **`ports/josh/`** | **Limine + PMM adapter** — bounded walk window and verified boot-entropy payload | real QEMU record shows 5 tags and CRC-verified entropy seeding the CSPRNG |
 
 The TinaLinux port is the clearest demonstration of the idea: it sits **next to**
 the native Linux boot path (does not disturb it), and at `late_initcall`
@@ -71,14 +80,21 @@ include/bbp/bbp_osif.h     OS-interface contract: the seam a port implements.
 kernel/bbp_kernel.{c,h}    Defensive kernel-side parser. HHDM-aware, no libc,
                            treats the whole handoff as untrusted input.
 bootloader/bbp_build.{c,h} Producer-side tag builder (arena + CRC sealing).
+bootloader/bbp_import*.c   Bounded Limine, Multiboot2, and UEFI translators.
 bootloader/efi_main.c      Reference UEFI producer SKELETON (gnu-efi). A base to
                            port against your firmware — not a finished loader.
 
 ports/tinalinux/           Native Linux->BBP OSIF (boots under QEMU; see above).
 ports/minix/               Limine->BBP adapter OSIF.
+ports/linux01/             Identity-mapped adapter for the Linux 0.01 RAM model.
+ports/josh/                PMM-backed Josh-Bear adapter with a walk window.
 
 examples/kernel_header.c   A kernel publishing its Bear Header in .bbp_hdr.
+examples/sdk_roundtrip.c   Minimal C SDK onboarding + deterministic report.
+sdk/c/                     Versioned standalone C SDK package surface.
+sdk/rust/bbp-wire/         Dependency-free no_std slice validator crate.
 tools/bbp_stamp.py         Post-link header stamper (entry/requests/checksum).
+tools/package_sdk.py       Reproducible, allowlisted C + host SDK archives.
 tests/                     Host self-test, ABI asserts, parser fuzzer, QEMU rig.
 SPEC.md                    Full normative specification.
 STATUS.md                  Honest maturity matrix: live / skeleton / roadmap.
@@ -90,12 +106,49 @@ docs/adr/                  Architecture Decision Records (the "why").
 ## Build & test
 
 ```sh
-make check         # fastest full gate: ABI asserts + self-test + fuzzer
+make check         # complete host gate: core, fuzz, importers, tools, SDK, docs
 make test          # host-compile + run the self-test (adversarial suite incl.)
 make freestanding  # cross-compile the kernel-side as a kernel would (x86_64-elf-)
 make fuzz          # parser fuzzer over a malformed-input corpus
-make qemu          # bare-metal round-trip: real producer -> real parser -> PASS
+make qemu          # build + boot the bare-metal round-trip under QEMU/TCG
+make qemu-uefi     # OVMF-load an x86_64 EFI builder/parser proof under TCG
+make importers-test # host-test bounded boot-source translation and failures
+make bbpctl-test   # verify host capture parsing, evidence, and corrupt fixtures
+make sdk-check     # extracted C/host packages + no_std Rust parity tests
+make sdk-package   # reproducible local archives under build/dist/
 ```
+
+The OVMF target proves PE/COFF loading and executes the real builder plus
+bounded parser in pre-`ExitBootServices` firmware context. It does not turn the
+reference `bootloader/efi_main.c` skeleton into a complete ELF loader or prove
+its collectors, paging, EBS, and kernel-transfer path.
+
+`tools/bbpctl.py` inspects and verifies host-only `.bbpc` v1 captures and emits
+the same canonical evidence stream as the core. BBPC is an archival/test
+container, not a boot handoff or preview of the future BBP v2 wire format. See
+`docs/bbpc-v1.md`.
+
+The importer suite translates bounded Limine snapshots, raw Multiboot2 bytes,
+and normalized final UEFI snapshots into the same BBP builder. It proves
+failure-atomic host translation, not live firmware collection; see
+`docs/adr/0011-boot-source-importers.md`.
+
+## SDK onboarding
+
+The C SDK, host tools, and Rust crate share SDK release version `1.2.0`;
+the compatible boot wire remains BBP v1.1. Build the allowlisted archives, then
+exercise the same flow an extracted C consumer runs:
+
+```sh
+make sdk-package
+make sdk-check
+```
+
+Inside the C archive, `make onboarding` compiles the complete SDK and writes a
+deterministic `build/conformance.json`. The report is a host builder/parser
+profile, not a firmware or machine-boot claim. The `bbp-wire` crate is always
+`no_std`, has no dependencies or allocator, validates caller-owned slices, and
+never dereferences physical addresses. See `docs/adr/0012-sdk-packaging.md`.
 
 Verify a port against the frozen core (example: TinaLinux):
 
@@ -116,8 +169,8 @@ make test             # hosted: "bbp: tinalinux adapter ok, 5 tags … PASS"
    of tags in an arena, sealing CRC-64 on each tag and on the info.
 3. Control reaches the kernel entry with the **physical** info pointer in
    RDI (x86_64) / X0 (AArch64) / A0 (RISC-V).
-4. The kernel calls `bbp_init()` → validates magic, version, size, CRC; picks up
-   the HHDM offset automatically.
+4. The kernel calls `bbp_init_bounded()` with its mapped tag arena → validates
+   magic, version, size and CRC before a bounded HHDM/tag walk.
 5. The kernel calls `bbp_find_tag(&k, BBP_TAG_*)` — corrupt tags fail CRC and are
    treated as absent; a forged length can never drive an out-of-bounds read.
 6. Out-of-line blobs (cmdline, measurement log, EDID) are verified with

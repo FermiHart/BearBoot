@@ -1,8 +1,51 @@
 # Changelog — Bear Boot Protocol
 
-All notable changes. Versioning: `MAJOR.MINOR`. MAJOR bumps on an ABI break;
-MINOR on backward-compatible additions. Rationale for major decisions is in
-`docs/adr/`.
+All notable changes. BBP wire compatibility uses `MAJOR.MINOR`: MAJOR bumps on
+an ABI break and MINOR on backward-compatible wire additions. SDK packages use
+independent semantic versions. Rationale for major decisions is in `docs/adr/`.
+
+## BearBoot SDK 1.2.0 (BBP wire 1.1) - 2026-08-22
+
+### Added
+- `bbp_evidence()` canonical, domain-separated byte stream for hashing a
+  validated handoff without coupling the core to a hash implementation.
+- `bbp_init_bounded()` fail-closed initializer for a known mapped tag arena;
+  all four in-tree adapters and the bare-metal/fuzz proofs use it.
+- `make qemu` now executes the Multiboot round-trip under QEMU/TCG with a hard
+  timeout, captured serial verdict, and distinct guest success/failure exits;
+  CI runs the same proof.
+- `make qemu-uefi` builds a dependency-free x86_64 EFI application with
+  Clang/LLD and OVMF-executes the real builder and bounded parser. The harness
+  is explicitly scoped as firmware-context proof, not a complete EFI loader.
+- `tools/bbpctl.py` and the separate BBPC v1 host capture format provide bounded
+  inspect/verify/evidence workflows plus deterministic corruption fixtures;
+  BBPC is explicitly not boot wire ABI or the future v2 capsule.
+- Dependency-free, failure-atomic importers translate normalized Limine and
+  final UEFI snapshots plus bounded raw Multiboot2 bytes into BBP tags. Their
+  hosted gate covers successful parser roundtrips and adversarial framing.
+- Versioned, reproducible C SDK and host-tools archives use explicit allowlists,
+  SHA-256 manifests, safe paths, fixed metadata, and a release mode that rejects
+  dirty/development sources. The extracted C SDK onboards with one `make` target
+  and emits a deterministic JSON conformance report.
+- The dependency-free `bbp-wire` Rust crate is always `no_std`, uses no allocator
+  or unsafe code, and validates frozen BBP envelope framing and CRCs only over
+  caller-provided slices without dereferencing physical addresses.
+
+### Fixed / hardened
+- Evidence hashes the fixed INFO object and every accepted tag exactly once;
+  it no longer trusts informational `info_size` as a contiguous read length.
+- HEADER and INFO validation compare all 16 magic bytes, including zero padding.
+- Walk-window containment no longer underflows when the candidate object is
+  larger than the remaining window.
+- An HHDM body is read only when `tag_size` covers the concrete structure, and
+  a producer-controlled HHDM tag cannot replace an explicit consumer hint.
+- Tag walk bounds no longer incorrectly constrain separately allocated
+  out-of-line blobs.
+- Threat-model documentation now states mapped-window, immutability/TOCTOU, and
+  semantic-validation preconditions instead of making an unconditional
+  hostile-producer no-fault claim.
+- Builder allocation rejects tag/count/physical-address/info-size overflow and
+  provides a bounded string-copy entry point for untrusted source spans.
 
 ## v1.1
 
