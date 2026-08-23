@@ -80,7 +80,8 @@ On success `bbp_josh_init()` logs one proof line:
 
 6. test/ — a standalone hosted harness (test/harness.c + test/run.sh) that feeds
    synthetic Limine data to the SHIPPED osif.c + adapter.c and proves the parser
-   validates all 5 tags. The REAL Josh-boot serial proof is captured separately.
+   validates all 6 hosted tags, including CMDLINE and SECURITY. The REAL
+   Josh-boot serial proof is captured separately and has its own five-tag set.
 
 ## Hard rules
 

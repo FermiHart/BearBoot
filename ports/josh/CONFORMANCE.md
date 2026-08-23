@@ -70,10 +70,11 @@ bring-up bug cannot occur.
           tag FRAMEBUFFER  : present
           tag SMP          : present
           tag CMDLINE      : present
+          tag SECURITY     : present
           memmap entries: 5 (type[0]=1 expect USABLE=1)   (memmap decoded)
           smp cpu_count=4 bsp_id=0                          (SMP: 4 CPUs decoded)
           cmdline verify_blob -> ok                         (CMDLINE CRC verified)
-        total tags walked: 5
+        total tags walked: 6
         RESULT: PASS
 - [x] bbp_init_bounded returned BBP_OK on the current harness boot data (the
       "bbp_josh_adapter -> ok" line is bbp_strstatus(st) with st==BBP_OK; the 5
@@ -94,7 +95,7 @@ bring-up bug cannot occur.
 ## Deviations / known gaps (honest accounting)
 1. **Real-Josh-boot serial proof: CONFIRMED** (test/serial.log). The hosted
    harness proves osif.c + adapter.c against the frozen core on synthetic Limine
-   data (5 tags incl. CMDLINE); the live Josh boot shows the adapter validating
+   data (6 tags incl. CMDLINE and SECURITY); the live Josh boot shows the adapter validating
    5 real Limine-derived tags (no CMDLINE — Josh has no Limine command line).
 2. now_ns uses a nominal 1 GHz TSC assumption (relative boot metrics only).
 3. No KERNEL_ADDRESS / ACPI tags in v1 — out of scope. KERNEL_ADDRESS is
