@@ -15,39 +15,42 @@
 <circle cx="930" cy="292" r="223.2" fill="#07100f" fill-opacity=".58" stroke="#65fbd2" stroke-opacity=".18"/>
 <circle cx="930" cy="292" r="186.0" fill="none" stroke="#ffcc66" stroke-opacity=".34" stroke-dasharray="3 10"/>
 <circle cx="930" cy="292" r="91.8" fill="none" stroke="#d58cff" stroke-opacity=".28"/>
-<line x1="930.0" y1="292.0" x2="1009.5" y2="337.9" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="930.0" y1="292.0" x2="930.0" y2="383.8" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="930.0" y1="292.0" x2="850.5" y2="246.1" stroke="#ffcc66" stroke-opacity=".23"/>
-<line x1="930.0" y1="292.0" x2="1091.1" y2="385.0" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="930.0" y1="200.2" x2="850.5" y2="337.9" stroke="#d58cff" stroke-opacity=".23"/>
-<line x1="930.0" y1="200.2" x2="850.5" y2="246.1" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="930.0" y1="200.2" x2="1091.1" y2="199.0" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="930.0" y1="200.2" x2="1091.1" y2="385.0" stroke="#8ea1ff" stroke-opacity=".23"/>
-<line x1="930.0" y1="200.2" x2="768.9" y2="199.0" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="1009.5" y1="246.1" x2="850.5" y2="246.1" stroke="#ffcc66" stroke-opacity=".23"/>
-<line x1="1009.5" y1="246.1" x2="1091.1" y2="385.0" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="1009.5" y1="246.1" x2="930.0" y2="478.0" stroke="#8ea1ff" stroke-opacity=".23"/>
-<line x1="1009.5" y1="246.1" x2="768.9" y2="199.0" stroke="#d58cff" stroke-opacity=".23"/>
-<line x1="1009.5" y1="337.9" x2="930.0" y2="383.8" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="1009.5" y1="337.9" x2="850.5" y2="337.9" stroke="#ffcc66" stroke-opacity=".23"/>
-<line x1="1009.5" y1="337.9" x2="768.9" y2="385.0" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="1009.5" y1="337.9" x2="768.9" y2="199.0" stroke="#8ea1ff" stroke-opacity=".23"/>
-<line x1="930.0" y1="383.8" x2="850.5" y2="246.1" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="930.0" y1="383.8" x2="768.9" y2="199.0" stroke="#d58cff" stroke-opacity=".23"/>
+<line x1="930.0" y1="292.0" x2="930.0" y2="200.2" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="930.0" y1="292.0" x2="1009.5" y2="246.1" stroke="#ff6b8a" stroke-opacity=".23"/>
+<line x1="930.0" y1="292.0" x2="930.0" y2="383.8" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="930.0" y1="292.0" x2="850.5" y2="246.1" stroke="#d58cff" stroke-opacity=".23"/>
+<line x1="930.0" y1="292.0" x2="930.0" y2="478.0" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="930.0" y1="200.2" x2="1009.5" y2="246.1" stroke="#65fbd2" stroke-opacity=".23"/>
+<line x1="930.0" y1="200.2" x2="1009.5" y2="337.9" stroke="#65fbd2" stroke-opacity=".23"/>
+<line x1="930.0" y1="200.2" x2="930.0" y2="478.0" stroke="#65fbd2" stroke-opacity=".23"/>
+<line x1="1009.5" y1="246.1" x2="1009.5" y2="337.9" stroke="#d58cff" stroke-opacity=".23"/>
+<line x1="1009.5" y1="246.1" x2="930.0" y2="383.8" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="1009.5" y1="246.1" x2="850.5" y2="337.9" stroke="#d58cff" stroke-opacity=".23"/>
+<line x1="1009.5" y1="246.1" x2="930.0" y2="106.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="1009.5" y1="246.1" x2="1091.1" y2="199.0" stroke="#65fbd2" stroke-opacity=".23"/>
+<line x1="1009.5" y1="246.1" x2="930.0" y2="478.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="1009.5" y1="246.1" x2="768.9" y2="199.0" stroke="#ff6b8a" stroke-opacity=".23"/>
+<line x1="1009.5" y1="337.9" x2="850.5" y2="246.1" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="1009.5" y1="337.9" x2="930.0" y2="106.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="1009.5" y1="337.9" x2="1091.1" y2="199.0" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="1009.5" y1="337.9" x2="1091.1" y2="385.0" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="930.0" y1="383.8" x2="930.0" y2="106.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="930.0" y1="383.8" x2="1091.1" y2="199.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="930.0" y1="383.8" x2="1091.1" y2="385.0" stroke="#ff6b8a" stroke-opacity=".23"/>
+<line x1="930.0" y1="383.8" x2="930.0" y2="478.0" stroke="#d58cff" stroke-opacity=".23"/>
+<line x1="930.0" y1="383.8" x2="768.9" y2="385.0" stroke="#ff6b8a" stroke-opacity=".23"/>
 <line x1="850.5" y1="337.9" x2="930.0" y2="106.0" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="850.5" y1="337.9" x2="930.0" y2="478.0" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="850.5" y1="337.9" x2="768.9" y2="385.0" stroke="#d58cff" stroke-opacity=".23"/>
+<line x1="850.5" y1="337.9" x2="1091.1" y2="199.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="850.5" y1="337.9" x2="768.9" y2="199.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="850.5" y1="246.1" x2="930.0" y2="106.0" stroke="#ff6b8a" stroke-opacity=".23"/>
 <line x1="850.5" y1="246.1" x2="1091.1" y2="199.0" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="850.5" y1="246.1" x2="1091.1" y2="385.0" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="850.5" y1="246.1" x2="768.9" y2="199.0" stroke="#65fbd2" stroke-opacity=".23"/>
-<line x1="930.0" y1="106.0" x2="1091.1" y2="199.0" stroke="#d58cff" stroke-opacity=".23"/>
-<line x1="930.0" y1="106.0" x2="1091.1" y2="385.0" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="930.0" y1="106.0" x2="768.9" y2="385.0" stroke="#8ea1ff" stroke-opacity=".23"/>
-<line x1="1091.1" y1="199.0" x2="930.0" y2="478.0" stroke="#ffcc66" stroke-opacity=".23"/>
-<line x1="1091.1" y1="199.0" x2="768.9" y2="385.0" stroke="#ff6b8a" stroke-opacity=".23"/>
-<line x1="1091.1" y1="385.0" x2="930.0" y2="478.0" stroke="#ffcc66" stroke-opacity=".23"/>
-<line x1="1091.1" y1="385.0" x2="768.9" y2="385.0" stroke="#8ea1ff" stroke-opacity=".23"/>
-<line x1="930.0" y1="478.0" x2="768.9" y2="199.0" stroke="#ff6b8a" stroke-opacity=".23"/>
+<line x1="930.0" y1="106.0" x2="1091.1" y2="199.0" stroke="#65fbd2" stroke-opacity=".23"/>
+<line x1="930.0" y1="106.0" x2="1091.1" y2="385.0" stroke="#65fbd2" stroke-opacity=".23"/>
+<line x1="930.0" y1="106.0" x2="768.9" y2="385.0" stroke="#ffcc66" stroke-opacity=".23"/>
+<line x1="1091.1" y1="199.0" x2="768.9" y2="199.0" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="1091.1" y1="385.0" x2="768.9" y2="199.0" stroke="#8ea1ff" stroke-opacity=".23"/>
+<line x1="930.0" y1="478.0" x2="768.9" y2="385.0" stroke="#65fbd2" stroke-opacity=".23"/>
+<line x1="768.9" y1="385.0" x2="768.9" y2="199.0" stroke="#8ea1ff" stroke-opacity=".23"/>
 <circle cx="930.0" cy="292.0" r="31.0" fill="none" stroke="#65fbd2" stroke-opacity=".17"/>
 <circle cx="930.0" cy="292.0" r="26.0" fill="url(#seal)" stroke="#f5f1df" stroke-opacity=".65"/>
 <circle cx="930.0" cy="200.2" r="13.7" fill="none" stroke="#65fbd2" stroke-opacity=".17"/>
@@ -74,26 +77,26 @@
 <circle cx="768.9" cy="385.0" r="8.7" fill="url(#jade)" stroke="#f5f1df" stroke-opacity=".65"/>
 <circle cx="768.9" cy="199.0" r="13.7" fill="none" stroke="#65fbd2" stroke-opacity=".17"/>
 <circle cx="768.9" cy="199.0" r="8.7" fill="url(#jade)" stroke="#f5f1df" stroke-opacity=".65"/>
-<circle cx="930.0" cy="63.8" r="6" fill="#65fbd2"/>
+<circle cx="930.0" cy="63.8" r="5" fill="#65fbd2"/>
 <text x="930.0" y="53.8" fill="#65fbd2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1">CORE</text>
-<circle cx="1022.8" cy="83.6" r="3" fill="#ffcc66"/>
-<circle cx="1099.6" cy="139.3" r="5" fill="#ff6b8a"/>
+<circle cx="1022.8" cy="83.6" r="6" fill="#ffcc66"/>
+<circle cx="1099.6" cy="139.3" r="6" fill="#ff6b8a"/>
 <circle cx="1147.0" cy="221.5" r="6" fill="#8ea1ff"/>
 <text x="1159.0" y="211.5" fill="#8ea1ff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="700" text-anchor="start" letter-spacing="1">MEMORY</text>
 <circle cx="1156.9" cy="315.8" r="4" fill="#d58cff"/>
 <circle cx="1127.6" cy="406.1" r="3" fill="#65fbd2"/>
-<circle cx="1064.1" cy="476.6" r="4" fill="#ffcc66"/>
+<circle cx="1064.1" cy="476.6" r="5" fill="#ffcc66"/>
 <text x="1076.1" y="493.6" fill="#ffcc66" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="700" text-anchor="start" letter-spacing="1">DEVICE</text>
-<circle cx="977.4" cy="515.2" r="4" fill="#ff6b8a"/>
-<circle cx="882.6" cy="515.2" r="5" fill="#8ea1ff"/>
+<circle cx="977.4" cy="515.2" r="6" fill="#ff6b8a"/>
+<circle cx="882.6" cy="515.2" r="3" fill="#8ea1ff"/>
 <text x="882.6" y="532.2" fill="#8ea1ff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1">SECURITY</text>
-<circle cx="795.9" cy="476.6" r="6" fill="#d58cff"/>
+<circle cx="795.9" cy="476.6" r="3" fill="#d58cff"/>
 <text x="783.9" y="493.6" fill="#d58cff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="700" text-anchor="end" letter-spacing="1">PLATFORM</text>
 <circle cx="732.4" cy="406.1" r="4" fill="#65fbd2"/>
-<circle cx="703.1" cy="315.8" r="6" fill="#ffcc66"/>
-<circle cx="713.0" cy="221.5" r="4" fill="#ff6b8a"/>
-<circle cx="760.4" cy="139.3" r="3" fill="#8ea1ff"/>
-<circle cx="837.2" cy="83.6" r="3" fill="#d58cff"/>
+<circle cx="703.1" cy="315.8" r="3" fill="#ffcc66"/>
+<circle cx="713.0" cy="221.5" r="3" fill="#ff6b8a"/>
+<circle cx="760.4" cy="139.3" r="5" fill="#8ea1ff"/>
+<circle cx="837.2" cy="83.6" r="5" fill="#d58cff"/>
 <text x="825.2" y="73.6" fill="#d58cff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="700" text-anchor="end" letter-spacing="1">DEBUG</text>
 <text x="930" y="289" fill="#171006" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10" font-weight="800" text-anchor="middle" letter-spacing="0.3">CRC-64</text>
 <text x="930" y="303.16" fill="#171006" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="8" font-weight="800" text-anchor="middle" letter-spacing="1">XZ</text>
@@ -111,5 +114,5 @@
 <text x="72" y="505" fill="#ffcc66" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="700" text-anchor="start" letter-spacing="2">INTEGRITY IS NOT AUTHENTICITY</text>
 <text x="72" y="532" fill="#91ad91" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="500" text-anchor="start" letter-spacing="0">CRC detects corruption. Trust remains upstream.</text>
 <line x1="70" y1="574" x2="1130" y2="574" stroke="#8ea1ff" stroke-opacity=".2"/>
-<text x="70" y="606" fill="#77869e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0.4">CORE SHA-256  df90828b3d8ccd71:be1fa1c385c0c8f5:a4086cee005667a5:6a7cb6238bc88d1b</text>
+<text x="70" y="606" fill="#77869e" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="500" text-anchor="start" letter-spacing="0.4">CORE SHA-256  4ee387d795884e07:78bcad740cea0639:33dd21421ca9c168:84845aaad6b350d4</text>
 </svg>
