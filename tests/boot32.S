@@ -21,9 +21,13 @@ stack_top:
 .global _start
 .type _start, @function
 _start:
+    cli
+    cld
     movl $stack_top, %esp
     andl $-16, %esp
     call kmain
 1:  hlt
     jmp 1b
 .size _start, . - _start
+
+.section .note.GNU-stack,"",@progbits
