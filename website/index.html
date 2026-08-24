@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BearBoot - sealed handoff, bounded trust</title>
-<meta name="description" content="Bear Boot Protocol is a CRC-sealed, UUID-versioned boot handoff with a defensive kernel parser that treats every byte as untrusted input.">
+<meta name="description" content="BearBoot SDK 1.3.0: frozen BBP v1.1 handoff, defensive parser, SDKs, host capture, multi-ISA machine proofs, OS integrations, and an explicitly isolated v2 laboratory.">
 <meta name="author" content="F E R M I INFINITY H A R T">
 <meta name="theme-color" content="#060806">
 <script>document.documentElement.classList.add('js')</script>
@@ -140,17 +140,65 @@ section{padding:6.2rem 0;scroll-margin-top:3.5rem}
 .tag-node[data-cat="debug"]{--tag-color:var(--green)}
 .tag-foot{display:flex;justify-content:space-between;gap:1rem;margin-top:1rem;color:#71809a;font-size:.68rem}
 
-.proof-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-.proof-card{border:1px solid var(--line);padding:1.1rem;background:var(--panel)}
-.proof-card header{display:flex;justify-content:space-between;gap:1rem;padding-bottom:.8rem;border-bottom:1px solid var(--line)}
-.proof-card h3{font-size:.84rem;color:var(--fg)}
+.proof-grid{display:grid;gap:1px;background:var(--line);border:1px solid var(--line)}
+.proof-card{display:grid;grid-template-columns:minmax(12rem,1.2fr) minmax(18rem,2fr);gap:1.4rem;padding:1rem 1.15rem;background:var(--panel)}
+.proof-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.proof-card h3{font-size:.84rem;color:var(--fg);letter-spacing:.04em}
 .state{font-size:.65rem;letter-spacing:.1em;color:var(--green)}
 .state.build{color:var(--amber)}
 .state.scope{color:var(--violet)}
-.proof-card p{margin-top:.8rem;color:var(--dim);font-size:.76rem}
+.state.recorded{color:var(--blue)}
+.proof-card p{color:var(--dim);font-size:.76rem}
 .proof-card code{color:var(--jade)}
+.proof-card .verdict{display:block;margin-top:.38rem;color:var(--fg);font-size:.68rem}
 .truth{margin-top:1rem;border:1px solid #493817;background:#120e06;padding:1rem;color:#d8c794}
 .truth b{color:var(--gold)}
+
+.ingestion{background:linear-gradient(120deg,#070a08,#090b12);border-block:1px solid var(--line)}
+.ingest-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 1.25fr 1.1fr;gap:1px;background:var(--line);border:1px solid var(--line)}
+.ingest-node{padding:1rem;background:var(--bg);min-height:9.5rem;display:flex;flex-direction:column}
+.ingest-node small{color:var(--dim);font-size:.62rem;letter-spacing:.12em}
+.ingest-node b{color:var(--fg);margin:.75rem 0;font-size:.82rem}
+.ingest-node span{color:var(--dim);font-size:.68rem;margin-top:auto}
+.ingest-node.engine{background:#09120d}.ingest-node.engine b{color:var(--green)}
+.ingest-node.output{background:#111006}.ingest-node.output b{color:var(--gold)}
+.scope-note{margin-top:1rem;display:grid;grid-template-columns:auto 1fr;gap:1rem;border-left:3px solid var(--amber);padding:.75rem 1rem;background:#100d06;color:var(--dim);font-size:.72rem}
+.scope-note b{color:var(--gold)}
+
+.product-grid{display:grid;gap:1px;background:var(--line);border:1px solid var(--line)}
+.product-row{display:grid;grid-template-columns:11rem 1.25fr 1fr;gap:1.4rem;padding:1.15rem;background:var(--bg);align-items:start}
+.product-id{color:var(--jade);font-size:.7rem;letter-spacing:.12em}
+.product-row:nth-child(2) .product-id{color:var(--violet)}
+.product-row:nth-child(3) .product-id{color:var(--gold)}
+.product-row:nth-child(4) .product-id{color:var(--rose)}
+.product-row h3{color:var(--bright);font-size:1rem;margin-bottom:.25rem}
+.product-row p{color:var(--dim);font-size:.72rem}
+.product-command{border-left:1px solid var(--line);padding-left:1rem;color:var(--green);font-size:.7rem;overflow-wrap:anywhere}
+.product-command small{display:block;color:var(--dim);margin-top:.4rem}
+
+.machines{background:var(--deep);border-block:1px solid #222a3c}
+.machine-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#273047;border:1px solid #273047}
+.machine{background:#080c12;padding:1.15rem;min-height:17rem;display:flex;flex-direction:column}
+.machine small{color:#71809a;font-size:.62rem;letter-spacing:.12em}
+.machine h3{color:var(--jade);margin:.7rem 0;font-size:1.08rem}
+.machine:nth-child(2) h3{color:var(--gold)}.machine:nth-child(3) h3{color:var(--rose)}.machine:nth-child(4) h3{color:var(--violet)}
+.register{display:flex;gap:.4rem;flex-wrap:wrap;margin:.3rem 0 .8rem}
+.register span{border:1px solid #273047;padding:.2rem .38rem;color:#c7d2e6;font-size:.66rem}
+.machine p{color:#8997af;font-size:.72rem}
+.machine code{display:block;margin-top:auto;padding-top:1rem;color:var(--green);font-size:.68rem;overflow-wrap:anywhere}
+.machine.roadmap{opacity:.72}
+
+.frontier-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line)}
+.frontier-side{padding:1.4rem;background:var(--bg)}
+.frontier-side.experimental{background:#0d0912}
+.frontier-side .eyebrow{margin-bottom:.6rem}.frontier-side h3{font-size:1.5rem;color:var(--green);margin-bottom:1rem}.frontier-side.experimental h3{color:var(--violet)}
+.frontier-list{display:grid;gap:.65rem}
+.frontier-item{padding-top:.65rem;border-top:1px solid var(--line)}
+.frontier-item b{display:block;color:var(--fg);font-size:.78rem}.frontier-item span{color:var(--dim);font-size:.69rem}.frontier-item code{color:var(--jade)}
+.frontier-rule{grid-column:1/-1;padding:1rem;background:#120e06;color:#d8c794}.frontier-rule b{color:var(--gold)}
+
+.trust-grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#4a3715;border:1px solid #4a3715;margin-top:2rem}
+.trust-item{background:#0c0b07;padding:1rem}.trust-item b{display:block;color:var(--gold);font-size:.74rem;margin-bottom:.35rem}.trust-item span{color:#a99d7c;font-size:.68rem}
 
 .ports{background:var(--panel);border-block:1px solid var(--line)}
 .port-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem}
@@ -179,15 +227,16 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
 
 @media(max-width:900px){
   .hero-grid{grid-template-columns:1fr;gap:2.5rem}.hero-aside{border-left:0;border-top:1px solid var(--line);padding:1rem 0 0;display:grid;grid-template-columns:repeat(2,1fr);gap:0 1rem}.aside-label,.hero-note{grid-column:1/-1}
-  .section-head{grid-template-columns:1fr;gap:.7rem}.lab-grid{grid-template-columns:1fr}.anatomy{grid-template-columns:1fr}.struct{min-height:15rem}.tag-grid{grid-template-columns:repeat(3,1fr)}.port-grid{grid-template-columns:repeat(2,1fr)}
+  .section-head{grid-template-columns:1fr;gap:.7rem}.lab-grid{grid-template-columns:1fr}.anatomy{grid-template-columns:1fr}.struct{min-height:15rem}.tag-grid{grid-template-columns:repeat(3,1fr)}.port-grid,.machine-grid{grid-template-columns:repeat(2,1fr)}.ingest-rail{grid-template-columns:repeat(2,1fr)}.product-row{grid-template-columns:9rem 1fr}.product-command{grid-column:2}.trust-grid{grid-template-columns:1fr}
 }
 @media(max-width:620px){
-  body{font-size:14px}.wrap{width:min(100% - 1.2rem,1160px)}nav{padding:.5rem .6rem}.brand{font-size:.74rem}.brand span:last-child{display:none}.navlinks a:nth-child(2),.navlinks a:nth-child(3){display:none}
+  body{font-size:14px}.wrap{width:min(100% - 1.2rem,1160px)}nav{padding:.5rem .6rem}.brand{font-size:.74rem}.brand span:last-child{display:none}.navlinks{margin-left:0}.navlinks a{min-height:44px;display:inline-flex;align-items:center}
   .version{display:none}.hero{padding-top:4rem;min-height:auto}.hero h1{font-size:clamp(3.2rem,18vw,5rem)}.hero-aside{grid-template-columns:1fr 1fr}.scroll-cue{display:none}
   .seal{padding:2.8rem 0}.seal-caption{display:block}.seal-caption b{display:block;margin-bottom:.25rem}
-  section{padding:4rem 0}.wire{grid-template-columns:1fr;padding:1rem 0}.wire::before{top:8%;bottom:8%;left:50%;right:auto;width:1px;height:auto}.wire-node{min-height:5.2rem}.proof-grid,.port-grid{grid-template-columns:1fr}.tag-grid{grid-template-columns:repeat(2,1fr)}.tag-node{min-height:6.4rem}.tag-foot,.footer-grid{display:block}.footer-links{justify-content:flex-start;margin-top:1rem}
+  section{padding:4rem 0}.wire{grid-template-columns:1fr;padding:1rem 0}.wire::before{top:8%;bottom:8%;left:50%;right:auto;width:1px;height:auto}.wire-node{min-height:5.2rem}.proof-card,.product-row,.ingest-rail,.frontier-grid,.port-grid,.machine-grid{grid-template-columns:1fr}.product-command{grid-column:auto;border-left:0;border-top:1px solid var(--line);padding:1rem 0 0}.tag-grid{grid-template-columns:repeat(2,1fr)}.tag-node{min-height:6.4rem}.tag-foot,.footer-grid{display:block}.footer-links{justify-content:flex-start;margin-top:1rem}.frontier-rule{grid-column:auto}.scope-note{grid-template-columns:1fr}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+@media(forced-colors:active){body::before{display:none}.state,.product-id,.machine h3{forced-color-adjust:auto}.tag-node.muted{opacity:.55}}
 </style>
 </head>
 <body data-abi="1.1" data-tags="15" data-header-bytes="160" data-info-bytes="144" data-tag-bytes="32">
@@ -195,7 +244,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
 <nav aria-label="Primary navigation">
   <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span><span>F E R M I &infin; H A R T</span><span>/ BEARBOOT</span></a>
   <div class="navlinks">
-    <a href="#contract">contract</a><a href="#tags">tags</a><a href="#proof">proof</a><a href="#ports">ports</a><a href="estado.html">agora</a>
+    <a href="#contract">wire</a><a href="#ingestion">ingest</a><a href="#products">sdk</a><a href="#proof">proof</a><a href="#machines">machines</a><a href="#frontier">v2 lab</a><a href="estado.html" lang="pt-BR" hreflang="pt-BR">agora</a>
   </div>
   <span class="version">SDK 1.3.0 / ABI 1.1</span>
 </nav>
@@ -206,9 +255,9 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
       <div>
         <div class="eyebrow">Bear Boot Protocol / sealed handoff</div>
         <h1>The handoff <span>is hostile.</span></h1>
-        <p class="hero-lede">A complementary boot-handoff layer with UUID-versioned tags, <b>CRC-64/XZ integrity</b>, and a kernel parser built to distrust every byte it receives.</p>
+        <p class="hero-lede">A frozen boot-handoff ABI surrounded by a <b>defensive parser, importers, SDKs, host capture, four OS seams, multi-ISA machine proofs</b>, and an isolated next-generation laboratory.</p>
         <div class="actions">
-          <a class="action" href="#contract">Inspect the wire contract <span aria-hidden="true">-&gt;</span></a>
+          <a class="action" href="#proof">Inspect the proof ledger <span aria-hidden="true">-&gt;</span></a>
           <button class="action secondary" type="button" data-corrupt-jump>Corrupt one tag</button>
         </div>
       </div>
@@ -218,7 +267,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
         <div class="metric"><span>HANDOFF INFO</span><b>144 B</b></div>
         <div class="metric"><span>TAG FRAME</span><b>32 B</b></div>
         <div class="metric"><span>TAG UUIDs</span><b>15</b></div>
-        <p class="hero-note"><b>Not a bootloader.</b> BBP rides alongside Limine, UEFI, or a native kernel boot path.</p>
+        <p class="hero-note"><b>Stable:</b> SDK 1.3.0 / BBP wire 1.1. <b>Not a bootloader.</b> BBP rides alongside Limine, UEFI, Multiboot2, or a native kernel path.</p>
       </aside>
     </div>
     <div class="scroll-cue" aria-hidden="true">SCROLL / VERIFY</div>
@@ -240,7 +289,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
     <div class="wrap">
       <div class="section-head">
         <div class="section-no">01 / FAILURE PATH</div>
-        <div class="section-title"><h2>Refusal is a feature.</h2><p>The producer may be buggy or hostile. BBP validates structure before use, bounds the walk, checks each seal, and treats a corrupt tag as <b>absent</b>.</p></div>
+        <div class="section-title"><h2>Refusal is a feature.</h2><p>The producer may be buggy or hostile. Given a mapped immutable input window, BBP validates structure before use, bounds the walk, checks each seal, and treats a corrupt tag as <b>absent</b>.</p></div>
       </div>
       <div class="lab-grid">
         <div class="wire" id="wire" aria-label="Interactive BBP handoff chain">
@@ -251,7 +300,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
           <div class="wire-node kernel"><span class="hex">DELIVERED</span><b>KERNEL</b><i></i></div>
         </div>
         <div class="lab-control">
-          <div class="label">LIVE CONTRACT MODEL</div>
+          <div class="label">ILLUSTRATIVE FAILURE PATH</div>
           <div class="lab-state" id="lab-state" aria-live="polite"><strong>ACCEPTED</strong><small>Tag structure and CRC agree.</small></div>
           <button class="lab-button" id="corrupt" type="button">[ FLIP ONE PAYLOAD BYTE ]</button>
         </div>
@@ -274,19 +323,38 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
 <em>PRODUCER</em> builds INFO + UUID tags  -&gt;  seals the complete chain
 entry(<b>RDI</b> / <b>X0</b> / <b>A0</b>)  -&gt;  bbp_init_bounded()
 parser validates magic / version / size / bounds / CRC
-bbp_find_tag() returns only a validated view
-bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
+bbp_tag_array() clamps counts; bbp_verify_blob() seals pointed-to bytes
+bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer policy</div>
+      <div class="scope-note"><b>PRECONDITION</b><span>The INFO object and declared walk window must be mapped, readable and immutable through use. CRC detects changed bytes; it cannot prove that a CRC-valid memory map or address is truthful.</span></div>
+    </div>
+  </section>
+
+  <section class="ingestion" id="ingestion">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">03 / INGESTION SEAM</div>
+        <div class="section-title"><h2>Many boot sources. One bounded builder.</h2><p>Platform-specific discovery stops at a narrow translation boundary. Every importer preflights the complete source before changing the destination arena.</p></div>
+      </div>
+      <div class="ingest-rail" aria-label="Boot source ingestion path">
+        <article class="ingest-node"><small>SOURCE / NORMALIZED</small><b>LIMINE</b><span>Memory map, SMP/BSP, command line, framebuffer and ACPI snapshots.</span></article>
+        <article class="ingest-node"><small>SOURCE / RAW BYTES</small><b>MULTIBOOT2</b><span>Bounded framing, modules, memory map, framebuffer and ACPI.</span></article>
+        <article class="ingest-node"><small>SOURCE / FINAL SNAPSHOT</small><b>UEFI</b><span>Descriptor strides, final map, SMBIOS and firmware tables.</span></article>
+        <article class="ingest-node"><small>SOURCE / OSIF</small><b>NATIVE KERNEL</b><span>Existing Linux or kernel tables adapted without replacing their boot path.</span></article>
+        <article class="ingest-node engine"><small>FAILURE-ATOMIC</small><b>IMPORT + BUILD</b><span>Overlap, capacity, malformed framing or overflow leaves builder and arena unchanged.</span></article>
+        <article class="ingest-node output"><small>FROZEN OUTPUT</small><b>BBP v1.1</b><span>INFO plus deterministic UUID tag chain, each structure CRC-sealed.</span></article>
+      </div>
+      <div class="scope-note"><b>PROOF</b><span><code>make importers-test</code> executes successful round trips and adversarial source framing. Live firmware collection remains external; <code>bootloader/efi_main.c</code> is still a reference skeleton.</span></div>
     </div>
   </section>
 
   <section class="tags" id="tags">
     <div class="wrap">
       <div class="section-head">
-        <div class="section-no">03 / CONSTELLATION</div>
+        <div class="section-no">04 / CONSTELLATION</div>
         <div class="section-title"><h2>Fifteen UUIDs. Seven namespaces.</h2><p>The upper sixteen bits select a category; the lower forty-eight identify the tag. Unknown tags remain walkable and ignorable.</p></div>
       </div>
-      <div class="filters" aria-label="Filter tags by category">
-        <button class="filter active" type="button" data-filter="all">all / 15</button><button class="filter" type="button" data-filter="core">core</button><button class="filter" type="button" data-filter="memory">memory</button><button class="filter" type="button" data-filter="device">device</button><button class="filter" type="button" data-filter="security">security</button><button class="filter" type="button" data-filter="platform">platform</button><button class="filter" type="button" data-filter="debug">debug</button>
+      <div class="filters" role="group" aria-label="Highlight tags by category">
+        <button class="filter active" type="button" data-filter="all" aria-pressed="true">all / 15</button><button class="filter" type="button" data-filter="core" aria-pressed="false">core</button><button class="filter" type="button" data-filter="memory" aria-pressed="false">memory</button><button class="filter" type="button" data-filter="device" aria-pressed="false">device</button><button class="filter" type="button" data-filter="security" aria-pressed="false">security</button><button class="filter" type="button" data-filter="platform" aria-pressed="false">platform</button><button class="filter" type="button" data-filter="debug" aria-pressed="false">debug</button>
       </div>
       <div class="tag-grid" id="tag-grid">
         <article class="tag-node" data-cat="core"><b>SMP</b><span>CORE / 0001</span></article>
@@ -305,39 +373,99 @@ bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
         <article class="tag-node" data-cat="platform"><b>SMBIOS</b><span>PLATFORM / 0005</span></article>
         <article class="tag-node" data-cat="debug"><b>METRICS</b><span>DEBUG / 0001</span></article>
       </div>
-      <div class="tag-foot"><span>VENDOR / FFFF remains reserved for private extension.</span><span>source: include/bbp/bbp.h</span></div>
+      <div class="tag-foot"><span>SECURITY defines framing; no shipping firmware producer fills its measurement log yet.</span><span>VENDOR / FFFF remains reserved. source: include/bbp/bbp.h</span></div>
+    </div>
+  </section>
+
+  <section id="products">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">05 / CONSUME + CAPTURE + SHIP</div>
+        <div class="section-title"><h2>The protocol became a product surface.</h2><p>The repository now supports extracted consumers, safe host inspection and deterministic distribution without turning host containers or experiments into boot ABI.</p></div>
+      </div>
+      <div class="product-grid">
+        <article class="product-row"><div class="product-id">C SDK / LIVE</div><div><h3>Extract, build, prove.</h3><p>A C11-only allowlisted archive compiles the full SDK and importers, runs a builder-to-bounded-parser round trip and emits deterministic <code>conformance.json</code>.</p></div><div class="product-command">make onboarding<small>Host conformance, not a machine boot.</small></div></article>
+        <article class="product-row"><div class="product-id">RUST / HOST-TESTED</div><div><h3><code>bbp-wire</code>, always <code>no_std</code>.</h3><p>Rust 2021 / MSRV 1.77, no dependencies, allocator, unsafe code or build script. Slice-only CRC/framing validation never converts physical values into pointers.</p></div><div class="product-command">make sdk-rust-msrv-test<small>Unknown IDs remain visible without gaining semantic trust.</small></div></article>
+        <article class="product-row"><div class="product-id">BBPCTL / LIVE</div><div><h3>Capture bytes without dereferencing history.</h3><p>BBPC v1 preserves INFO, tags and original physical topology for bounded inspect, verify and canonical evidence workflows. It is a 96-byte host container, never boot wire.</p></div><div class="product-command">make bbpctl-test<small>No out-of-line blob capture in BBPC v1.</small></div></article>
+        <article class="product-row"><div class="product-id">RELEASE / REPRODUCIBLE</div><div><h3>Allowlisted bytes with provenance.</h3><p>C SDK, host tools and Rust crate use fixed metadata, SHA-256 manifests, artifact-level SPDX, signed tags and keyless Sigstore bundles. Release mode rejects dirty or development sources.</p></div><div class="product-command">make sdk-check release-metadata-test<small>The signed-tag release workflow emits and verifies the SHA-256, SPDX and Sigstore material.</small></div></article>
+      </div>
     </div>
   </section>
 
   <section id="proof">
     <div class="wrap">
       <div class="section-head">
-        <div class="section-no">04 / CLAIM LEDGER</div>
-        <div class="section-title"><h2>State the proof. State the limit.</h2><p>A green word only appears where a command or checked-in execution record supports it. Structure-only work stays visibly structure-only.</p></div>
+        <div class="section-no">06 / CLAIM LEDGER</div>
+        <div class="section-title"><h2>State the proof. State the limit.</h2><p>Every row names what executes, the command that proves it, and the line it deliberately does not cross.</p></div>
       </div>
       <div class="proof-grid">
-        <article class="proof-card"><header><h3>FROZEN ABI LAYOUT</h3><span class="state">LIVE</span></header><p><code>make abi</code> compiles 28 exact structure-size assertions. Reordering the wire contract fails before boot.</p></article>
-        <article class="proof-card"><header><h3>ADVERSARIAL PARSER</h3><span class="state">LIVE</span></header><p><code>make test</code> covers bad magic, forged lengths, cyclic chains, pointer wrap, CRC tamper and blob boundaries.</p></article>
-        <article class="proof-card"><header><h3>MALFORMED-INPUT FUZZING</h3><span class="state">LIVE</span></header><p><code>make fuzz</code> runs a bounded libFuzzer/ASan smoke campaign or a deterministic fallback driver.</p></article>
-        <article class="proof-card"><header><h3>BARE-METAL ROUNDTRIP</h3><span class="state">LIVE</span></header><p><code>make qemu</code> boots the real builder/parser proof under QEMU/TCG and requires serial PASS plus a distinct guest success status.</p></article>
-        <article class="proof-card"><header><h3>x86_64 / i386 PORT EVIDENCE</h3><span class="state">CHECKED IN</span></header><p>Four ports carry conformance reports and serial records. Current root CI does not reproduce every external OS boot.</p></article>
-        <article class="proof-card"><header><h3>AARCH64 / RISC-V / LOONGARCH</h3><span class="state">MULTI-ISA / SDK 1.3</span></header><p><code>make qemu-aarch64</code> and <code>make qemu-riscv64</code> prove X0/A0 handoffs with CRC-verified QEMU Device Trees. LoongArch remains roadmap.</p></article>
+        <article class="proof-card"><header><h3>FROZEN ABI LAYOUT</h3><span class="state">LIVE</span></header><p><code>make abi</code> compiles 28 exact structure-size assertions.<span class="verdict">VERDICT: layout drift fails the build, before boot.</span></p></article>
+        <article class="proof-card"><header><h3>BOUNDED PARSER + EVIDENCE</h3><span class="state">LIVE</span></header><p><code>make test</code> covers 16-byte magics, typed extents, cycles, pointer wrap, forged counts, blob CRC and a domain-separated INFO+tags evidence stream.<span class="verdict">LIMIT: mapped immutable input and semantic validation remain consumer obligations.</span></p></article>
+        <article class="proof-card"><header><h3>MALFORMED-INPUT FUZZING</h3><span class="state">LIVE</span></header><p><code>make fuzz</code> runs raw and structure-aware harnesses under libFuzzer+ASan or a deterministic watchdog fallback.<span class="verdict">VERDICT: bounded completion, no crash or hang.</span></p></article>
+        <article class="proof-card"><header><h3>IMPORTERS</h3><span class="state build">HOST-TESTED</span></header><p><code>make importers-test</code> executes Limine, raw Multiboot2 and final UEFI translation, including failure atomicity and overlap rejection.<span class="verdict">LIMIT: source collection is external.</span></p></article>
+        <article class="proof-card"><header><h3>SDK + HOST TOOLS</h3><span class="state">LIVE</span></header><p><code>make sdk-check bbpctl-test</code> validates extracted C onboarding, Rust MSRV, reproducible archives and bounded BBPC capture tooling.<span class="verdict">VERDICT: distributable host surfaces agree with wire 1.1.</span></p></article>
+        <article class="proof-card"><header><h3>x86 BARE METAL + OVMF</h3><span class="state">MACHINE PROOF</span></header><p><code>make qemu qemu-uefi</code> requires serial PASS, timeout discipline and distinct guest status from real builder/parser execution.<span class="verdict">LIMIT: OVMF harness is not the incomplete reference UEFI loader.</span></p></article>
+        <article class="proof-card"><header><h3>AARCH64 + RISC-V</h3><span class="state">MACHINE PROOF</span></header><p><code>make qemu-aarch64 qemu-riscv64</code> proves X0/A0 handoffs with copied, CRC-verified QEMU Device Trees and tamper rejection.<span class="verdict">LIMIT: protocol machines, not OS ports.</span></p></article>
+        <article class="proof-card"><header><h3>OSIF INTEGRATIONS</h3><span class="state recorded">LIVE + RECORDED</span></header><p><code>make ports-check</code> compiles all four seams; hosted harnesses and external boot records document each integration separately.<span class="verdict">LIMIT: root CI does not replay every external OS boot.</span></p></article>
+        <article class="proof-card"><header><h3>V2 PROFILE + PORTABILITY</h3><span class="state scope">EXPERIMENTAL</span></header><p><code>make v2-test v2-profile-test v2-vectors-test v2-fuzz v2-portability</code> covers capsule framing, Profile 0, Python/C vectors and three-ISA freestanding compilation.<span class="verdict">LIMIT: offline Draft, not frozen or deployed wire.</span></p></article>
+        <article class="proof-card"><header><h3>TPM2 + AUTH ENVELOPE</h3><span class="state scope">EXPERIMENTAL</span></header><p><code>make tpm2-measure-test auth-envelope-test</code> proves PCR16 extension and host-only HMAC replay/rollback policy across key rotation.<span class="verdict">LIMIT: not Secure Boot, public-key identity or firmware provisioning.</span></p></article>
       </div>
-      <div class="truth"><b>Trust boundary:</b> a malicious producer can recompute CRC. BBP detects corruption and rejects malformed framing; Secure Boot and measured boot provide authenticity.</div>
+      <div class="truth"><b>Vocabulary:</b> LIVE means reproducible in this repository; MACHINE PROOF executes a target ISA or firmware context; HOST-TESTED never implies boot; RECORDED names checked-in external evidence; EXPERIMENTAL stays outside the stable ABI.</div>
+    </div>
+  </section>
+
+  <section class="machines" id="machines">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">07 / MACHINE HANDOFFS</div>
+        <div class="section-title"><h2>Registers, firmware contexts, real verdicts.</h2><p>The same little-endian v1.1 contract is exercised in four distinct machine contexts. Each lane names the incoming platform state and the outgoing BBP handoff.</p></div>
+      </div>
+      <div class="machine-grid">
+        <article class="machine"><small>x86 / MULTIBOOT1</small><h3>BARE METAL</h3><div class="register"><span>IN / MULTIBOOT1</span><span>VERDICT / 33</span></div><p>The i386 rig builds INFO locally and executes the bounded parser under QEMU/TCG with a real memory-map round trip.</p><code>make qemu → BBP-QEMU: PASS</code></article>
+        <article class="machine"><small>x86_64 / OVMF</small><h3>UEFI CONTEXT</h3><div class="register"><span>PE/COFF</span><span>STATUS / 33</span></div><p>OVMF loads the EFI app and executes the same core. This does not validate ELF loading, EBS or the reference loader transfer path.</p><code>make qemu-uefi → BBP-UEFI: PASS</code></article>
+        <article class="machine"><small>AARCH64 / QEMU VIRT</small><h3>X0 → X0</h3><div class="register"><span>IN / DTB X0</span><span>OUT / INFO X0</span></div><p>The real QEMU DTB is copied, CRC-sealed, consumed and tamper-tested with memory and kernel-address tags.</p><code>make qemu-aarch64 → BBP-AARCH64: PASS</code></article>
+        <article class="machine"><small>RV64 / OPENSBI</small><h3>A1 → A0</h3><div class="register"><span>IN / DTB A1</span><span>OUT / INFO A0</span></div><p>OpenSBI supplies hart/DTB state; BearBoot transfers a bounded handoff and rejects payload or tag corruption.</p><code>make qemu-riscv64 → BBP-RISCV64: PASS</code></article>
+      </div>
+      <div class="scope-note"><b>ROADMAP</b><span>LoongArch has a reserved architecture enum only. No code or proof is claimed. AArch64 and RV64 are protocol machine proofs, not complete OS integrations.</span></div>
     </div>
   </section>
 
   <section class="ports" id="ports">
     <div class="wrap">
       <div class="section-head">
-        <div class="section-no">05 / OSIF SEAM</div>
+        <div class="section-no">08 / OSIF SEAM</div>
         <div class="section-title"><h2>One frozen core. Four different kernels.</h2><p>The OS-interface isolates allocation, logging, time and physical mapping. Each integration documents its own aliases, limits and evidence.</p></div>
       </div>
       <div class="port-grid">
-        <article class="port-card"><div class="port-id">PORT / NATIVE LINUX</div><h3>TinaLinux</h3><p>Native Linux tables become five CRC-sealed tags at late_initcall without replacing the existing boot path.</p><div class="port-proof">QEMU+KVM SERIAL RECORD / 5 TAGS</div></article>
-        <article class="port-card"><div class="port-id">PORT / LIMINE</div><h3>MINIX x86_64</h3><p>A higher-half Limine adapter keeps the kernel-image and HHDM aliases explicitly separate.</p><div class="port-proof">REAL MINIX SERIAL RECORD / 6 TAGS</div></article>
-        <article class="port-card"><div class="port-id">PORT / IDENTITY MAP</div><h3>Linux 0.01</h3><p>The 1991 fixed RAM model truthfully produces only memory map, HHDM and kernel address tags.</p><div class="port-proof">IN-KERNEL QEMU RECORD / 3 TAGS</div></article>
-        <article class="port-card"><div class="port-id">PORT / PMM ARENA</div><h3>Josh-Bear</h3><p>A bounded walk window surrounds PMM-backed tags; verified boot entropy seeds the kernel CSPRNG.</p><div class="port-proof">REAL QEMU RECORD / 5 TAGS</div></article>
+        <article class="port-card"><div class="port-id">LIVE / NATIVE LINUX</div><h3>TinaLinux</h3><p>Native Linux tables become five CRC-sealed tags at <code>late_initcall</code> without replacing the existing boot path.</p><div class="port-proof">HOST GATE + QEMU/KVM RECORD / 5 TAGS</div></article>
+        <article class="port-card"><div class="port-id">RECORDED / LIMINE</div><h3>MINIX x86_64</h3><p>A higher-half Limine adapter keeps kernel-image and HHDM aliases separate. The six-tag real-MINIX transcript is distinct from the standalone harness.</p><div class="port-proof">serial-all6-consumers.log / 6 TAGS</div></article>
+        <article class="port-card"><div class="port-id">HOST-TESTED / IDENTITY MAP</div><h3>Linux 0.01</h3><p>The 1991 fixed RAM model truthfully produces only memory map, HHDM and kernel address. The checked serial artifact is a hosted adapter proof.</p><div class="port-proof">HOSTED HARNESS / 3 TAGS</div></article>
+        <article class="port-card"><div class="port-id">RECORDED / PMM ARENA</div><h3>Josh-Bear</h3><p>A bounded walk window surrounds PMM-backed tags; a verified 48-byte entropy blob seeds the kernel CSPRNG.</p><div class="port-proof">REAL QEMU + HOST GATE / 6 TAGS</div></article>
+      </div>
+      <div class="scope-note"><b>COMMON SEAM</b><span>All four adapters call <code>bbp_init_bounded()</code>. <code>make ports-check</code> compiles every port against the frozen core; checked-in external boots remain records unless CI explicitly reruns them.</span></div>
+    </div>
+  </section>
+
+  <section id="frontier">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">09 / STABLE LINE + V2 LAB</div>
+        <div class="section-title"><h2>Evolution without ambiguity.</h2><p>The shipping boot contract and the experimental laboratory are deliberately different objects, with an explicit bounded bridge between them.</p></div>
+      </div>
+      <div class="frontier-grid">
+        <article class="frontier-side"><div class="eyebrow">STABLE / SDK 1.3.0</div><h3>BBP wire v1.1</h3><div class="frontier-list">
+          <div class="frontier-item"><b>Frozen pointer-chain ABI</b><span>160-byte HEADER, 144-byte INFO, 32-byte tag frame and 15 UUID definitions.</span></div>
+          <div class="frontier-item"><b>Defensive consumer</b><span>Mapped-window parsing, CRC, count clamping, typed bodies, blob verification and canonical evidence.</span></div>
+          <div class="frontier-item"><b>Distributed surfaces</b><span>C SDK, Rust crate, host capture, deterministic metadata and release packages.</span></div>
+          <div class="frontier-item"><b>BBPC v1 is separate</b><span>Host archival container preserving topology; never a boot handoff or v2 capsule.</span></div>
+        </div></article>
+        <article class="frontier-side experimental"><div class="eyebrow">EXPERIMENTAL / OFFLINE</div><h3>BBP v2 Draft</h3><div class="frontier-list">
+          <div class="frontier-item"><b>Contiguous bounded capsule</b><span>Exact extent, 64-byte header, 48-byte directory entries, relative offsets, zero padding and per-payload CRC.</span></div>
+          <div class="frontier-item"><b>Profile 0</b><span>Identity, validated memory ranges, kernel address and inline DTB as a separate semantic layer.</span></div>
+          <div class="frontier-item"><b>Independent + portable proof</b><span>Python/C vectors, layout-independent digest, fuzzing and freestanding x86_64/AArch64/RV64 compilation.</span></div>
+          <div class="frontier-item"><b>Measurement, then authentication</b><span>PCR16 <code>swtpm</code> machine proof plus host-only HMAC global rollback floor across key rotation.</span></div>
+        </div></article>
+        <div class="frontier-rule"><b>NON-PROMOTION RULE:</b> v2 is not frozen, deployed, negotiated from v1.1 or authenticated by CRC. The HMAC envelope is not a public-key signature, and the TPM proof is not producer identity.</div>
       </div>
     </div>
   </section>
@@ -346,7 +474,12 @@ bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
     <div class="wrap boundary-box">
       <div class="eyebrow">The non-claim is part of the protocol</div>
       <h2>Integrity is not authenticity.</h2>
-      <p>CRC-64/XZ detects accidental corruption and casual tampering. A producer controlling the bytes can recompute it. <b>BBP never promotes a valid checksum into a trusted identity.</b></p>
+      <p>CRC-64/XZ detects accidental corruption and casual tampering. A producer controlling the bytes can recompute it. <b>BBP never promotes a valid checksum into a trusted identity or semantic truth.</b></p>
+      <div class="trust-grid">
+        <div class="trust-item"><b>MAPPED EXTENT</b><span>The consumer must supply readable bounds before the parser can safely inspect producer memory.</span></div>
+        <div class="trust-item"><b>IMMUTABLE THROUGH USE</b><span>Validation and consumption must not race producer-controlled mutation; copy when the lifetime is uncertain.</span></div>
+        <div class="trust-item"><b>EXTERNAL AUTHORITY</b><span>Secure Boot, signatures, TPM policy and platform-specific semantics live above CRC framing.</span></div>
+      </div>
     </div>
   </section>
 </main>
@@ -354,7 +487,7 @@ bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
 <footer>
   <div class="wrap footer-grid">
     <div><div class="footer-brand">F E R M I &infin; H A R T</div><div>Bear Boot Protocol / BSD-3-Clause + Patent Grant</div></div>
-    <div class="footer-links"><a href="estado.html">estado atual</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
+    <div class="footer-links"><a href="estado.html" lang="pt-BR" hreflang="pt-BR">estado atual</a><a href="https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.3.0">SDK 1.3.0</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
   </div>
 </footer>
 
@@ -384,7 +517,11 @@ bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
   const tags = [...document.querySelectorAll('.tag-node')];
   filters.forEach(filter => filter.addEventListener('click', () => {
     const selected = filter.dataset.filter;
-    filters.forEach(item => item.classList.toggle('active', item === filter));
+    filters.forEach(item => {
+      const active = item === filter;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-pressed', String(active));
+    });
     tags.forEach(tag => tag.classList.toggle('muted', selected !== 'all' && tag.dataset.cat !== selected));
   }));
 })();

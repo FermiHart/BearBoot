@@ -1,11 +1,17 @@
 # BBP — Maturity & Honesty Matrix
 
 This file states plainly what is **exercised**, what is **structure-only**, and
-what is **roadmap**. No claim here is made that a `make` target does not back up.
-Trust is the product — read this before you rely on anything.
+what is **roadmap**. Each claim names its reproducible gate or the checked-in
+evidence and replay limit that backs it. Trust is the product — read this before
+you rely on anything.
 
 Legend:
 - 🟢 **LIVE** — exercised end-to-end with a reproducible proof in this repo.
+- 🟢 **MACHINE PROOF** — executes in the named target ISA, firmware context, or
+  machine emulator; it does not imply a complete OS integration.
+- 🟢 **HOST-TESTED / HOST PROOF** — executes on the host; it never implies boot.
+- 🟢 **RECORDED** — checked-in evidence from an external boot or integration that
+  the root CI does not currently replay.
 - 🟡 **SKELETON / STRUCTURE** — the ABI/code path exists and compiles, but it is
   a reference base or a definition, not a finished, exercised implementation.
 - 🔴 **ROADMAP** — designed for in the ABI, not yet built.
@@ -37,16 +43,16 @@ Legend:
 | Integration | State | Proof / note |
 |-------------|:-----:|--------------|
 | `ports/tinalinux/` — native Linux OSIF | 🟢 LIVE | boots under QEMU+KVM; `bbp: tinalinux adapter ok, 5 tags, hhdm=0x…` in `ports/tinalinux/test/serial.log`; 5 CRC-sealed tags from real e820+ACPI+cmdline at `late_initcall` |
-| `ports/minix/` — Limine adapter OSIF | 🟢 RECORDED | real MINIX boot evidence in `ports/minix/test/serial.log`; current root CI scaffold-checks but does not reproduce the external OS boot |
-| `ports/linux01/` — native identity-mapped OSIF | 🟢 RECORDED | in-kernel QEMU boot evidence in `ports/linux01/test/serial.log`; current root CI does not reproduce it |
-| `ports/josh/` — Limine + PMM OSIF | 🟢 RECORDED | real QEMU boot and verified entropy evidence in `ports/josh/test/serial.log`; current root CI does not reproduce it |
+| `ports/minix/` — Limine adapter OSIF | 🟢 RECORDED | six-tag real MINIX boot evidence in `ports/minix/test/serial-all6-consumers.log`; current root CI scaffold-checks but does not reproduce the external OS boot |
+| `ports/linux01/` — native identity-mapped OSIF | 🟢 HOST-TESTED | `ports/linux01/test/serial.log` is the hosted three-tag adapter proof; the conformance report records a separate in-kernel boot, but no raw in-kernel serial artifact is checked in |
+| `ports/josh/` — Limine + PMM OSIF | 🟢 RECORDED | real QEMU boot evidence plus a six-tag hosted gate with a verified 48-byte entropy blob; current root CI does not reproduce the external OS boot |
 | OSIF contract (`bbp_osif.h`) + weak/strong hook seam | 🟢 LIVE | four ports compile against the same frozen interface; TinaLinux exercises its hosted adapter in current CI |
 
 ## Producers / bootloader side
 
 | Capability | State | Proof / note |
 |------------|:-----:|--------------|
-| Tag builder API (firmware-agnostic) | 🟢 LIVE | used by both ports + the QEMU rig |
+| Tag builder API (firmware-agnostic) | 🟢 LIVE | used by all four OSIF adapters and the QEMU machine rigs |
 | Limine, Multiboot2, and UEFI importers | 🟢 HOST-TESTED | `make importers-test` proves bounded, failure-atomic translation and parser roundtrips; platform collection remains external |
 | `bootloader/efi_main.c` UEFI producer | 🟡 SKELETON | **explicitly a reference skeleton**: its ELF-load, collectors, final memory-map/EBS, paging, and transfer path remain incomplete. The separate OVMF harness does not execute or validate this loader path. |
 | `tools/bbp_stamp.py` post-link header stamp | 🟢 LIVE | cross-verified against the C runtime CRC |
@@ -75,8 +81,8 @@ Legend:
 ## One-line summary
 
 **The protocol, defensive parser, builder, and hosted TinaLinux adapter are
-reproducible on x86_64; AArch64 also has a reproducible machine handoff proof,
-and four ports carry checked-in boot records.** The root CI does not reproduce
+reproducible on x86_64; AArch64 and RV64 have reproducible machine handoff
+proofs, and four ports carry distinct hosted or checked-in evidence.** The root CI does not reproduce
 every external OS boot. The UEFI producer is a reference skeleton, LoongArch
 is roadmap, and the security tags await a measuring producer. If you find a gap
 between a claim and its proof, that is a bug — please open an issue.
