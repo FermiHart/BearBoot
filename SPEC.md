@@ -325,8 +325,8 @@ Linux path that BBP rides on).
 
 | Version | Milestone        | Scope                                                  |
 |---------|------------------|--------------------------------------------------------|
-| v1.1    | **current**      | x86_64 proven end-to-end; native TinaLinux OSIF boots; frozen ABI; defensive parser; out-of-line CRC |
-| v1.5    | Exercise non-x86 | bring an AArch64 (Device Tree) and a RISC-V consumer up from ABI-only to a booted proof |
+| v1.1    | **current**      | x86_64 proven end-to-end; AArch64 X0 + Device Tree machine proof; native TinaLinux OSIF boots; frozen ABI; defensive parser; out-of-line CRC |
+| post-v1.1 portability | **machine proofs complete** | AArch64/X0 and RV64/A0 exercise bounded v1.1 handoffs with QEMU Device Trees; no new wire version is implied and real non-x86 OS ports remain future work |
 | v2.0    | Measuring producer | a producer that actually extends TPM PCRs + fills the measurement log (today the SECURITY tags are definitions only) |
 | v2.x    | Authenticity     | optional signature layer over the CRC integrity layer (CRC ≠ authenticity, by design — see SECURITY.md) |
 

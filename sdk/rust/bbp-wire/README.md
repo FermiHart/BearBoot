@@ -4,7 +4,7 @@
 Protocol v1.1 envelope. The library is unconditionally `#![no_std]`, uses no
 allocator, contains no unsafe code, and has no build script.
 
-The crate follows the BearBoot SDK release version (`1.2.0` here). That
+The crate follows the BearBoot SDK release version (`1.3.0` here). That
 package version is independent from the compatible BBP wire version (`1.1`).
 
 ## Scope

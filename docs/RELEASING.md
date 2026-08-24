@@ -1,30 +1,40 @@
 # Releasing the BearBoot SDK
 
 Releases are cut only from signed `sdk-vMAJOR.MINOR.PATCH` tags. The SDK and
-wire versions are deliberately separate. The 1.2.0 release is named exactly:
+wire versions are deliberately separate. The current release is named exactly:
 
-> BearBoot SDK 1.2.0 (BBP wire 1.1)
+> BearBoot SDK 1.3.0 (BBP wire 1.1)
 
-`.github/workflows/release.yml` checks out the exact tag, verifies that GitHub
-accepts its signature and that its commit is on the default branch, runs every
-host, Rust, port, QEMU, and OVMF gate, and then builds every package twice. A
-separate OIDC-only job signs the validated bytes, and a final `contents: write`
-job creates the release. Tagged repository code never runs with either release
-permission.
+`.github/workflows/release.yml` checks out the exact tag and runs the gates
+present in that immutable revision. The `sdk-v1.2.0` tag predates the AArch64
+and RISC-V gates; those proofs first ship in 1.3.0 and are never attributed
+retroactively to 1.2.0. For a new tag, the workflow verifies that
+GitHub accepts its signature and that its commit is on the default branch, runs
+every host, Rust, port, multi-architecture QEMU, and OVMF gate, and builds every
+package twice. A separate OIDC-only job signs the validated bytes, and a final
+`contents: write` job creates the release. Tagged repository code never runs
+with either release permission.
 
 ## Prepare a release
 
 1. Replace development versions with the release version in `sdk/VERSION`,
-   `sdk/rust/bbp-wire/Cargo.toml`, and `sdk/rust/bbp-wire/Cargo.lock`.
+   `sdk/c/include/bbp/bbp_sdk.h`, `sdk/rust/bbp-wire/Cargo.toml`,
+   `sdk/rust/bbp-wire/Cargo.lock`, `sdk/rust/bbp-wire/README.md`,
+   `tests/test_sdk_package.py`, and the expected version/title/output names in
+   `tests/test_release_metadata.py`. Update the README/site development labels.
 2. Move the relevant changelog entries out of `Unreleased` and commit all release
    preparation. The release commit must be reachable from the default branch.
 3. Confirm the complete local gate is green:
 
    ```sh
-   make check
-   make freestanding CROSS=
-   make qemu
-   make qemu-uefi
+    make check
+    make v2-portability v2-fuzz
+    make tpm2-measure-test
+    make freestanding CROSS=
+    make qemu
+    make qemu-aarch64
+    make qemu-riscv64
+    make qemu-uefi
    make ports-check CROSS=
    make -C ports/tinalinux test
    make -C ports/linux01 test
@@ -87,8 +97,8 @@ and release title keep both versions visible:
 ```sh
 git config gpg.format ssh
 git config user.signingkey ~/.ssh/fermihart_signing.pub
-git tag -s sdk-v1.2.0 -m 'BearBoot SDK 1.2.0 (BBP wire 1.1)'
-git push origin sdk-v1.2.0
+git tag -s sdk-v1.3.0 -m 'BearBoot SDK 1.3.0 (BBP wire 1.1)'
+git push origin sdk-v1.3.0
 ```
 
 The workflow requires an annotated tag that GitHub reports as verified. A
@@ -103,7 +113,7 @@ printf '%s %s\n' 'release@example.com' "$(cat release-key.pub)" \
   > /tmp/bearboot-allowed-signers
 git -c gpg.format=ssh \
   -c gpg.ssh.allowedSignersFile=/tmp/bearboot-allowed-signers \
-  verify-tag sdk-v1.2.0
+  verify-tag sdk-v1.3.0
 ```
 
 Replace `release@example.com` with the tagger identity and compare the public-key
@@ -119,12 +129,12 @@ sha256sum --check SHA256SUMS
 
 Each payload has a `<payload>.sigstore.json` keyless signature bundle. The three
 distributable packages also have `<payload>.sbom.sigstore.json` SPDX attestation
-bundles. For `sdk-v1.2.0`, verify them against the exact workflow identity:
+bundles. For `sdk-v1.3.0`, verify them against the exact workflow identity:
 
 ```sh
-identity='https://github.com/FermiHart/BearBoot/.github/workflows/release.yml@refs/tags/sdk-v1.2.0'
+identity='https://github.com/FermiHart/BearBoot/.github/workflows/release.yml@refs/tags/sdk-v1.3.0'
 issuer='https://token.actions.githubusercontent.com'
-file='bearboot-c-sdk-1.2.0.tar.gz'
+file='bearboot-c-sdk-1.3.0.tar.gz'
 
 cosign verify-blob \
   --bundle "$file.sigstore.json" \

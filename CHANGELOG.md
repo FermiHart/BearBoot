@@ -4,9 +4,34 @@ All notable changes. BBP wire compatibility uses `MAJOR.MINOR`: MAJOR bumps on
 an ABI break and MINOR on backward-compatible wire additions. SDK packages use
 independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
-## Unreleased (BBP v2 Draft, offline only)
+## BearBoot SDK 1.3.0 (BBP wire 1.1) - 2026-08-24
 
 ### Added
+- Reproducible AArch64 QEMU `virt` machine proof of the v1.1 X0 handoff,
+  bounded identity-mapped parser, QEMU-generated Device Tree copy/CRC, and
+  adversarial payload/tag rejection under `make qemu-aarch64`. This is a
+  freestanding protocol proof, not an AArch64 OS port or production loader.
+- Reproducible RV64 OpenSBI/QEMU `virt` machine proof of the v1.1 A0 handoff,
+  bounded identity-mapped parser, QEMU-generated Device Tree copy/CRC, and
+  adversarial payload/tag rejection under `make qemu-riscv64`. This is not a
+  RISC-V OS port, SBI conformance test, or production loader.
+
+### Experimental BBP v2 (offline only)
+- Draft Profile 0 defines separate native semantics for boot identity, memory
+  map, kernel address, and inline Device Tree. `make v2-profile-test` proves
+  required-entry, duplicate, unknown-type, and malformed-stride policy.
+- `make v2-vectors-test` feeds independently encoded Python capsules, including
+  a physically relaid-out form, into the C parser and Profile 0 validator.
+- `make v2-fuzz` runs bounded raw-framing and valid-framing/hostile-payload
+  campaigns through the capsule parser and Profile 0 under libFuzzer+ASan.
+- `make tpm2-measure-test` extends the SHA-256 canonical v2 measurement into
+  PCR 16 of a real `swtpm` process and verifies the resulting PCR equation.
+  This is a reproducible machine proof, not authentication or a firmware port.
+- A host-only authenticated envelope binds a v2 capsule to an HMAC-SHA256 key
+  identity and rollback index. Its single-writer state rejects replay and
+  rollback under `make auth-envelope-test`; key provisioning is out of scope.
+- Freestanding v2 core portability gate cross-compiles the same byte-oriented
+  parser/builder for x86_64, AArch64, and RV64 under `make v2-portability`.
 - Experimental contiguous v2 capsule with mandatory extent, relative payload
   offsets, bounded directory parsing, zero-padding rules, and CRC-64/XZ.
 - Deterministic freestanding builder and layout-independent canonical digest

@@ -16,7 +16,8 @@ parsed by a hardened, adversarial-input-safe consumer.**
 ```
    Author:  F E R M I  ∞  H A R T  <contact@fermihart.com>
    License: BSD-3-Clause + Patent Grant (see LICENSE)
-    Status:  SDK 1.2.0 / BBP wire 1.1 — ABI frozen. x86_64 proven end-to-end.
+    Status:  SDK 1.3.0 / BBP wire 1.1 — ABI frozen. x86_64 end-to-end.
+             Latest release: SDK 1.3.0. AArch64/RV64 machine proofs included.
 ```
 
 > **What BBP is:** a thin integrity + portability layer between *whatever booted
@@ -113,18 +114,41 @@ make test          # host-compile + run the self-test (adversarial suite incl.)
 make freestanding  # cross-compile the kernel-side as a kernel would (x86_64-elf-)
 make fuzz          # parser fuzzer over a malformed-input corpus
 make qemu          # build + boot the bare-metal round-trip under QEMU/TCG
+make qemu-aarch64  # AArch64 X0 handoff + QEMU Device Tree under TCG
+make qemu-riscv64  # RV64 A0 handoff + QEMU Device Tree via OpenSBI
 make qemu-uefi     # OVMF-load an x86_64 EFI builder/parser proof under TCG
 make importers-test # host-test bounded boot-source translation and failures
 make bbpctl-test   # verify host capture parsing, evidence, and corrupt fixtures
 make v2-test       # adversarial v2 capsule, digest, and v1.1 bridge proof
+make v2-profile-test # validate experimental native Profile 0 semantics
+make v2-vectors-test # independent Python encoder consumed by the C parser
+make v2-fuzz       # bounded malformed capsule + Profile 0 campaign
+make tpm2-measure-test # extend the canonical v2 measurement into an emulated TPM2 PCR
+make auth-envelope-test # host-only HMAC authentication and anti-rollback policy
+make v2-portability # compile the v2 Draft core for x86_64, AArch64, and RV64
 make sdk-check     # extracted C/host packages + no_std Rust parity tests
 make sdk-package   # reproducible local archives under build/dist/
 ```
+
+`make qemu-aarch64` requires `aarch64-linux-gnu-gcc`,
+`aarch64-linux-gnu-objcopy`, GNU `timeout`, and `qemu-system-aarch64`.
+`make qemu-riscv64` requires `riscv64-linux-gnu-gcc`, GNU `timeout`, and
+`qemu-system-riscv64`.
 
 The OVMF target proves PE/COFF loading and executes the real builder plus
 bounded parser in pre-`ExitBootServices` firmware context. It does not turn the
 reference `bootloader/efi_main.c` skeleton into a complete ELF loader or prove
 its collectors, paging, EBS, and kernel-transfer path.
+
+The AArch64 target boots a raw Linux Image on QEMU `virt`, receives its
+QEMU-generated Device Tree in X0, copies and CRC-seals it into a v1.1 handoff,
+then enters the consumer with INFO in X0. It proves the architecture register
+contract and bounded parser on a second ISA; it is not an AArch64 OS port or
+firmware loader.
+
+The RV64 target enters through OpenSBI with hart ID in A0 and QEMU's Device
+Tree in A1, then re-enters the BearBoot consumer with INFO in A0. Like the
+AArch64 target, it is a bounded machine proof, not an OS port or loader.
 
 `tools/bbpctl.py` inspects and verifies host-only `.bbpc` v1 captures and emits
 the same canonical evidence stream as the core. BBPC is an archival/test
@@ -134,7 +158,9 @@ container, not a boot handoff or preview of the future BBP v2 wire format. See
 The separate BBP v2 contiguous capsule is an offline-only Draft. It does not
 change or negotiate the frozen v1.1 ABI. `make v2-test` proves its bounded
 parser, deterministic builder, layout-independent digest stream, and explicit
-v1.1 bridge; see `docs/rfc/0001-bbp-v2-capsule.md`.
+v1.1 bridge. Experimental Profile 0 adds a separate semantic validator without
+coupling the generic parser to a registry; see `docs/rfc/0001-bbp-v2-capsule.md`
+and `docs/rfc/0002-bbp-v2-profile-0.md`.
 
 The importer suite translates bounded Limine snapshots, raw Multiboot2 bytes,
 and normalized final UEFI snapshots into the same BBP builder. It proves
@@ -143,8 +169,8 @@ failure-atomic host translation, not live firmware collection; see
 
 ## SDK onboarding
 
-The C SDK, host tools, and Rust crate share SDK release version `1.2.0`;
-the compatible boot wire remains BBP v1.1. Build the allowlisted archives, then
+The C SDK, host tools, and Rust crate share release version `1.3.0`. The
+compatible boot wire remains BBP v1.1. Build the allowlisted archives, then
 exercise the same flow an extracted C consumer runs:
 
 ```sh
@@ -200,7 +226,8 @@ mechanism: layout drift fails the **build**, not the boot.
 
 This project states plainly what is exercised vs. what is structure-only. See
 **[STATUS.md](STATUS.md)** for the maturity matrix (x86_64 is proven end-to-end;
-AArch64/RISC-V/LoongArch exist in the ABI but are not yet exercised; the SECURITY
-tags are defined framing, not a measuring producer). Trust is the product.
+AArch64 and RV64 have reproducible machine handoff proofs; LoongArch remains
+roadmap; the SECURITY tags are framing, not a measuring producer).
+Trust is the product.
 
 — F E R M I  ∞  H A R T

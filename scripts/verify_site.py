@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ABI = (ROOT / "include/bbp/bbp.h").read_text(encoding="utf-8")
 SDK_VERSION = (ROOT / "sdk/VERSION").read_text(encoding="ascii").strip()
 SITE = ROOT / "website/index.html"
+STATE_PAGE = ROOT / "website/estado.html"
 
 
 def require(condition, message):
@@ -20,7 +21,9 @@ def require(condition, message):
 
 def main():
     require(SITE.exists(), "website/index.html is missing")
+    require(STATE_PAGE.exists(), "website/estado.html is missing")
     page = SITE.read_text(encoding="utf-8")
+    state_page = STATE_PAGE.read_text(encoding="utf-8")
     major = re.search(r"#define BBP_VERSION_MAJOR\s+(\d+)", ABI).group(1)
     minor = re.search(r"#define BBP_VERSION_MINOR\s+(\d+)", ABI).group(1)
     tags = re.findall(r"#define\s+BBP_TAG_\w+\s+BBP_TAG_ID\(", ABI)
@@ -38,6 +41,8 @@ def main():
         f"SDK {SDK_VERSION} / ABI {major}.{minor}",
         "CRC-64/XZ",
         "bbp_init_bounded()",
+        "make qemu-aarch64",
+        "make qemu-riscv64",
         "requires serial PASS",
         "hero-proof-geometry.svg",
     ):
@@ -47,9 +52,24 @@ def main():
 
     require("http://" not in page, "site contains an insecure external URL")
     require("<script src=" not in page, "site must not depend on remote scripts")
+    require('href="estado.html"' in page, "site does not link the current-state page")
+    for token in (
+        "SDK 1.3.0 / wire 1.1",
+        "BBP v2 Draft / offline",
+        "AArch64 boot proof",
+        "Release checkpoint",
+        "integridade com confiança",
+    ):
+        require(token in state_page, f"current-state page missing: {token}")
+    require("http://" not in state_page, "current-state page contains an insecure URL")
+    require("<script src=" not in state_page, "current-state page must be standalone")
     require(page.count('class="tag-node"') == len(tags), "site tag constellation drifted from ABI")
     require(page.count('class="port-card"') == 4, "site integration inventory must list four ports")
     require("does not yet launch QEMU" not in page, "site carries stale QEMU claim")
+    require("MULTI-ISA LIVE / UNRELEASED" not in page,
+            "site carries stale architecture release claim")
+    require("+ WORKTREE" not in state_page,
+            "current-state page carries stale worktree claim")
     require((ROOT / "readme/hero-proof-geometry.svg").exists(), "desktop geometry missing")
     require((ROOT / "readme/hero-proof-geometry-mobile.svg").exists(), "mobile geometry missing")
     print(f"BearBoot site: PASS (ABI {major}.{minor}, {len(tags)} tags, 4 integration records)")

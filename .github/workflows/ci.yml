@@ -7,8 +7,8 @@
 #   - every port: freestanding scaffold-check (links vs the frozen core) and,
 #     where present, the hosted adapter test.
 #
-# Everything here runs with the stock distro gcc — no cross toolchain needed
-# (the freestanding port flags work with native gcc; CROSS= forces it).
+# Hosted and port gates use distro compilers. Machine proofs additionally use
+# distro cross toolchains for their target ISA.
 
 name: ci
 
@@ -22,20 +22,28 @@ permissions:
 
 jobs:
   core:
-    name: core (v1.1 + v2 draft + importers + fuzz + qemu)
+    name: core (v1.1 + v2 draft + importers + fuzz + multi-arch qemu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang lld gcc-multilib ovmf qemu-system-x86
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang lld gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu ovmf qemu-system-arm qemu-system-misc qemu-system-x86 swtpm
       - name: Install Rust SDK gates
         run: |
           rustup component add rustfmt clippy
           rustup toolchain install 1.77.0 --profile minimal
       - name: make check (core + importers + SDK + fuzz + docs)
         run: make check
+      - name: v2 Draft freestanding portability
+        run: make v2-portability v2-fuzz
+      - name: TPM2 canonical measurement proof
+        run: make tpm2-measure-test
       - name: bare-metal QEMU proof (TCG)
         run: make qemu
+      - name: AArch64 X0 and Device Tree proof (TCG)
+        run: make qemu-aarch64
+      - name: RISC-V A0 and Device Tree proof (TCG)
+        run: make qemu-riscv64
       - name: UEFI/OVMF builder-parser proof (TCG)
         run: make qemu-uefi
 

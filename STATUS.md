@@ -28,7 +28,9 @@ Legend:
 | Producer-side tag builder (`bbp_build.c`) | 🟢 LIVE | round-trip: builder → parser agree on CRCs |
 | Bare-metal round-trip proof | 🟢 LIVE | `make qemu` boots under QEMU/TCG, requires serial `BBP-QEMU: PASS` plus guest status 33, and fails on timeout/error |
 | UEFI/OVMF builder-parser proof | 🟢 LIVE | `make qemu-uefi` OVMF-loads an x86_64 PE/COFF app and requires `BBP-UEFI: PASS` plus guest status 33; not a full loader proof |
-| BBP v2 contiguous capsule Draft | 🟢 HOST-TESTED | offline-only parser, deterministic builder, canonical digest stream, and explicit v1.1 bridge under `make v2-test`; layout is experimental, not frozen or deployed |
+| AArch64 X0 + Device Tree proof | 🟢 LIVE | `make qemu-aarch64` boots a raw Image on QEMU `virt`, constructs memory-map/kernel-address tags, carries a CRC-sealed copy of QEMU's X0 DTB, re-enters the consumer with INFO in X0, and rejects payload/tag tamper; not an OS port |
+| RV64 A0 + Device Tree proof | 🟢 LIVE | `make qemu-riscv64` boots through OpenSBI on QEMU `virt`, constructs memory-map/kernel-address tags, carries a CRC-sealed copy of QEMU's A1 DTB, re-enters the consumer with INFO in A0, and rejects payload/tag tamper; not an OS port |
+| BBP v2 contiguous capsule Draft | 🟢 HOST-TESTED / MULTI-ISA COMPILED | offline-only parser, deterministic builder, canonical digest, v1.1 bridge, independent Python/C vectors, fuzzing, and native Profile 0 under `make v2-test`, `make v2-profile-test`, `make v2-vectors-test`, `make v2-fuzz`, and `make v2-portability`; layout and profile are experimental, not frozen or deployed |
 
 ## OS integrations (the OSIF seam)
 
@@ -53,9 +55,9 @@ Legend:
 
 | Arch | State | Note |
 |------|:-----:|------|
-| x86_64 | 🟢 LIVE | every proof above is x86_64 |
-| AArch64 | 🟡 ABI-only | defined in the ABI (handoff register X0, little-endian); **no AArch64 boot exercised** |
-| RISC-V 64 | 🟡 ABI-only | defined (A0 handoff); not exercised |
+| x86_64 | 🟢 LIVE | full in-tree protocol, firmware-context, and OS integration proof inventory |
+| AArch64 | 🟢 MACHINE PROOF (SDK 1.3.0) | QEMU `virt` raw Image exercises X0, little-endian v1.1, bounded parsing, QEMU memory geometry, kernel address, and a CRC-verified QEMU-generated DTB; no AArch64 OS port |
+| RISC-V 64 | 🟢 MACHINE PROOF (SDK 1.3.0) | OpenSBI/QEMU `virt` exercises A0, little-endian v1.1, bounded parsing, QEMU memory geometry, kernel address, and a CRC-verified QEMU-generated DTB; no RISC-V OS port |
 | LoongArch | 🔴 ROADMAP | enum reserved only |
 
 ## Security tags
@@ -63,16 +65,18 @@ Legend:
 | Capability | State | Note |
 |------------|:-----:|------|
 | SECURITY / measurement / Secure-Boot tag **definitions** | 🟡 STRUCTURE | the on-the-wire structs + `*_crc` fields exist and parse |
-| A producer that actually **measures** (extends PCRs, fills the log) | 🔴 ROADMAP | no measuring producer ships here; the tags are framing for one |
+| Canonical v2 measurement extended into TPM2 | 🟢 MACHINE PROOF (SDK 1.3.0) | `make tpm2-measure-test` speaks TPM2 directly to `swtpm`, extends PCR 16, emits a JSON event record, and verifies the PCR equation |
+| Authenticated v2 envelope and anti-rollback | 🟢 HOST PROOF (SDK 1.3.0) | HMAC-SHA256 key identity, exact extent, atomic single-writer global monotonic state, key-rotation/replay/rollback/tamper rejection; no firmware key provisioning |
+| Firmware producer that measures and fills the v1.1 SECURITY log | 🔴 ROADMAP | no measuring firmware producer ships here; the tag remains framing for one |
 | CRC-64/XZ = integrity, **not** authenticity | 🟢 LIVE (documented) | `SECURITY.md` is explicit: detects corruption/casual tampering, not a signing layer |
 
 ---
 
 ## One-line summary
 
-**The protocol, the defensive parser, the builder, and the hosted TinaLinux
-adapter are reproducible on x86_64; four ports also carry checked-in boot
-records.** The root CI does not reproduce every external OS boot. The UEFI
-producer is a reference skeleton, non-x86 is ABI-only, and the security tags are
-definitions awaiting a measuring producer. If you find a gap between a claim
-and its proof, that is a bug — please open an issue.
+**The protocol, defensive parser, builder, and hosted TinaLinux adapter are
+reproducible on x86_64; AArch64 also has a reproducible machine handoff proof,
+and four ports carry checked-in boot records.** The root CI does not reproduce
+every external OS boot. The UEFI producer is a reference skeleton, LoongArch
+is roadmap, and the security tags await a measuring producer. If you find a gap
+between a claim and its proof, that is a bug — please open an issue.

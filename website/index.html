@@ -195,9 +195,9 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
 <nav aria-label="Primary navigation">
   <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span><span>F E R M I &infin; H A R T</span><span>/ BEARBOOT</span></a>
   <div class="navlinks">
-    <a href="#contract">contract</a><a href="#tags">tags</a><a href="#proof">proof</a><a href="#ports">ports</a>
+    <a href="#contract">contract</a><a href="#tags">tags</a><a href="#proof">proof</a><a href="#ports">ports</a><a href="estado.html">agora</a>
   </div>
-  <span class="version">SDK 1.2.0 / ABI 1.1</span>
+  <span class="version">SDK 1.3.0 / ABI 1.1</span>
 </nav>
 
 <main id="main">
@@ -321,7 +321,7 @@ bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
         <article class="proof-card"><header><h3>MALFORMED-INPUT FUZZING</h3><span class="state">LIVE</span></header><p><code>make fuzz</code> runs a bounded libFuzzer/ASan smoke campaign or a deterministic fallback driver.</p></article>
         <article class="proof-card"><header><h3>BARE-METAL ROUNDTRIP</h3><span class="state">LIVE</span></header><p><code>make qemu</code> boots the real builder/parser proof under QEMU/TCG and requires serial PASS plus a distinct guest success status.</p></article>
         <article class="proof-card"><header><h3>x86_64 / i386 PORT EVIDENCE</h3><span class="state">CHECKED IN</span></header><p>Four ports carry conformance reports and serial records. Current root CI does not reproduce every external OS boot.</p></article>
-        <article class="proof-card"><header><h3>AARCH64 / RISC-V / LOONGARCH</h3><span class="state scope">ABI / ROADMAP</span></header><p>Registers and identifiers exist in the ABI. No non-x86 boot is claimed as exercised today.</p></article>
+        <article class="proof-card"><header><h3>AARCH64 / RISC-V / LOONGARCH</h3><span class="state">MULTI-ISA / SDK 1.3</span></header><p><code>make qemu-aarch64</code> and <code>make qemu-riscv64</code> prove X0/A0 handoffs with CRC-verified QEMU Device Trees. LoongArch remains roadmap.</p></article>
       </div>
       <div class="truth"><b>Trust boundary:</b> a malicious producer can recompute CRC. BBP detects corruption and rejects malformed framing; Secure Boot and measured boot provide authenticity.</div>
     </div>
@@ -354,7 +354,7 @@ bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
 <footer>
   <div class="wrap footer-grid">
     <div><div class="footer-brand">F E R M I &infin; H A R T</div><div>Bear Boot Protocol / BSD-3-Clause + Patent Grant</div></div>
-    <div class="footer-links"><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
+    <div class="footer-links"><a href="estado.html">estado atual</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
   </div>
 </footer>
 

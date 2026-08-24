@@ -89,7 +89,7 @@ class ReleaseMetadataTests(unittest.TestCase):
 
             support = json.loads((directory / "support.json").read_text())
             self.assertEqual(support["format"], "bearboot-support-matrix-v1")
-            self.assertEqual(support["package_version"], "1.2.0")
+            self.assertEqual(support["package_version"], "1.3.0")
             self.assertEqual(support["wire_version"], "1.1")
             self.assertEqual(support["source_revision"], REVISION)
             self.assertEqual(support["generated_at"], "1973-11-29T21:33:09Z")
@@ -98,8 +98,16 @@ class ReleaseMetadataTests(unittest.TestCase):
             }
             self.assertEqual(architectures["x86_64"]["status"], "live")
             self.assertTrue(architectures["x86_64"]["proof_commands"])
-            self.assertEqual(architectures["aarch64"]["status"], "abi-only")
-            self.assertEqual(architectures["riscv64"]["status"], "abi-only")
+            self.assertEqual(architectures["aarch64"]["status"], "live")
+            self.assertEqual(
+                architectures["aarch64"]["proof_commands"],
+                ["make qemu-aarch64"],
+            )
+            self.assertEqual(architectures["riscv64"]["status"], "live")
+            self.assertEqual(
+                architectures["riscv64"]["proof_commands"],
+                ["make qemu-riscv64"],
+            )
             self.assertEqual(architectures["loongarch"]["status"], "roadmap")
             self.assertEqual(architectures["loongarch"]["lifecycle"], "suspended")
             ports = {item["port"]: item for item in support["ports"]}
@@ -121,7 +129,7 @@ class ReleaseMetadataTests(unittest.TestCase):
             self.assertEqual(set(packages), {name for name, _ in artifacts})
             for name, path in artifacts:
                 package = packages[name]
-                self.assertEqual(package["versionInfo"], "1.2.0")
+                self.assertEqual(package["versionInfo"], "1.3.0")
                 self.assertEqual(package["packageFileName"], name)
                 self.assertFalse(package["filesAnalyzed"])
                 self.assertEqual(package["builtDate"], "1973-11-29T21:33:09Z")
@@ -170,10 +178,10 @@ class ReleaseMetadataTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             support = json.loads((output / "SUPPORT-MATRIX.json").read_text())
             self.assertEqual(
-                support["title"], "BearBoot SDK 1.2.0 (BBP wire 1.1)"
+                support["title"], "BearBoot SDK 1.3.0 (BBP wire 1.1)"
             )
             sbom = json.loads(
-                (output / "bearboot-sdk-1.2.0.spdx.json").read_text()
+                (output / "bearboot-sdk-1.3.0.spdx.json").read_text()
             )
             self.assertEqual(sbom["packages"][0]["name"], artifact.name)
 

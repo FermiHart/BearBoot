@@ -69,7 +69,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            build-essential clang gcc-multilib jq lld ovmf qemu-system-x86
+            binutils-aarch64-linux-gnu binutils-riscv64-linux-gnu \
+            build-essential clang gcc-aarch64-linux-gnu \
+            gcc-riscv64-linux-gnu jq lld ovmf \
+            qemu-system-arm qemu-system-misc qemu-system-x86 swtpm
 
       - name: Install Rust stable and MSRV 1.77
         run: |
@@ -99,8 +102,12 @@ jobs:
         run: |
           set -euo pipefail
           make check
+          make v2-portability v2-fuzz
+          make tpm2-measure-test
           make freestanding CROSS=
           make qemu
+          make qemu-aarch64
+          make qemu-riscv64
           make qemu-uefi
           make ports-check CROSS=
           make -C ports/tinalinux test

@@ -186,3 +186,7 @@ confidentiality. Before a capsule crosses a trust boundary, an enclosing signed
 and replay-resistant transport must authenticate the exact `total_size` bytes
 and bind the expected BBP version and boot policy. This Draft specifies no such
 transport, which is why deployment is offline only.
+
+Native experimental semantics are defined separately by Profile 0 in
+`docs/rfc/0002-bbp-v2-profile-0.md`; the generic capsule parser remains
+registry-independent.

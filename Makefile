@@ -9,6 +9,8 @@
 #   make kernel        link the example into a stamped, bootable kernel.elf
 #   make fuzz          build + smoke-run the parser fuzzer
 #   make qemu          build + boot the bare-metal round-trip proof under TCG
+#   make qemu-aarch64  build + boot the AArch64 X0 + DTB proof under TCG
+#   make qemu-riscv64  build + boot the RV64 A0 + DTB proof under TCG
 #   make qemu-uefi     build + boot the EFI builder/parser proof under OVMF
 #   make importers-test verify bounded Limine, Multiboot2, and UEFI translation
 #   make bbpctl-test   verify the host-only BBPC capture tool and fixtures
@@ -16,6 +18,7 @@
 #   make sdk-package   build reproducible local SDK archives
 #   make release-metadata-test verify support-matrix and SPDX generation
 #   make v2-test       verify the experimental offline v2 capsule and bridge
+#   make v2-portability cross-compile the v2 Draft core for three ISAs
 #   make abi           just verify the _Static_asserts compile (fastest gate)
 #   make check         run host gates plus generated documentation checks
 #   make clean
@@ -49,12 +52,16 @@ IMPORT_SOURCES := bootloader/bbp_import.c bootloader/bbp_import_limine.c \
 IMPORT_OBJECTS := $(patsubst bootloader/%.c,$(BUILD)/%.o,$(IMPORT_SOURCES))
 BBP_HEADERS := include/bbp/bbp.h include/bbp/bbp_crc64.h \
 	bootloader/bbp_build.h bootloader/bbp_import.h kernel/bbp_kernel.h
-V2_HEADERS := include/bbp/bbp_v2.h bridge/bbp_bridge.h
+V2_HEADERS := include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h bridge/bbp_bridge.h
 
-.PHONY: all test abi freestanding kernel fuzz check clean qemu uefi qemu-uefi \
+.PHONY: all test abi freestanding kernel fuzz check clean qemu qemu-aarch64 \
+	qemu-riscv64 \
+	uefi qemu-uefi \
 	importers-test bbpctl-test ports-check readme-art verify-readme verify-site \
 	site-preview sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test \
 	sdk-check sdk-package release-metadata-test v2-test
+
+.PHONY: v2-portability v2-profile-test v2-vectors-test v2-fuzz tpm2-measure-test auth-envelope-test
 
 all: test freestanding
 
@@ -213,6 +220,134 @@ $(BUILD)/roundtrip.elf: tests/boot32.S tests/qemu_roundtrip.c \
 	    $(BUILD)/boot32.o $(BUILD)/qrt.o $(BUILD)/qrt_build.o $(BUILD)/qrt_kernel.o \
 	    -o $@
 
+# ---- AArch64 raw Image: QEMU FDT in X0 -> BBP INFO in X0 ------------------
+AARCH64_CC       ?= aarch64-linux-gnu-gcc
+AARCH64_OBJCOPY  ?= aarch64-linux-gnu-objcopy
+QEMU_AARCH64     ?= qemu-system-aarch64
+AARCH64_SERIAL   ?= $(BUILD)/qemu-aarch64-serial.log
+AARCH64_ELF      := $(BUILD)/roundtrip-aarch64.elf
+AARCH64_IMAGE    := $(BUILD)/roundtrip-aarch64.Image
+AARCH64_CFLAGS   := -ffreestanding -fno-builtin -fno-stack-protector \
+	-fno-stack-clash-protection -fno-pic -fno-pie -fno-unwind-tables \
+	-fno-asynchronous-unwind-tables -mgeneral-regs-only \
+	-Wall -Wextra -Werror -std=c11 -O2 -g $(INCLUDE)
+
+qemu-aarch64: $(AARCH64_IMAGE)
+	@rm -f "$(AARCH64_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" "$(QEMU_AARCH64)" \
+	    -accel tcg -machine virt,dtb-randomness=off -cpu cortex-a57 \
+	    -m 128M -smp 1 -kernel "$(AARCH64_IMAGE)" \
+	    -display none -monitor none -serial "file:$(AARCH64_SERIAL)" \
+	    -nic none -no-reboot -semihosting-config enable=on,target=native; \
+	rc=$$?; set -e; \
+	if [ -f "$(AARCH64_SERIAL)" ]; then cat "$(AARCH64_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: AArch64 QEMU exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 33 ]; then \
+	    echo "FAILED: AArch64 QEMU guest exit status $$rc (expected 33)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-AARCH64: FAIL:' "$(AARCH64_SERIAL)"; then \
+	    echo "FAILED: AArch64 guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-AARCH64: PASS' "$(AARCH64_SERIAL)"; then \
+	    echo "FAILED: missing BBP-AARCH64: PASS"; exit 1; \
+	fi
+
+$(BUILD)/boot_aarch64.o: tests/boot_aarch64.S Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_aarch64.o: tests/qemu_roundtrip_aarch64.c bootloader/bbp_build.h \
+		kernel/bbp_kernel.h include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_aarch64_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_aarch64_kernel.o: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(AARCH64_ELF): $(BUILD)/boot_aarch64.o $(BUILD)/qrt_aarch64.o \
+		$(BUILD)/qrt_aarch64_build.o $(BUILD)/qrt_aarch64_kernel.o \
+		tests/linker_aarch64.ld
+	$(AARCH64_CC) -nostdlib -static -no-pie -Wl,--build-id=none \
+	    -T tests/linker_aarch64.ld $(BUILD)/boot_aarch64.o \
+	    $(BUILD)/qrt_aarch64.o $(BUILD)/qrt_aarch64_build.o \
+	    $(BUILD)/qrt_aarch64_kernel.o -o $@
+
+$(AARCH64_IMAGE): $(AARCH64_ELF)
+	$(AARCH64_OBJCOPY) -O binary $< $@
+
+# ---- RV64 OpenSBI payload: QEMU FDT in A1 -> BBP INFO in A0 ---------------
+RISCV64_CC      ?= riscv64-linux-gnu-gcc
+QEMU_RISCV64    ?= qemu-system-riscv64
+RISCV64_SERIAL  ?= $(BUILD)/qemu-riscv64-serial.log
+RISCV64_ELF     := $(BUILD)/roundtrip-riscv64.elf
+RISCV64_CFLAGS  := -march=rv64imac_zicsr -mabi=lp64 -mcmodel=medany \
+	-mno-relax -msmall-data-limit=0 -ffreestanding -fno-builtin \
+	-fno-stack-protector -fno-stack-clash-protection -fno-pic -fno-pie \
+	-fno-unwind-tables -fno-asynchronous-unwind-tables \
+	-Wall -Wextra -Werror -std=c11 -O2 -g $(INCLUDE)
+
+qemu-riscv64: $(RISCV64_ELF)
+	@rm -f "$(RISCV64_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" "$(QEMU_RISCV64)" \
+	    -accel tcg -machine virt -m 128M -smp 1 -bios default \
+	    -kernel "$(RISCV64_ELF)" -display none -monitor none \
+	    -serial "file:$(RISCV64_SERIAL)" -nic none -no-reboot; \
+	rc=$$?; set -e; \
+	if [ -f "$(RISCV64_SERIAL)" ]; then cat "$(RISCV64_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: RV64 QEMU exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 0 ]; then \
+	    echo "FAILED: RV64 QEMU guest exit status $$rc (expected 0)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-RISCV64: FAIL:' "$(RISCV64_SERIAL)"; then \
+	    echo "FAILED: RV64 guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-RISCV64: PASS' "$(RISCV64_SERIAL)"; then \
+	    echo "FAILED: missing BBP-RISCV64: PASS"; exit 1; \
+	fi
+
+$(BUILD)/boot_riscv64.o: tests/boot_riscv64.S Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_riscv64.o: tests/qemu_roundtrip_riscv64.c \
+		bootloader/bbp_build.h kernel/bbp_kernel.h include/bbp/bbp.h \
+		include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_riscv64_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_riscv64_kernel.o: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(RISCV64_ELF): $(BUILD)/boot_riscv64.o $(BUILD)/qrt_riscv64.o \
+		$(BUILD)/qrt_riscv64_build.o $(BUILD)/qrt_riscv64_kernel.o \
+		tests/linker_riscv64.ld
+	$(RISCV64_CC) -march=rv64imac_zicsr -mabi=lp64 -mcmodel=medany \
+	    -mno-relax -nostdlib -static -no-pie \
+	    -Wl,--build-id=none,--no-relax,-z,max-page-size=4096 \
+	    -T tests/linker_riscv64.ld $(BUILD)/boot_riscv64.o \
+	    $(BUILD)/qrt_riscv64.o $(BUILD)/qrt_riscv64_build.o \
+	    $(BUILD)/qrt_riscv64_kernel.o -o $@
+
 # ---- OVMF-loaded x86_64 EFI builder/parser proof ---------------------------
 UEFI_CC       ?= clang
 UEFI_LD       ?= lld-link
@@ -322,6 +457,62 @@ $(BUILD)/v2_selftest: tests/v2_selftest.c v2/bbp_v2.c bridge/bbp_bridge.c \
 	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/v2_selftest.c v2/bbp_v2.c \
 		bridge/bbp_bridge.c bootloader/bbp_build.c kernel/bbp_kernel.c -o $@
 
+# The v2 Draft is byte-oriented and must not inherit x86-only kernel flags.
+V2_PORTABLE_FLAGS := -ffreestanding -fno-builtin -fno-stack-protector \
+	-Wall -Wextra -Werror -std=c11 -O2 $(INCLUDE)
+V2_X86_64_CC ?= x86_64-linux-gnu-gcc
+v2-portability:
+	@mkdir -p $(BUILD)/v2-portability
+	$(V2_X86_64_CC) $(V2_PORTABLE_FLAGS) -c v2/bbp_v2.c \
+	    -o $(BUILD)/v2-portability/bbp_v2-x86_64.o
+	$(V2_X86_64_CC) $(V2_PORTABLE_FLAGS) -c v2/bbp_v2_profile.c \
+	    -o $(BUILD)/v2-portability/profile-x86_64.o
+	$(AARCH64_CC) $(V2_PORTABLE_FLAGS) -mgeneral-regs-only -c v2/bbp_v2.c \
+	    -o $(BUILD)/v2-portability/bbp_v2-aarch64.o
+	$(RISCV64_CC) $(V2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 \
+	    -c v2/bbp_v2.c -o $(BUILD)/v2-portability/bbp_v2-riscv64.o
+	$(AARCH64_CC) $(V2_PORTABLE_FLAGS) -mgeneral-regs-only -c v2/bbp_v2_profile.c -o $(BUILD)/v2-portability/profile-aarch64.o
+	$(RISCV64_CC) $(V2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 -c v2/bbp_v2_profile.c -o $(BUILD)/v2-portability/profile-riscv64.o
+	@echo "BBP v2 portability: PASS (x86_64, AArch64, RV64)"
+
+v2-profile-test: $(BUILD)/v2_profile_selftest
+	$(BUILD)/v2_profile_selftest
+$(BUILD)/v2_profile_selftest: tests/v2_profile_selftest.c v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/v2_profile_selftest.c v2/bbp_v2.c v2/bbp_v2_profile.c -o $@
+
+v2-vectors-test: $(BUILD)/libbbp_v2_vectors.so
+	$(PYTHON) tests/test_v2_vectors.py $(BUILD)/libbbp_v2_vectors.so
+$(BUILD)/libbbp_v2_vectors.so: v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) -fPIC -shared $(INCLUDE) v2/bbp_v2.c v2/bbp_v2_profile.c -o $@
+
+v2-fuzz: $(BUILD)/v2_fuzz
+	@if [ -f $(BUILD)/.v2_fuzz_libfuzzer ]; then \
+	    run="$(BUILD)/v2_fuzz -max_total_time=$(FUZZ_SECONDS) -print_final_stats=1"; \
+	else \
+	    run="$(BUILD)/v2_fuzz"; \
+	fi; \
+	timeout --foreground -k 5 $(FUZZ_TIMEOUT) $$run
+
+$(BUILD)/v2_fuzz: tests/fuzz_v2.c v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	@rm -f $(BUILD)/.v2_fuzz_libfuzzer
+	@if $(FUZZCC) -fsanitize=fuzzer,address -DBBP_V2_LIBFUZZER \
+	    -std=c11 $(INCLUDE) tests/fuzz_v2.c v2/bbp_v2.c v2/bbp_v2_profile.c \
+	    -o $@ 2>/dev/null; then \
+	    echo "[v2-fuzz] built with libFuzzer"; touch $(BUILD)/.v2_fuzz_libfuzzer; \
+	else \
+	    $(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/fuzz_v2.c v2/bbp_v2.c \
+	        v2/bbp_v2_profile.c -o $@; \
+	fi
+
+tpm2-measure-test:
+	$(PYTHON) tools/tpm2_measure.py
+
+auth-envelope-test:
+	$(PYTHON) -m unittest tests.test_v2_envelope
+
 # ---- deterministic project identity + local Pages prototype ----------------
 readme-art:
 	$(PYTHON) tools/generate_readme_art.py
@@ -337,7 +528,7 @@ site-preview: verify-site
 	$(PYTHON) -m http.server 8042 --bind 127.0.0.1
 
 # ---- everything that runs without a cross toolchain ------------------------
-check: abi test v2-test fuzz importers-test bbpctl-test sdk-check release-metadata-test verify-site
+check: abi test v2-test v2-profile-test v2-vectors-test auth-envelope-test fuzz importers-test bbpctl-test sdk-check release-metadata-test verify-site
 	@echo "ALL HOST CHECKS PASSED"
 
 # ---- compile-check every OS port against the frozen core -------------------
