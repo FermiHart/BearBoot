@@ -43,6 +43,12 @@ def main():
         "bbp_init_bounded()",
         "make qemu-aarch64",
         "make qemu-riscv64",
+        "make importers-test",
+        "make bbpctl-test",
+        "make sdk-check release-metadata-test",
+        "make tpm2-measure-test",
+        "global rollback floor",
+        "signed-tag release workflow emits and verifies",
         "requires serial PASS",
         "hero-proof-geometry.svg",
     ):
@@ -58,6 +64,8 @@ def main():
         "BBP v2 Draft / offline",
         "AArch64 boot proof",
         "Release checkpoint",
+        "INTEGRAÇÕES OSIF",
+        "Linux 0.01 tem harness host",
         "integridade com confiança",
     ):
         require(token in state_page, f"current-state page missing: {token}")
@@ -65,11 +73,28 @@ def main():
     require("<script src=" not in state_page, "current-state page must be standalone")
     require(page.count('class="tag-node"') == len(tags), "site tag constellation drifted from ABI")
     require(page.count('class="port-card"') == 4, "site integration inventory must list four ports")
+    require(page.count('class="product-row"') == 4, "site must list four distributable/host surfaces")
+    require(page.count('class="machine"') == 4, "site must list four machine contexts")
+    require(page.count('class="proof-card"') == 10, "site proof ledger is incomplete")
+    require(page.count('class="ingest-node') == 6, "site ingestion rail is incomplete")
     require("does not yet launch QEMU" not in page, "site carries stale QEMU claim")
     require("MULTI-ISA LIVE / UNRELEASED" not in page,
             "site carries stale architecture release claim")
     require("+ WORKTREE" not in state_page,
             "current-state page carries stale worktree claim")
+    require("PROVAS DE SO" not in state_page,
+            "current-state page conflates OSIF integrations with boot proofs")
+    for document, name in ((page, "site"), (state_page, "current-state page")):
+        ids = set(re.findall(r'\bid="([^"]+)"', document))
+        fragments = set(re.findall(r'href="#([^"]+)"', document))
+        require(fragments <= ids, f"{name} links missing fragments: {sorted(fragments - ids)}")
+    for stale in (
+        "LIVE CONTRACT MODEL",
+        "never forged data",
+        "IN-KERNEL QEMU RECORD",
+        "INFO / RDI",
+    ):
+        require(stale not in page, f"site carries stale or overstated claim: {stale}")
     require((ROOT / "readme/hero-proof-geometry.svg").exists(), "desktop geometry missing")
     require((ROOT / "readme/hero-proof-geometry-mobile.svg").exists(), "mobile geometry missing")
     print(f"BearBoot site: PASS (ABI {major}.{minor}, {len(tags)} tags, 4 integration records)")
