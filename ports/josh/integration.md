@@ -170,8 +170,8 @@ if (cl && bbp_verify_blob(k, cl->string, cl->length, cl->string_crc, 0) == BBP_O
 The adapter runs on Josh's OWN higher-half page tables (the VMM is already up).
 Per SPEC §10.1(b): the tag pointers it emits are TRUE physicals (the arena is a
 contiguous block from Josh's PMM, so its physical is known directly), and the
-parser is seeded with the HHDM offset via `bbp_init_win()`. The walk is bounded
-to `[arena_phys, arena_phys + arena_bytes)` (ADR-0009), so a corrupt `next_tag`
+parser is seeded with the HHDM offset via `bbp_init_bounded()`. The walk is
+bounded to the exact tag arena (ADR-0009), so a corrupt `next_tag`
 is rejected as corruption rather than faulting on unmapped RAM. There is no
 identity-map assumption and no kernel-slide alias to reconcile — the single
 direct map (`phys + g_hhdm_offset`) is used for both writing and reading the tags.

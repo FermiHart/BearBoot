@@ -20,7 +20,7 @@
 ## Adapter / boot path
 - Mode: [x] native RAM-model -> BBP adapter   [ ] native BBP boot (.bbp_hdr + stamp)
 - HHDM offset source:             0 — linux-0.01 is identity-mapped (pg_dir=0, first 8 MiB)
-- bbp_init / bbp_init_ex used:     bbp_init (SPEC §10.1(a), identity handoff, hint 0)
+- parser initializer used:         `bbp_init_bounded` (identity hint 0, exact static tag arena)
 
 ## Tags produced (adapter mode) / consumed
 | tag              | produced | consumed | out-of-line *_crc set? |

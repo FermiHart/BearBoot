@@ -46,6 +46,17 @@ struct bbp_kctx {
     bbp_phys_t walk_hi;
 };
 
+/* Preferred initializer for a consumer that knows the mapped physical span
+ * containing its tag chain. Unlike bbp_init_win, invalid/empty bounds are an
+ * error rather than an opt-out. The context is published to `out` only after
+ * INFO validation succeeds. `arena_phys`/`arena_bytes` bound tag framing only;
+ * out-of-line blobs have their own overflow/CRC validation. */
+bbp_status_t bbp_init_bounded(struct bbp_kctx *out,
+                              const struct bbp_info *info,
+                              bbp_virt_t hhdm_hint,
+                              bbp_phys_t arena_phys,
+                              size_t arena_bytes);
+
 /* Translate a physical address to a kernel-virtual one using the HHDM
  * offset. Before the offset is known (early boot, identity-mapped) pass
  * offset 0 and this is the identity. */
@@ -121,17 +132,20 @@ bbp_status_t bbp_verify_blob(const struct bbp_kctx *k, bbp_phys_t phys,
 /* Like bbp_init, but seeds the HHDM offset from a caller-supplied hint when
  * the producer placed the tag list OUTSIDE the bootloader's identity map
  * (the HHDM chicken-and-egg: you may need the offset to read the HHDM tag).
- * Pass hint=0 for identity-mapped handoff (same as bbp_init). */
+ * A nonzero consumer hint is authoritative and is not replaced by the
+ * producer's HHDM tag. Pass hint=0 for identity-mapped handoff (same as
+ * bbp_init), where a well-sized, CRC-valid HHDM tag supplies the offset. */
 bbp_status_t bbp_init_ex(struct bbp_kctx *out, const struct bbp_info *info,
                          bbp_virt_t hhdm_hint);
 
-/* Like bbp_init_ex, but ALSO seeds the walk window (ADR-0009) BEFORE the
+/* Compatibility initializer that seeds the walk window (ADR-0009) BEFORE the
  * internal HHDM-tag lookup runs — so even bbp_init's own first walk of the tag
  * list is bounded to [walk_lo, walk_hi). Use this (not bbp_init + a later
  * bbp_set_walk_window) when the producer's tag list is untrusted and you know
  * the mapped region up front: it is the only way to bound the lookup that
  * happens inside init itself. Pass walk_lo>=walk_hi to disable the window
- * (then it behaves exactly like bbp_init_ex). */
+ * (then it behaves exactly like bbp_init_ex). New bounded integrations should
+ * use bbp_init_bounded so invalid bounds fail closed. */
 bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
                           bbp_virt_t hhdm_hint, bbp_phys_t walk_lo,
                           bbp_phys_t walk_hi);
@@ -145,9 +159,10 @@ bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
  * Returns BBP_ERR_NULL on a NULL ctx, else BBP_OK. */
 bbp_status_t bbp_set_walk_window(struct bbp_kctx *k, bbp_phys_t lo, bbp_phys_t hi);
 
-/* ── BOOT EVIDENCE (v1.2) ────────────────────────────────────────────
- * Feed the ENTIRE validated handoff — the info struct plus every tag
- * that passes the walk/CRC gates, in chain order — into a caller-
+/* ── BOOT EVIDENCE (SDK 1.2) ─────────────────────────────────────────
+ * Feed the canonical validated handoff stream — a domain separator, the fixed
+ * info struct, then every tag that passes the walk/CRC gates in chain order —
+ * into a caller-
  * supplied hash function. The caller owns the hash (BLAKE3, SHA-256,
  * whatever its trust stack uses); the core stays dependency-free.
  *
@@ -159,10 +174,12 @@ bbp_status_t bbp_set_walk_window(struct bbp_kctx *k, bbp_phys_t lo, bbp_phys_t h
  * moment its crypto comes up. The handoff becomes link zero of the
  * system's tamper-evident history instead of a forgotten struct.
  *
- * Determinism contract: same info + same tag chain → same byte stream
- * into `update`, namely: info[info_size] then, per surviving tag,
- * tag[tag_size]. CRC-skipped tags are NOT fed (they are not trusted
- * input). Returns the number of tags fed, or 0 on a NULL ctx/cb.
+ * Determinism contract: same info + same tag chain produces the same stream:
+ * the 16-byte "BBP-EVIDENCE" v1 domain, the fixed sizeof(struct bbp_info)
+ * bytes, then each surviving tag[tag_size] in chain order. info_size is not
+ * used because it is an informational span and need not describe contiguous
+ * storage. CRC-skipped tags are not fed. Returns the number of tags fed, or 0
+ * on a NULL context/callback.
  */
 typedef void (*bbp_hash_update_fn)(void *state, const void *data, size_t len);
 uint32_t bbp_evidence(const struct bbp_kctx *k,

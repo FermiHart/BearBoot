@@ -8,8 +8,19 @@
 #   make freestanding  cross-compile kernel-side + example as a kernel would
 #   make kernel        link the example into a stamped, bootable kernel.elf
 #   make fuzz          build + smoke-run the parser fuzzer
+#   make qemu          build + boot the bare-metal round-trip proof under TCG
+#   make qemu-aarch64  build + boot the AArch64 X0 + DTB proof under TCG
+#   make qemu-riscv64  build + boot the RV64 A0 + DTB proof under TCG
+#   make qemu-uefi     build + boot the EFI builder/parser proof under OVMF
+#   make importers-test verify bounded Limine, Multiboot2, and UEFI translation
+#   make bbpctl-test   verify the host-only BBPC capture tool and fixtures
+#   make sdk-check     verify C/host packages and the no_std Rust wire crate
+#   make sdk-package   build reproducible local SDK archives
+#   make release-metadata-test verify support-matrix and SPDX generation
+#   make v2-test       verify the experimental offline v2 capsule and bridge
+#   make v2-portability cross-compile the v2 Draft core for three ISAs
 #   make abi           just verify the _Static_asserts compile (fastest gate)
-#   make check         run everything that does not need a cross toolchain
+#   make check         run host gates plus generated documentation checks
 #   make clean
 
 CROSS    ?= x86_64-elf-
@@ -36,8 +47,21 @@ HOSTFLAGS := -Wall -Wextra -Werror -std=c11 -O2 -g
 FUZZCC   ?= clang
 
 BUILD := build
+IMPORT_SOURCES := bootloader/bbp_import.c bootloader/bbp_import_limine.c \
+	bootloader/bbp_import_multiboot2.c bootloader/bbp_import_uefi.c
+IMPORT_OBJECTS := $(patsubst bootloader/%.c,$(BUILD)/%.o,$(IMPORT_SOURCES))
+BBP_HEADERS := include/bbp/bbp.h include/bbp/bbp_crc64.h \
+	bootloader/bbp_build.h bootloader/bbp_import.h kernel/bbp_kernel.h
+V2_HEADERS := include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h bridge/bbp_bridge.h
 
-.PHONY: all test abi freestanding kernel fuzz check clean qemu ports-check
+.PHONY: all test abi freestanding kernel fuzz check clean qemu qemu-aarch64 \
+	qemu-riscv64 \
+	uefi qemu-uefi \
+	importers-test bbpctl-test ports-check readme-art verify-readme verify-site \
+	site-preview sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test \
+	sdk-check sdk-package release-metadata-test v2-test
+
+.PHONY: v2-portability v2-profile-test v2-vectors-test v2-fuzz tpm2-measure-test auth-envelope-test
 
 all: test freestanding
 
@@ -65,12 +89,15 @@ test: $(BUILD)/abi_selftest
 	    $(BUILD)/abi_selftest; \
 	fi
 
-$(BUILD)/abi_selftest: tests/abi_selftest.c bootloader/bbp_build.c kernel/bbp_kernel.c
+$(BUILD)/abi_selftest: tests/abi_selftest.c bootloader/bbp_build.c \
+		kernel/bbp_kernel.c $(BBP_HEADERS)
 	@mkdir -p $(BUILD)
-	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) $^ -o $@
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/abi_selftest.c \
+		bootloader/bbp_build.c kernel/bbp_kernel.c -o $@
 
 # ---- cross-compile the kernel-side + example as freestanding objects -------
-freestanding: $(BUILD)/bbp_kernel.o $(BUILD)/kernel_header.o $(BUILD)/bbp_build.o
+freestanding: $(BUILD)/bbp_kernel.o $(BUILD)/kernel_header.o $(BUILD)/bbp_build.o \
+	$(IMPORT_OBJECTS) $(BUILD)/bbp_v2.o $(BUILD)/bbp_bridge.o
 	@echo "freestanding objects built with $(CC)"
 
 $(BUILD)/bbp_kernel.o: kernel/bbp_kernel.c
@@ -81,7 +108,21 @@ $(BUILD)/kernel_header.o: examples/kernel_header.c
 	@mkdir -p $(BUILD)
 	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
 
-$(BUILD)/bbp_build.o: bootloader/bbp_build.c
+$(BUILD)/bbp_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
+
+$(BUILD)/bbp_v2.o: v2/bbp_v2.c $(V2_HEADERS) include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
+
+$(BUILD)/bbp_bridge.o: bridge/bbp_bridge.c $(V2_HEADERS) \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
+
+$(IMPORT_OBJECTS): $(BUILD)/%.o: bootloader/%.c $(BBP_HEADERS)
 	@mkdir -p $(BUILD)
 	$(CC) $(FREEFLAGS) $(INCLUDE) -c $< -o $@
 
@@ -126,24 +167,368 @@ $(BUILD)/bbp_fuzz: tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.
 	    || $(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/fuzz_parser.c kernel/bbp_kernel.c bootloader/bbp_build.c -o $@; \
 	fi
 
+# ---- boot-source translation -----------------------------------------------
+importers-test: $(BUILD)/importers_selftest
+	$(BUILD)/importers_selftest
+
+$(BUILD)/importers_selftest: tests/importers_selftest.c bootloader/bbp_build.c \
+		$(IMPORT_SOURCES) \
+		kernel/bbp_kernel.c $(BBP_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/importers_selftest.c \
+		bootloader/bbp_build.c $(IMPORT_SOURCES) kernel/bbp_kernel.c -o $@
+
 # ---- bare-metal round-trip kernel (Multiboot1, qemu -kernel) ---------------
 # 32-bit freestanding; exercises bbp_build + bbp_kernel on real hardware.
+QEMU         ?= qemu-system-i386
+QEMU_CC      ?= $(HOSTCC)
+QEMU_TIMEOUT ?= 30
+QEMU_SERIAL  ?= $(BUILD)/qemu-serial.log
 QEMU_CFLAGS := -m32 -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
-               -mno-sse -mno-mmx -mno-red-zone -Wall -Wextra -std=c11 -O2 -g
+                -mno-sse -mno-mmx -mno-red-zone -Wall -Wextra -std=c11 -O2 -g
 qemu: $(BUILD)/roundtrip.elf
+	@rm -f "$(QEMU_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" "$(QEMU)" \
+	    -accel tcg -machine pc -m 64M -kernel "$(BUILD)/roundtrip.elf" \
+	    -display none -monitor none -serial "file:$(QEMU_SERIAL)" -no-reboot \
+	    -device isa-debug-exit,iobase=0xf4,iosize=0x04; \
+	rc=$$?; set -e; \
+	if [ -f "$(QEMU_SERIAL)" ]; then cat "$(QEMU_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: QEMU exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 33 ]; then \
+	    echo "FAILED: QEMU guest exit status $$rc (expected 33)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-QEMU: FAIL:' "$(QEMU_SERIAL)"; then \
+	    echo "FAILED: guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-QEMU: PASS' "$(QEMU_SERIAL)"; then \
+	    echo "FAILED: missing BBP-QEMU: PASS"; exit 1; \
+	fi
 $(BUILD)/roundtrip.elf: tests/boot32.S tests/qemu_roundtrip.c \
-                        bootloader/bbp_build.c kernel/bbp_kernel.c tests/linker32.ld
+                        bootloader/bbp_build.c kernel/bbp_kernel.c tests/linker32.ld \
+                        Makefile
 	@mkdir -p $(BUILD)
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/boot32.S        -o $(BUILD)/boot32.o
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/qemu_roundtrip.c -o $(BUILD)/qrt.o
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c bootloader/bbp_build.c -o $(BUILD)/qrt_build.o
-	$(CC) $(QEMU_CFLAGS) $(INCLUDE) -c kernel/bbp_kernel.c    -o $(BUILD)/qrt_kernel.o
-	$(CC) $(QEMU_CFLAGS) -nostdlib -no-pie -Wl,-melf_i386 -T tests/linker32.ld \
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/boot32.S        -o $(BUILD)/boot32.o
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c tests/qemu_roundtrip.c -o $(BUILD)/qrt.o
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c bootloader/bbp_build.c -o $(BUILD)/qrt_build.o
+	$(QEMU_CC) $(QEMU_CFLAGS) $(INCLUDE) -c kernel/bbp_kernel.c    -o $(BUILD)/qrt_kernel.o
+	$(QEMU_CC) $(QEMU_CFLAGS) -nostdlib -no-pie -Wl,-melf_i386,--build-id=none \
+	    -T tests/linker32.ld \
 	    $(BUILD)/boot32.o $(BUILD)/qrt.o $(BUILD)/qrt_build.o $(BUILD)/qrt_kernel.o \
 	    -o $@
 
+# ---- AArch64 raw Image: QEMU FDT in X0 -> BBP INFO in X0 ------------------
+AARCH64_CC       ?= aarch64-linux-gnu-gcc
+AARCH64_OBJCOPY  ?= aarch64-linux-gnu-objcopy
+QEMU_AARCH64     ?= qemu-system-aarch64
+AARCH64_SERIAL   ?= $(BUILD)/qemu-aarch64-serial.log
+AARCH64_ELF      := $(BUILD)/roundtrip-aarch64.elf
+AARCH64_IMAGE    := $(BUILD)/roundtrip-aarch64.Image
+AARCH64_CFLAGS   := -ffreestanding -fno-builtin -fno-stack-protector \
+	-fno-stack-clash-protection -fno-pic -fno-pie -fno-unwind-tables \
+	-fno-asynchronous-unwind-tables -mgeneral-regs-only \
+	-Wall -Wextra -Werror -std=c11 -O2 -g $(INCLUDE)
+
+qemu-aarch64: $(AARCH64_IMAGE)
+	@rm -f "$(AARCH64_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" "$(QEMU_AARCH64)" \
+	    -accel tcg -machine virt,dtb-randomness=off -cpu cortex-a57 \
+	    -m 128M -smp 1 -kernel "$(AARCH64_IMAGE)" \
+	    -display none -monitor none -serial "file:$(AARCH64_SERIAL)" \
+	    -nic none -no-reboot -semihosting-config enable=on,target=native; \
+	rc=$$?; set -e; \
+	if [ -f "$(AARCH64_SERIAL)" ]; then cat "$(AARCH64_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: AArch64 QEMU exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 33 ]; then \
+	    echo "FAILED: AArch64 QEMU guest exit status $$rc (expected 33)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-AARCH64: FAIL:' "$(AARCH64_SERIAL)"; then \
+	    echo "FAILED: AArch64 guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-AARCH64: PASS' "$(AARCH64_SERIAL)"; then \
+	    echo "FAILED: missing BBP-AARCH64: PASS"; exit 1; \
+	fi
+
+$(BUILD)/boot_aarch64.o: tests/boot_aarch64.S Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_aarch64.o: tests/qemu_roundtrip_aarch64.c bootloader/bbp_build.h \
+		kernel/bbp_kernel.h include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_aarch64_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_aarch64_kernel.o: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
+
+$(AARCH64_ELF): $(BUILD)/boot_aarch64.o $(BUILD)/qrt_aarch64.o \
+		$(BUILD)/qrt_aarch64_build.o $(BUILD)/qrt_aarch64_kernel.o \
+		tests/linker_aarch64.ld
+	$(AARCH64_CC) -nostdlib -static -no-pie -Wl,--build-id=none \
+	    -T tests/linker_aarch64.ld $(BUILD)/boot_aarch64.o \
+	    $(BUILD)/qrt_aarch64.o $(BUILD)/qrt_aarch64_build.o \
+	    $(BUILD)/qrt_aarch64_kernel.o -o $@
+
+$(AARCH64_IMAGE): $(AARCH64_ELF)
+	$(AARCH64_OBJCOPY) -O binary $< $@
+
+# ---- RV64 OpenSBI payload: QEMU FDT in A1 -> BBP INFO in A0 ---------------
+RISCV64_CC      ?= riscv64-linux-gnu-gcc
+QEMU_RISCV64    ?= qemu-system-riscv64
+RISCV64_SERIAL  ?= $(BUILD)/qemu-riscv64-serial.log
+RISCV64_ELF     := $(BUILD)/roundtrip-riscv64.elf
+RISCV64_CFLAGS  := -march=rv64imac_zicsr -mabi=lp64 -mcmodel=medany \
+	-mno-relax -msmall-data-limit=0 -ffreestanding -fno-builtin \
+	-fno-stack-protector -fno-stack-clash-protection -fno-pic -fno-pie \
+	-fno-unwind-tables -fno-asynchronous-unwind-tables \
+	-Wall -Wextra -Werror -std=c11 -O2 -g $(INCLUDE)
+
+qemu-riscv64: $(RISCV64_ELF)
+	@rm -f "$(RISCV64_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" "$(QEMU_RISCV64)" \
+	    -accel tcg -machine virt -m 128M -smp 1 -bios default \
+	    -kernel "$(RISCV64_ELF)" -display none -monitor none \
+	    -serial "file:$(RISCV64_SERIAL)" -nic none -no-reboot; \
+	rc=$$?; set -e; \
+	if [ -f "$(RISCV64_SERIAL)" ]; then cat "$(RISCV64_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: RV64 QEMU exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 0 ]; then \
+	    echo "FAILED: RV64 QEMU guest exit status $$rc (expected 0)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-RISCV64: FAIL:' "$(RISCV64_SERIAL)"; then \
+	    echo "FAILED: RV64 guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-RISCV64: PASS' "$(RISCV64_SERIAL)"; then \
+	    echo "FAILED: missing BBP-RISCV64: PASS"; exit 1; \
+	fi
+
+$(BUILD)/boot_riscv64.o: tests/boot_riscv64.S Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_riscv64.o: tests/qemu_roundtrip_riscv64.c \
+		bootloader/bbp_build.h kernel/bbp_kernel.h include/bbp/bbp.h \
+		include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_riscv64_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(BUILD)/qrt_riscv64_kernel.o: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+	@mkdir -p $(BUILD)
+	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
+
+$(RISCV64_ELF): $(BUILD)/boot_riscv64.o $(BUILD)/qrt_riscv64.o \
+		$(BUILD)/qrt_riscv64_build.o $(BUILD)/qrt_riscv64_kernel.o \
+		tests/linker_riscv64.ld
+	$(RISCV64_CC) -march=rv64imac_zicsr -mabi=lp64 -mcmodel=medany \
+	    -mno-relax -nostdlib -static -no-pie \
+	    -Wl,--build-id=none,--no-relax,-z,max-page-size=4096 \
+	    -T tests/linker_riscv64.ld $(BUILD)/boot_riscv64.o \
+	    $(BUILD)/qrt_riscv64.o $(BUILD)/qrt_riscv64_build.o \
+	    $(BUILD)/qrt_riscv64_kernel.o -o $@
+
+# ---- OVMF-loaded x86_64 EFI builder/parser proof ---------------------------
+UEFI_CC       ?= clang
+UEFI_LD       ?= lld-link
+UEFI_TARGET   ?= x86_64-pc-win32-coff
+UEFI_CFLAGS   := --target=$(UEFI_TARGET) -ffreestanding -fshort-wchar \
+	-mno-red-zone -fno-stack-protector \
+	-Wall -Wextra -Werror -std=c11 -O2 $(INCLUDE)
+UEFI_ESP      ?= $(BUILD)/uefi-esp
+UEFI_APP      := $(UEFI_ESP)/EFI/BOOT/BOOTX64.EFI
+UEFI_SERIAL   ?= $(BUILD)/uefi-serial.log
+OVMF_CODE     ?= /usr/share/OVMF/OVMF_CODE_4M.fd
+OVMF_VARS     ?= /usr/share/OVMF/OVMF_VARS_4M.fd
+OVMF_TEST_VARS := $(BUILD)/OVMF_VARS_4M.test.fd
+
+uefi: $(UEFI_APP)
+
+$(BUILD)/uefi_roundtrip.obj: tests/uefi_roundtrip.c kernel/bbp_kernel.h \
+		bootloader/bbp_build.h include/bbp/bbp.h Makefile
+	@mkdir -p $(BUILD)
+	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(BUILD)/uefi_build.obj: bootloader/bbp_build.c bootloader/bbp_build.h \
+		include/bbp/bbp.h Makefile
+	@mkdir -p $(BUILD)
+	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(BUILD)/uefi_kernel.obj: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+		include/bbp/bbp.h Makefile
+	@mkdir -p $(BUILD)
+	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(UEFI_APP): $(BUILD)/uefi_roundtrip.obj $(BUILD)/uefi_build.obj \
+		$(BUILD)/uefi_kernel.obj
+	@mkdir -p "$(UEFI_ESP)/EFI/BOOT"
+	$(UEFI_LD) /subsystem:efi_application /entry:efi_main /nodefaultlib \
+	    /machine:x64 /out:$@ $^
+
+qemu-uefi: $(UEFI_APP)
+	@cp "$(OVMF_VARS)" "$(OVMF_TEST_VARS)"
+	@rm -f "$(UEFI_SERIAL)"
+	@set +e; \
+	timeout --foreground -k 5 "$(QEMU_TIMEOUT)" qemu-system-x86_64 \
+	    -accel tcg -machine q35 -m 128M \
+	    -drive if=pflash,unit=0,format=raw,readonly=on,file="$(OVMF_CODE)" \
+	    -drive if=pflash,unit=1,format=raw,file="$(OVMF_TEST_VARS)" \
+	    -drive format=raw,file=fat:rw:"$(abspath $(UEFI_ESP))" \
+	    -boot order=c,menu=off -display none -monitor none \
+	    -serial "file:$(UEFI_SERIAL)" -nic none -no-reboot \
+	    -device isa-debug-exit,iobase=0xf4,iosize=0x04; \
+	rc=$$?; set -e; \
+	if [ -f "$(UEFI_SERIAL)" ]; then cat "$(UEFI_SERIAL)"; fi; \
+	if [ $$rc -eq 124 ] || [ $$rc -eq 137 ]; then \
+	    echo "FAILED: OVMF exceeded $(QEMU_TIMEOUT)s"; exit 1; \
+	fi; \
+	if [ $$rc -ne 33 ]; then \
+	    echo "FAILED: OVMF guest exit status $$rc (expected 33)"; exit 1; \
+	fi; \
+	if grep -Fq 'BBP-UEFI: FAIL:' "$(UEFI_SERIAL)"; then \
+	    echo "FAILED: EFI guest reported failure"; exit 1; \
+	fi; \
+	if ! grep -Fq 'BBP-UEFI: PASS' "$(UEFI_SERIAL)"; then \
+	    echo "FAILED: missing BBP-UEFI: PASS"; exit 1; \
+	fi
+
+# ---- host-only BBP v1 capture tooling -------------------------------------
+bbpctl-test:
+	$(PYTHON) tests/test_bbpctl.py
+
+# ---- versioned SDK, extracted onboarding, and no_std Rust parity ------------
+sdk-c-test:
+	$(MAKE) -f sdk/c/Makefile ROOT=. BUILD=$(BUILD)/sdk onboarding
+
+sdk-package-test:
+	$(PYTHON) -m unittest tests.test_sdk_package
+
+sdk-rust-test:
+	cargo test --manifest-path sdk/rust/bbp-wire/Cargo.toml
+	cargo fmt --manifest-path sdk/rust/bbp-wire/Cargo.toml -- --check
+	@if cargo clippy --version >/dev/null 2>&1; then \
+		cargo clippy --manifest-path sdk/rust/bbp-wire/Cargo.toml --all-targets -- -D warnings; \
+	elif cargo +stable clippy --version >/dev/null 2>&1; then \
+		cargo +stable clippy --manifest-path sdk/rust/bbp-wire/Cargo.toml --all-targets -- -D warnings; \
+	else \
+		echo "cargo-clippy unavailable; lint skipped (CI installs and requires it)"; \
+	fi
+
+sdk-rust-msrv-test:
+	cargo +1.77.0 test --manifest-path sdk/rust/bbp-wire/Cargo.toml
+	cargo +1.77.0 package --manifest-path sdk/rust/bbp-wire/Cargo.toml --allow-dirty
+
+sdk-check: sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test
+	@echo "ALL SDK CHECKS PASSED"
+
+sdk-package:
+	$(PYTHON) tools/package_sdk.py
+
+release-metadata-test:
+	$(PYTHON) -m unittest tests.test_release_metadata
+
+# ---- experimental BBP v2 contiguous capsule and explicit v1.1 bridge ------
+v2-test: $(BUILD)/v2_selftest
+	$(BUILD)/v2_selftest
+
+$(BUILD)/v2_selftest: tests/v2_selftest.c v2/bbp_v2.c bridge/bbp_bridge.c \
+		bootloader/bbp_build.c kernel/bbp_kernel.c $(BBP_HEADERS) $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/v2_selftest.c v2/bbp_v2.c \
+		bridge/bbp_bridge.c bootloader/bbp_build.c kernel/bbp_kernel.c -o $@
+
+# The v2 Draft is byte-oriented and must not inherit x86-only kernel flags.
+V2_PORTABLE_FLAGS := -ffreestanding -fno-builtin -fno-stack-protector \
+	-Wall -Wextra -Werror -std=c11 -O2 $(INCLUDE)
+V2_X86_64_CC ?= x86_64-linux-gnu-gcc
+v2-portability:
+	@mkdir -p $(BUILD)/v2-portability
+	$(V2_X86_64_CC) $(V2_PORTABLE_FLAGS) -c v2/bbp_v2.c \
+	    -o $(BUILD)/v2-portability/bbp_v2-x86_64.o
+	$(V2_X86_64_CC) $(V2_PORTABLE_FLAGS) -c v2/bbp_v2_profile.c \
+	    -o $(BUILD)/v2-portability/profile-x86_64.o
+	$(AARCH64_CC) $(V2_PORTABLE_FLAGS) -mgeneral-regs-only -c v2/bbp_v2.c \
+	    -o $(BUILD)/v2-portability/bbp_v2-aarch64.o
+	$(RISCV64_CC) $(V2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 \
+	    -c v2/bbp_v2.c -o $(BUILD)/v2-portability/bbp_v2-riscv64.o
+	$(AARCH64_CC) $(V2_PORTABLE_FLAGS) -mgeneral-regs-only -c v2/bbp_v2_profile.c -o $(BUILD)/v2-portability/profile-aarch64.o
+	$(RISCV64_CC) $(V2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 -c v2/bbp_v2_profile.c -o $(BUILD)/v2-portability/profile-riscv64.o
+	@echo "BBP v2 portability: PASS (x86_64, AArch64, RV64)"
+
+v2-profile-test: $(BUILD)/v2_profile_selftest
+	$(BUILD)/v2_profile_selftest
+$(BUILD)/v2_profile_selftest: tests/v2_profile_selftest.c v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/v2_profile_selftest.c v2/bbp_v2.c v2/bbp_v2_profile.c -o $@
+
+v2-vectors-test: $(BUILD)/libbbp_v2_vectors.so
+	$(PYTHON) tests/test_v2_vectors.py $(BUILD)/libbbp_v2_vectors.so
+$(BUILD)/libbbp_v2_vectors.so: v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) -fPIC -shared $(INCLUDE) v2/bbp_v2.c v2/bbp_v2_profile.c -o $@
+
+v2-fuzz: $(BUILD)/v2_fuzz
+	@if [ -f $(BUILD)/.v2_fuzz_libfuzzer ]; then \
+	    run="$(BUILD)/v2_fuzz -max_total_time=$(FUZZ_SECONDS) -print_final_stats=1"; \
+	else \
+	    run="$(BUILD)/v2_fuzz"; \
+	fi; \
+	timeout --foreground -k 5 $(FUZZ_TIMEOUT) $$run
+
+$(BUILD)/v2_fuzz: tests/fuzz_v2.c v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
+	@mkdir -p $(BUILD)
+	@rm -f $(BUILD)/.v2_fuzz_libfuzzer
+	@if $(FUZZCC) -fsanitize=fuzzer,address -DBBP_V2_LIBFUZZER \
+	    -std=c11 $(INCLUDE) tests/fuzz_v2.c v2/bbp_v2.c v2/bbp_v2_profile.c \
+	    -o $@ 2>/dev/null; then \
+	    echo "[v2-fuzz] built with libFuzzer"; touch $(BUILD)/.v2_fuzz_libfuzzer; \
+	else \
+	    $(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/fuzz_v2.c v2/bbp_v2.c \
+	        v2/bbp_v2_profile.c -o $@; \
+	fi
+
+tpm2-measure-test:
+	$(PYTHON) tools/tpm2_measure.py
+
+auth-envelope-test:
+	$(PYTHON) -m unittest tests.test_v2_envelope
+
+# ---- deterministic project identity + local Pages prototype ----------------
+readme-art:
+	$(PYTHON) tools/generate_readme_art.py
+
+verify-readme:
+	$(PYTHON) tools/generate_readme_art.py --check
+
+verify-site: verify-readme
+	$(PYTHON) scripts/verify_site.py
+
+site-preview: verify-site
+	@echo "BearBoot preview: http://127.0.0.1:8042/website/"
+	$(PYTHON) -m http.server 8042 --bind 127.0.0.1
+
 # ---- everything that runs without a cross toolchain ------------------------
-check: abi test fuzz
+check: abi test v2-test v2-profile-test v2-vectors-test auth-envelope-test fuzz importers-test bbpctl-test sdk-check release-metadata-test verify-site
 	@echo "ALL HOST CHECKS PASSED"
 
 # ---- compile-check every OS port against the frozen core -------------------
@@ -156,4 +541,4 @@ ports-check:
 	@echo "ALL PORTS COMPILE AGAINST THE FROZEN CORE"
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) sdk/rust/bbp-wire/target

@@ -261,5 +261,6 @@ bbp_status_t bbp_minix_adapter(struct bbp_kctx *out,
     const struct bbp_info *info_hhdm =
         (const struct bbp_info *)osif->phys_to_virt(info_phys);
 
-    return bbp_init_ex(out, info_hhdm, bi->hhdm_offset);
+    return bbp_init_bounded(out, info_hhdm, bi->hhdm_offset, tagbase_phys,
+                            arena_size - sizeof(struct bbp_info));
 }

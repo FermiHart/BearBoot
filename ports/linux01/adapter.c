@@ -137,10 +137,11 @@ bbp_status_t bbp_l01_adapter(struct bbp_kctx *out,
     if (b.overflow)
         return BBP_ERR_SIZE;
 
-    /* linux-0.01 is identity-mapped (HHDM 0): the INFO physical IS its valid
-     * virtual. Seed the parser with offset 0 via bbp_init (SPEC §10.1(a)). */
+    /* linux-0.01 is identity-mapped (HHDM 0). Bound the first and every later
+     * tag walk to the exact mapped builder arena. */
     const struct bbp_info *info_virt =
         (const struct bbp_info *)osif->phys_to_virt(info_phys);
 
-    return bbp_init(out, info_virt);
+    return bbp_init_bounded(out, info_virt, 0, tagbase_phys,
+                            arena_size - sizeof(struct bbp_info));
 }

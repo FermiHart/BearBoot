@@ -35,7 +35,7 @@ You MAY NOT reorder, resize, or retype an existing field without a major bump.
 Every change must keep these green:
 
 ```sh
-make check                       # ABI asserts + self-test + fuzzer
+make check                       # core + fuzz + importers + tools + SDK + docs
 cd ports/<os> && make scaffold-check && make test   # if you touched a port
 ```
 

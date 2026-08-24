@@ -1,8 +1,87 @@
 # Changelog — Bear Boot Protocol
 
-All notable changes. Versioning: `MAJOR.MINOR`. MAJOR bumps on an ABI break;
-MINOR on backward-compatible additions. Rationale for major decisions is in
-`docs/adr/`.
+All notable changes. BBP wire compatibility uses `MAJOR.MINOR`: MAJOR bumps on
+an ABI break and MINOR on backward-compatible wire additions. SDK packages use
+independent semantic versions. Rationale for major decisions is in `docs/adr/`.
+
+## BearBoot SDK 1.3.0 (BBP wire 1.1) - 2026-08-24
+
+### Added
+- Reproducible AArch64 QEMU `virt` machine proof of the v1.1 X0 handoff,
+  bounded identity-mapped parser, QEMU-generated Device Tree copy/CRC, and
+  adversarial payload/tag rejection under `make qemu-aarch64`. This is a
+  freestanding protocol proof, not an AArch64 OS port or production loader.
+- Reproducible RV64 OpenSBI/QEMU `virt` machine proof of the v1.1 A0 handoff,
+  bounded identity-mapped parser, QEMU-generated Device Tree copy/CRC, and
+  adversarial payload/tag rejection under `make qemu-riscv64`. This is not a
+  RISC-V OS port, SBI conformance test, or production loader.
+
+### Experimental BBP v2 (offline only)
+- Draft Profile 0 defines separate native semantics for boot identity, memory
+  map, kernel address, and inline Device Tree. `make v2-profile-test` proves
+  required-entry, duplicate, unknown-type, and malformed-stride policy.
+- `make v2-vectors-test` feeds independently encoded Python capsules, including
+  a physically relaid-out form, into the C parser and Profile 0 validator.
+- `make v2-fuzz` runs bounded raw-framing and valid-framing/hostile-payload
+  campaigns through the capsule parser and Profile 0 under libFuzzer+ASan.
+- `make tpm2-measure-test` extends the SHA-256 canonical v2 measurement into
+  PCR 16 of a real `swtpm` process and verifies the resulting PCR equation.
+  This is a reproducible machine proof, not authentication or a firmware port.
+- A host-only authenticated envelope binds a v2 capsule to an HMAC-SHA256 key
+  identity and rollback index. Its single-writer state rejects replay and
+  rollback under `make auth-envelope-test`; key provisioning is out of scope.
+- Freestanding v2 core portability gate cross-compiles the same byte-oriented
+  parser/builder for x86_64, AArch64, and RV64 under `make v2-portability`.
+- Experimental contiguous v2 capsule with mandatory extent, relative payload
+  offsets, bounded directory parsing, zero-padding rules, and CRC-64/XZ.
+- Deterministic freestanding builder and layout-independent canonical digest
+  stream with a caller-supplied hash callback.
+- Explicit, bounded v1.1 bridge with opt-in policy for preserved external
+  physical references. This does not alter or negotiate the frozen v1.1 ABI.
+- `make v2-test` adversarial host proof; the draft also compiles freestanding.
+
+## BearBoot SDK 1.2.0 (BBP wire 1.1) - 2026-08-22
+
+### Added
+- `bbp_evidence()` canonical, domain-separated byte stream for hashing a
+  validated handoff without coupling the core to a hash implementation.
+- `bbp_init_bounded()` fail-closed initializer for a known mapped tag arena;
+  all four in-tree adapters and the bare-metal/fuzz proofs use it.
+- `make qemu` now executes the Multiboot round-trip under QEMU/TCG with a hard
+  timeout, captured serial verdict, and distinct guest success/failure exits;
+  CI runs the same proof.
+- `make qemu-uefi` builds a dependency-free x86_64 EFI application with
+  Clang/LLD and OVMF-executes the real builder and bounded parser. The harness
+  is explicitly scoped as firmware-context proof, not a complete EFI loader.
+- `tools/bbpctl.py` and the separate BBPC v1 host capture format provide bounded
+  inspect/verify/evidence workflows plus deterministic corruption fixtures;
+  BBPC is explicitly not boot wire ABI or the future v2 capsule.
+- Dependency-free, failure-atomic importers translate normalized Limine and
+  final UEFI snapshots plus bounded raw Multiboot2 bytes into BBP tags. Their
+  hosted gate covers successful parser roundtrips and adversarial framing.
+- Versioned, reproducible C SDK and host-tools archives use explicit allowlists,
+  SHA-256 manifests, safe paths, fixed metadata, and a release mode that rejects
+  dirty/development sources. The extracted C SDK onboards with one `make` target
+  and emits a deterministic JSON conformance report.
+- The dependency-free `bbp-wire` Rust crate is always `no_std`, uses no allocator
+  or unsafe code, and validates frozen BBP envelope framing and CRCs only over
+  caller-provided slices without dereferencing physical addresses.
+
+### Fixed / hardened
+- Evidence hashes the fixed INFO object and every accepted tag exactly once;
+  it no longer trusts informational `info_size` as a contiguous read length.
+- HEADER and INFO validation compare all 16 magic bytes, including zero padding.
+- Walk-window containment no longer underflows when the candidate object is
+  larger than the remaining window.
+- An HHDM body is read only when `tag_size` covers the concrete structure, and
+  a producer-controlled HHDM tag cannot replace an explicit consumer hint.
+- Tag walk bounds no longer incorrectly constrain separately allocated
+  out-of-line blobs.
+- Threat-model documentation now states mapped-window, immutability/TOCTOU, and
+  semantic-validation preconditions instead of making an unconditional
+  hostile-producer no-fault claim.
+- Builder allocation rejects tag/count/physical-address/info-size overflow and
+  provides a bounded string-copy entry point for untrusted source spans.
 
 ## v1.1
 

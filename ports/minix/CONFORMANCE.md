@@ -25,7 +25,8 @@
 - Mode: [x] Limine->BBP adapter   [ ] native BBP boot
 - HHDM offset source:  Limine HHDM response (`hhdm_request.response->offset`,
   == `limine_hhdm_offset` in limine_kinfo.c). Verified at runtime in the harness.
-- bbp_init / bbp_init_ex used:  `bbp_init_ex(out, info_hhdm, hhdm_offset)` —
+- parser initializer used:  `bbp_init_bounded(out, info_hhdm, hhdm_offset,
+  tagbase_phys, tag_arena_size)` —
   SPEC §10.1(b): adapter runs inside the already-higher-half kernel, so tag
   pointers are TRUE physicals and the parser is seeded with the HHDM offset.
   The INFO is passed as its HHDM-virtual alias.
@@ -35,7 +36,7 @@ Two virtual aliases exist for the scratch arena's physical pages:
   1. KERNEL-IMAGE alias (where the arena symbol resolves): phys = virt - kvirt_base + kphys_base.
   2. HHDM alias (phys + hhdm_offset): how the parser dereferences tag pointers.
 `alloc_pages`/the builder use alias 1 (kernel slide, from BBP_TAG_KERNEL_ADDRESS)
-to stamp TRUE physicals into tags; `phys_to_virt`/`bbp_init_ex` use alias 2 to
+to stamp TRUE physicals into tags; `phys_to_virt`/`bbp_init_bounded` use alias 2 to
 read them back. Conflating the two is the standard cause of a faulting tag walk;
 the port keeps them distinct (see osif.c alias note + adapter.c).
 
@@ -98,7 +99,7 @@ CFLAGS (-Werror -nostdinc + -idirafter destdir).
 
 ## Deviations / known gaps (honest accounting)
 1. **Resolved.** Runtime boot evidence IS captured — test/serial.log from a real
-   MINIX kernel boot shows bbp_init_ex==BBP_OK with 5 CRC-validated tags and the
+   MINIX kernel boot shows bbp_init_ex==BBP_OK with 6 CRC-validated tags and the
    BBP banner. (Earlier in the session this was the one open item; it is closed.)
 2. now_ns uses a nominal 1 GHz TSC assumption (relative metrics only).
 3. ACPI tag carries rsdp_address only (no RSDP/RSDT parse).

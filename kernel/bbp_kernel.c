@@ -11,6 +11,9 @@
 #include <bbp/bbp_crc64.h>
 #include "bbp_kernel.h"
 
+static const uint8_t bbp_header_magic[BBP_MAGIC_LEN] = BBP_HEADER_MAGIC;
+static const uint8_t bbp_info_magic[BBP_MAGIC_LEN] = BBP_INFO_MAGIC;
+
 /* Local memcmp — kernels often lack libc this early. */
 static int bbp_memcmp(const void *a, const void *b, size_t n)
 {
@@ -68,24 +71,15 @@ static int bbp_tag_ptr_ok(bbp_phys_t p)
  * with a matching threat review. */
 #define BBP_MAX_PHYS (1ULL << 48)
 
-/* Overflow-safe [phys, phys+len) region check against the address space and
- * the HHDM translation. Returns 1 if the region is plausible to dereference.
- * Rejects: zero phys/len, phys+len wrap, phys+len past BBP_MAX_PHYS, and a
- * phys+hhdm_offset translation that wraps uintptr_t. (Audit A2/A3/A4.) */
-static int bbp_region_ok(const struct bbp_kctx *k, bbp_phys_t phys, uint64_t len)
+/* Overflow-safe [phys, phys+len) check against the address space and HHDM
+ * translation. It deliberately does not apply the tag walk window: external
+ * blobs may live in a different mapped allocation. */
+static int bbp_address_region_ok(const struct bbp_kctx *k, bbp_phys_t phys,
+                                 uint64_t len)
 {
     if (phys == 0 || len == 0)             return 0;
     if (len > BBP_MAX_PHYS)                return 0;
     if (phys > BBP_MAX_PHYS - len)         return 0;   /* phys+len wrap / OOB */
-    /* OPTIONAL walk window (ADR-0009): if the caller declared the mapped tag
-     * region, the WHOLE [phys, phys+len) must fit inside it. This rejects a
-     * hostile pointer that is within the architectural max but outside actual
-     * mapped RAM — which would otherwise pass the checks below and page-fault
-     * on dereference (found by the parser fuzzer). lo>=hi disables the window. */
-    if (k->walk_hi > k->walk_lo) {
-        if (phys < k->walk_lo)             return 0;
-        if (phys > k->walk_hi - len)       return 0;   /* phys+len past window */
-    }
     /* Translation must not wrap uintptr_t (e.g. hostile phys + high HHDM). */
     uintptr_t base = (uintptr_t)phys;
     uintptr_t off  = (uintptr_t)k->hhdm_offset;
@@ -95,10 +89,22 @@ static int bbp_region_ok(const struct bbp_kctx *k, bbp_phys_t phys, uint64_t len
     return 1;
 }
 
+/* Apply the caller's mapped tag span after generic address checks. */
+static int bbp_tag_region_ok(const struct bbp_kctx *k, bbp_phys_t phys,
+                             uint64_t len)
+{
+    if (!bbp_address_region_ok(k, phys, len)) return 0;
+    if (k->walk_hi > k->walk_lo) {
+        if (phys < k->walk_lo || phys >= k->walk_hi) return 0;
+        if (len > k->walk_hi - phys) return 0;
+    }
+    return 1;
+}
+
 bbp_status_t bbp_verify_header(const struct bbp_header *hdr)
 {
     if (!hdr) return BBP_ERR_NULL;
-    if (bbp_memcmp(hdr->magic, BBP_HEADER_MAGIC, sizeof(BBP_HEADER_MAGIC) - 1) != 0)
+    if (bbp_memcmp(hdr->magic, bbp_header_magic, BBP_MAGIC_LEN) != 0)
         return BBP_ERR_MAGIC;
     if (hdr->version_major != BBP_VERSION_MAJOR)
         return BBP_ERR_VERSION;
@@ -122,7 +128,7 @@ bbp_status_t bbp_verify_blob(const struct bbp_kctx *k, bbp_phys_t phys,
     if (!k || phys == 0 || len == 0) return BBP_ERR_NULL;
     if (len > BBP_MAX_BLOB)           return BBP_ERR_SIZE;
     /* Region must be in-bounds and not wrap under HHDM translation (A2/A3). */
-    if (!bbp_region_ok(k, phys, (uint64_t)len)) return BBP_ERR_SIZE;
+    if (!bbp_address_region_ok(k, phys, (uint64_t)len)) return BBP_ERR_SIZE;
 
     if (expected_crc == 0) {
         /* Producer did not provide a CRC. Trust only if the caller opts in. */
@@ -146,7 +152,7 @@ bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
     out->walk_lo = walk_lo;    /* set BEFORE the internal HHDM walk below, so */
     out->walk_hi = walk_hi;    /* even bbp_init's own lookup is window-bounded */
 
-    if (bbp_memcmp(info->magic, BBP_INFO_MAGIC, sizeof(BBP_INFO_MAGIC) - 1) != 0)
+    if (bbp_memcmp(info->magic, bbp_info_magic, BBP_MAGIC_LEN) != 0)
         return BBP_ERR_MAGIC;
 
     if (info->version_major != BBP_VERSION_MAJOR)
@@ -166,10 +172,11 @@ bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
     /* Pick up HHDM offset early so subsequent lookups translate correctly.
      * The first_tag pointer is physical; with hhdm_hint applied the parser
      * can reach the tag list even when it lives outside the identity map.
-     * If the HHDM tag is present it overrides the hint with the authoritative
-     * value the producer chose. This walk is already window-bounded above. */
+     * A nonzero consumer hint remains authoritative. In the identity-mapped
+     * zero-hint case, a complete HHDM tag supplies the offset for later walks.
+     * This lookup is already window-bounded when the caller supplied one. */
     const struct bbp_tag_header *t = bbp_find_tag(out, BBP_TAG_HHDM);
-    if (t) {
+    if (hhdm_hint == 0 && t && t->tag_size >= sizeof(struct bbp_tag_hhdm)) {
         const struct bbp_tag_hhdm *h = (const struct bbp_tag_hhdm *)t;
         out->hhdm_offset = h->offset;
     }
@@ -180,6 +187,30 @@ bbp_status_t bbp_init_ex(struct bbp_kctx *out, const struct bbp_info *info,
                          bbp_virt_t hhdm_hint)
 {
     return bbp_init_win(out, info, hhdm_hint, 0, 0);   /* window disabled */
+}
+
+bbp_status_t bbp_init_bounded(struct bbp_kctx *out,
+                              const struct bbp_info *info,
+                              bbp_virt_t hhdm_hint,
+                              bbp_phys_t arena_phys,
+                              size_t arena_bytes)
+{
+    if (!out || !info) return BBP_ERR_NULL;
+    if (arena_phys == 0 || arena_bytes == 0)
+        return BBP_ERR_SIZE;
+#if SIZE_MAX > (1ULL << 48)
+    if (arena_bytes > BBP_MAX_PHYS)
+        return BBP_ERR_SIZE;
+#endif
+    if (arena_phys > BBP_MAX_PHYS - (bbp_phys_t)arena_bytes)
+        return BBP_ERR_SIZE;
+
+    struct bbp_kctx candidate;
+    bbp_status_t st = bbp_init_win(&candidate, info, hhdm_hint, arena_phys,
+                                    arena_phys + (bbp_phys_t)arena_bytes);
+    if (st == BBP_OK)
+        *out = candidate;
+    return st;
 }
 
 bbp_status_t bbp_init(struct bbp_kctx *out, const struct bbp_info *info)
@@ -198,9 +229,9 @@ bbp_status_t bbp_set_walk_window(struct bbp_kctx *k, bbp_phys_t lo, bbp_phys_t h
 /* Validate ONE tag at physical address `cur` and return its virtual pointer
  * via *out_tag, or NULL on any structural failure. Performs, in order:
  *   1. pointer alignment/non-null         (bbp_tag_ptr_ok)
- *   2. header region in-bounds + no wrap   (bbp_region_ok for the 32B header)
+ *   2. header region in-bounds + no wrap   (bbp_tag_region_ok for 32B header)
  *   3. tag_size plausibility               (bbp_tag_len_ok)
- *   4. FULL tag region in-bounds + no wrap (bbp_region_ok for tag_size)
+ *   4. FULL tag region in-bounds + no wrap (bbp_tag_region_ok for tag_size)
  * Only after all four is it safe to read tag_size bytes (CRC). Returns 1 and
  * sets *out_tag on success; returns 0 to STOP the walk (hard corruption).
  * (Audit A4: previously tag_id/tag_size were read before the region check.) */
@@ -208,13 +239,13 @@ static int bbp_tag_at(const struct bbp_kctx *k, bbp_phys_t cur,
                       const struct bbp_tag_header **out_tag)
 {
     if (!bbp_tag_ptr_ok(cur)) return 0;
-    if (!bbp_region_ok(k, cur, sizeof(struct bbp_tag_header))) return 0;
+    if (!bbp_tag_region_ok(k, cur, sizeof(struct bbp_tag_header))) return 0;
 
     const struct bbp_tag_header *tag =
         (const struct bbp_tag_header *)bbp_phys_to_virt(k, cur);
 
     if (!bbp_tag_len_ok(tag)) return 0;
-    if (!bbp_region_ok(k, cur, (uint64_t)tag->tag_size)) return 0;
+    if (!bbp_tag_region_ok(k, cur, (uint64_t)tag->tag_size)) return 0;
 
     *out_tag = tag;
     return 1;
@@ -293,14 +324,17 @@ static int bbp_evidence_cb(const struct bbp_tag_header *tag, void *user)
 uint32_t bbp_evidence(const struct bbp_kctx *k,
                       bbp_hash_update_fn update, void *state)
 {
+    static const uint8_t domain[16] = {
+        'B', 'B', 'P', '-', 'E', 'V', 'I', 'D',
+        'E', 'N', 'C', 'E', 0, 1, 0, 0
+    };
     if (!k || !k->info || !update) return 0;
 
-    /* The info struct first (its own checksum field included — it is
-     * part of what the producer handed over), then every tag that
-     * survives the same walk-window + CRC gates as bbp_for_each_tag.
-     * One byte stream, deterministic, replayable by an auditor who
-     * holds a copy of the handoff. */
-    update(state, k->info, (size_t)k->info->info_size);
+    /* Domain-separate the stream, then hash the fixed INFO object exactly
+     * once. info_size is an informational span and may include a separate
+     * builder arena; using it here would read past INFO or hash tags twice. */
+    update(state, domain, sizeof(domain));
+    update(state, k->info, sizeof(struct bbp_info));
 
     struct bbp_evidence_walk w = { update, state };
     return bbp_for_each_tag(k, bbp_evidence_cb, &w);

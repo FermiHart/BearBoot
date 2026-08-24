@@ -27,8 +27,8 @@
 - HHDM offset source:             Limine HHDM response via `limine_get_hhdm_offset()`
                                   (== Josh's `g_hhdm_offset`). Mandatory; the adapter
                                   refuses to build if it is 0.
-- bbp_init / bbp_init_ex used:    `bbp_init_win(out, info, hhdm_offset, arena_phys,
-                                  arena_phys+arena_bytes)` — SPEC §10.1(b): the
+- parser initializer used:        `bbp_init_bounded(out, info, hhdm_offset,
+                                  tagbase_phys, tag_arena_bytes)` — SPEC §10.1(b): the
                                   adapter runs on Josh's own higher-half page tables,
                                   so tag pointers are TRUE physicals (PMM arena) and
                                   the parser is seeded with the HHDM offset; the walk
@@ -70,12 +70,13 @@ bring-up bug cannot occur.
           tag FRAMEBUFFER  : present
           tag SMP          : present
           tag CMDLINE      : present
+          tag SECURITY     : present
           memmap entries: 5 (type[0]=1 expect USABLE=1)   (memmap decoded)
           smp cpu_count=4 bsp_id=0                          (SMP: 4 CPUs decoded)
           cmdline verify_blob -> ok                         (CMDLINE CRC verified)
-        total tags walked: 5
+        total tags walked: 6
         RESULT: PASS
-- [x] bbp_init_win returned BBP_OK on the harness boot data (the
+- [x] bbp_init_bounded returned BBP_OK on the current harness boot data (the
       "bbp_josh_adapter -> ok" line is bbp_strstatus(st) with st==BBP_OK; the 5
       tags are CRC-validated by the parser, walked via bbp_for_each_tag).
 - [x] bbp_verify_blob called on the out-of-line CMDLINE before reading it
@@ -94,8 +95,8 @@ bring-up bug cannot occur.
 ## Deviations / known gaps (honest accounting)
 1. **Real-Josh-boot serial proof: CONFIRMED** (test/serial.log). The hosted
    harness proves osif.c + adapter.c against the frozen core on synthetic Limine
-   data (5 tags incl. CMDLINE); the live Josh boot shows the adapter validating
-   4 real Limine-derived tags (no CMDLINE — Josh has no Limine command line).
+   data (6 tags incl. CMDLINE and SECURITY); the live Josh boot shows the adapter validating
+   5 real Limine-derived tags (no CMDLINE — Josh has no Limine command line).
 2. now_ns uses a nominal 1 GHz TSC assumption (relative boot metrics only).
 3. No KERNEL_ADDRESS / ACPI tags in v1 — out of scope. KERNEL_ADDRESS is
    unnecessary because the single direct map needs no slide reconciliation.

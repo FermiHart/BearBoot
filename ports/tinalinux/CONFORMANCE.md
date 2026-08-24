@@ -62,7 +62,8 @@ HHDM hazard is structurally absent. (osif.c + adapter.c dual-alias notes.)
 - Mode: [x] native Linux->BBP adapter   [ ] Limine adapter   [ ] native BBP boot
 - HHDM offset source: `page_offset_base`. Verified at runtime — the boot log
   shows hhdm=0xffff91e140000000 (a real KASLR'd direct-map base, NOT identity).
-- bbp_init / bbp_init_ex used: `bbp_init_ex(out, info_hhdm, page_offset_base)` —
+- parser initializer used: `bbp_init_bounded(out, info_hhdm, page_offset_base,
+  tagbase_phys, tag_arena_size)` —
   SPEC §10.1(b): the adapter runs inside the already-higher-half kernel, so tag
   pointers are TRUE physicals (__pa of the direct-map arena) and the parser is
   seeded with the HHDM offset. The INFO is passed as its __va alias.

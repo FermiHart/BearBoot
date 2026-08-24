@@ -8,6 +8,10 @@ The authoritative machine-readable definition is `include/bbp/bbp.h`; where
 this prose and the header disagree, the header wins. Design rationale for each
 major decision lives in `docs/adr/`.
 
+This specification remains exclusively normative for frozen BBP v1.1. The
+experimental contiguous v2 capsule is a separate offline-only Draft in
+`docs/rfc/0001-bbp-v2-capsule.md`; there is no implicit v1/v2 negotiation.
+
 
 ## 1. Scope and model
 
@@ -36,7 +40,7 @@ All structures are little-endian. All pointers stored in any structure are
 - `BBP_VERSION_MAJOR` (1) — bumped on any breaking ABI change. A consumer
   MUST reject an INFO whose `version_major` differs from the one it was built
   against.
-- `BBP_VERSION_MINOR` (0) — bumped on backward-compatible additions (new
+- `BBP_VERSION_MINOR` (1) — bumped on backward-compatible additions (new
   tags, new appended fields guarded by a tag's `tag_version`).
 
 
@@ -46,7 +50,8 @@ All structures are little-endian. All pointers stored in any structure are
 - INFO magic:   the 16 bytes `"BEAR_INFO"` followed by NUL padding.
 
 A 16-byte magic is used (rather than 8) so a producer scanning a kernel image
-for `.bbp_hdr` content has negligible false-match probability.
+for `.bbp_hdr` content has negligible false-match probability. Consumers MUST
+compare all 16 bytes, including the required zero padding.
 
 
 ## 4. Integrity — CRC-64/XZ
@@ -132,15 +137,15 @@ DEVICE 0x0003, SECURITY 0x0004, PLATFORM 0x0005, DEBUG 0x0006, VENDOR 0xFFFF.
 |------------------------|---------------|-------|-----------------------------|
 | BBP_TAG_SMP            | CORE/1        | 48    | bbp_cpu_info[cpu_count]     |
 | BBP_TAG_MODULES        | CORE/2        | 40    | bbp_module_entry[]          |
-| BBP_TAG_CMDLINE        | CORE/3        | 48    | (string via phys ptr)       |
+| BBP_TAG_CMDLINE        | CORE/3        | 56    | (string via phys ptr)       |
 | BBP_TAG_MEMORY_MAP     | MEMORY/1      | 40    | bbp_memory_entry[]          |
 | BBP_TAG_HHDM           | MEMORY/2      | 40    | —                           |
 | BBP_TAG_KERNEL_ADDRESS | MEMORY/3      | 48    | —                           |
 | BBP_TAG_FRAMEBUFFER    | DEVICE/1      | 72    | bbp_display_info[]          |
 | BBP_TAG_PCIE           | DEVICE/2      | 48    | bbp_pcie_device[]           |
-| BBP_TAG_SECURITY       | SECURITY/1    | 104   | (measurements via phys ptr) |
+| BBP_TAG_SECURITY       | SECURITY/1    | 128   | (measurements via phys ptr) |
 | BBP_TAG_ACPI           | PLATFORM/1    | 56    | —                           |
-| BBP_TAG_DEVICETREE     | PLATFORM/2    | 64    | —                           |
+| BBP_TAG_DEVICETREE     | PLATFORM/2    | 80    | —                           |
 | BBP_TAG_EFI            | PLATFORM/3    | 64    | —                           |
 | BBP_TAG_HYPERVISOR     | PLATFORM/4    | 64    | —                           |
 | BBP_TAG_SMBIOS         | PLATFORM/5    | 48    | —                           |
@@ -191,7 +196,7 @@ PRODUCER (bootloader)
   finalize INFO (seal all tag CRCs + info CRC)
   jump to entry_point with INFO phys ptr in RDI/X0/A0
 KERNEL
-  bbp_init(): validate magic/version/size/CRC, pick up HHDM offset
+  bbp_init_bounded(): validate magic/version/size/CRC and bound tag walks
   bbp_find_tag()/bbp_for_each_tag() to consume tags
   initialize subsystems; start scheduling
 ```
@@ -215,6 +220,10 @@ this chicken-and-egg, at handoff the producer MUST satisfy at least one of:
       BBP_TAG_HHDM with the matching offset; the kernel calls `bbp_init_ex`
       with that offset as the hint.
 
+An explicit nonzero consumer hint is authoritative: the parser MUST NOT replace
+it with the producer-controlled HHDM tag. With hint 0, a well-sized, CRC-valid
+HHDM tag supplies the offset after the identity-mapped initial walk.
+
 A conforming producer MUST document which of (a)/(b) it provides. A producer
 that does neither is non-conforming; a kernel that dereferences `first_tag`
 with offset 0 against a higher-half-only map will fault. The reference loader
@@ -237,12 +246,43 @@ The parser bounds every tag pointer to the architectural maximum
 NOT a dereference of an address that is in-range yet UNMAPPED — on a real
 higher-half kernel the HHDM maps only actual RAM, so a forged pointer past the
 top of RAM passes the arithmetic check and page-faults. (Found by the parser
-fuzzer.) A consumer that knows the physical region holding the tag list is
-mapped MAY declare it as a walk window via `bbp_init_win(out, info, hint,
-walk_lo, walk_hi)` or `bbp_set_walk_window`; the parser then rejects any tag
-pointer outside `[walk_lo, walk_hi)` as corruption instead of faulting. The
-window is OPTIONAL and disabled by default (`bbp_init`/`bbp_init_ex` leave it
-unset, preserving v1.0/v1.1 behavior); it changes no on-the-wire structure.
+fuzzer.) A consumer that knows the physical region holding the tag list SHOULD
+call `bbp_init_bounded(out, info, hint, arena_phys, arena_bytes)`; the parser
+then rejects any tag pointer outside that span as corruption instead of
+faulting. The strict initializer rejects empty, wrapping, or out-of-range bounds
+and does not publish a partial context on failure. Legacy `bbp_init_win` and
+`bbp_set_walk_window` remain compatibility APIs. The window is OPTIONAL for
+compatibility and disabled by default
+(`bbp_init`/`bbp_init_ex` leave it unset, preserving v1.0/v1.1 behavior); it
+changes no on-the-wire structure. It is REQUIRED if a consumer claims that a
+hostile producer cannot induce a fault through an in-range but unmapped tag
+pointer. Tag bounds do not constrain separately allocated out-of-line blobs;
+those pass independent address, length, and CRC checks.
+
+### 10.4 Canonical boot-evidence stream
+
+`bbp_evidence` feeds a caller-owned hash with this exact byte stream:
+
+1. 16 domain bytes: ASCII `BBP-EVIDENCE`, then `00 01 00 00`.
+2. Exactly `sizeof(struct bbp_info)` bytes, including its checksum.
+3. Each structurally valid, CRC-valid tag in chain order, exactly `tag_size`
+   bytes each.
+
+The helper MUST NOT hash `info_size`: that field is informational, may describe
+non-contiguous storage, and may already include the tag arena. Failed tags are
+excluded. The returned value is the number of tags fed, not a digest; hash
+selection and storage/TPM extension belong to the consumer. The stream proves
+which bytes were observed, not producer authenticity or semantic correctness.
+
+### 10.5 Lifetime and semantic validation
+
+Parser accessors return pointers into producer-owned memory. The producer MUST
+stop mutating the handoff before transfer, and the consumer MUST keep it mapped
+and immutable while parsing. If concurrent firmware, DMA, or another execution
+context can write it, the consumer MUST copy validated data into owned memory
+before use; CRC validation alone does not close a time-of-check/time-of-use
+race. Consumers MUST additionally validate the semantics of each accepted tag
+before changing memory management, privilege, devices, or policy.
 
 
 ## 11. Conformance
@@ -252,8 +292,9 @@ suite) and rejects: bad magic, mismatched major version, implausible
 `info_size`, bad INFO CRC, per-tag CRC failures, undersized/oversized
 `tag_size`, misaligned tag pointers, and cyclic tag chains (bounded by
 BBP_MAX_TAGS). It clamps trailing-array counts to `tag_size` via
-`bbp_tag_array`. A conforming producer emits structures whose `_Static_assert`
-sizes match `include/bbp/bbp.h` and seals CRCs per §10.
+`bbp_tag_array`, rejects tag extents outside a configured walk window, and does
+not replace an explicit HHDM hint. A conforming producer emits structures whose
+`_Static_assert` sizes match `include/bbp/bbp.h` and seals CRCs per §10.
 
 ### 11.1 Notes on non-safety fields (ADR-0008)
 
@@ -267,6 +308,13 @@ sizes match `include/bbp/bbp.h` and seals CRCs per §10.
   as a security bound on individual tag pointers — each tag is bounded by its
   own validated `tag_size`, never by `info_size`.
 
+### 11.2 Host captures are not wire ABI
+
+The optional `.bbpc` v1 format documented in `docs/bbpc-v1.md` archives exact
+INFO/tag bytes for host analysis. It is not passed at boot, and its directory
+offsets and container CRC are not part of this specification or any BBP wire
+structure. A consumer MUST NOT reinterpret a BBPC file as a handoff.
+
 
 ## 12. Roadmap
 
@@ -277,8 +325,8 @@ Linux path that BBP rides on).
 
 | Version | Milestone        | Scope                                                  |
 |---------|------------------|--------------------------------------------------------|
-| v1.1    | **current**      | x86_64 proven end-to-end; native TinaLinux OSIF boots; frozen ABI; defensive parser; out-of-line CRC |
-| v1.5    | Exercise non-x86 | bring an AArch64 (Device Tree) and a RISC-V consumer up from ABI-only to a booted proof |
+| v1.1    | **current**      | x86_64 proven end-to-end; AArch64 X0 + Device Tree machine proof; native TinaLinux OSIF boots; frozen ABI; defensive parser; out-of-line CRC |
+| post-v1.1 portability | **machine proofs complete** | AArch64/X0 and RV64/A0 exercise bounded v1.1 handoffs with QEMU Device Trees; no new wire version is implied and real non-x86 OS ports remain future work |
 | v2.0    | Measuring producer | a producer that actually extends TPM PCRs + fills the measurement log (today the SECURITY tags are definitions only) |
 | v2.x    | Authenticity     | optional signature layer over the CRC integrity layer (CRC ≠ authenticity, by design — see SECURITY.md) |
 

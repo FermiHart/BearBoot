@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+<!-- Snapshot editorial do projeto em 2026-08-23. -->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BearBoot - onde paramos e o que vem agora</title>
+<meta name="description" content="Retrospectiva das últimas waves do BearBoot, estado atual verificável e recomendação para a próxima wave.">
+<meta name="theme-color" content="#090b0a">
+<style>
+:root{
+  --ink:#090b0a;--paper:#e8e2d2;--muted:#9e9a8f;--panel:#111512;--line:#293029;
+  --green:#4dff88;--amber:#ffc45b;--cyan:#65fbd2;--rose:#ff768f;--blue:#91a8ff;
+  --mono:ui-monospace,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace;
+  --serif:Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;background:var(--ink)}
+body{background:var(--ink);color:var(--paper);font:15px/1.65 var(--mono);overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:20;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 4px)}
+::selection{background:var(--green);color:var(--ink)}
+a{color:inherit}
+a:focus-visible{outline:2px solid white;outline-offset:4px}
+.wrap{width:min(1180px,calc(100% - 2.5rem));margin-inline:auto}
+.skip{position:fixed;left:1rem;top:.7rem;z-index:30;padding:.4rem .7rem;background:var(--green);color:var(--ink);transform:translateY(-180%)}
+.skip:focus{transform:none}
+
+nav{position:sticky;top:0;z-index:15;display:flex;align-items:center;gap:1rem;padding:.65rem max(1rem,calc((100vw - 1180px)/2));background:rgba(9,11,10,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+.brand{text-decoration:none;color:var(--green);font-weight:800;letter-spacing:.13em;white-space:nowrap}
+.nav-state{margin-left:auto;color:var(--muted);font-size:.7rem;letter-spacing:.12em;text-align:right}
+.nav-state b{color:var(--amber);font-weight:500}
+
+.hero{min-height:calc(100vh - 3.2rem);display:grid;align-content:center;position:relative;padding:6rem 0 4rem;background:radial-gradient(circle at 80% 20%,rgba(77,255,136,.09),transparent 30%),radial-gradient(circle at 15% 80%,rgba(255,196,91,.055),transparent 26%)}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) 23rem;gap:4rem;align-items:end}
+.kicker{color:var(--cyan);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;margin-bottom:1rem}
+h1{font:700 clamp(4.3rem,10vw,9rem)/.79 var(--serif);letter-spacing:-.075em;max-width:8ch}
+h1 span{display:block;color:var(--green);font-style:italic}
+.lede{font:clamp(1.15rem,2.3vw,1.5rem)/1.45 var(--serif);max-width:44rem;margin-top:2rem;color:#d7d1c3}
+.lede b{color:var(--amber)}
+.hero-aside{border-left:1px solid var(--line);padding-left:1.2rem}
+.signal{padding:.8rem 0;border-top:1px solid var(--line)}
+.signal:last-child{border-bottom:1px solid var(--line)}
+.signal small{display:block;color:var(--muted);font-size:.65rem;letter-spacing:.13em}
+.signal strong{display:block;color:var(--paper);font-size:1.08rem;margin-top:.15rem}
+.signal strong.good{color:var(--green)}
+.signal strong.warn{color:var(--amber)}
+.scroll{position:absolute;bottom:1rem;left:50%;transform:translateX(-50%);color:#6f746f;font-size:.62rem;letter-spacing:.2em}
+
+section{padding:6.5rem 0;scroll-margin-top:3.5rem;border-top:1px solid var(--line)}
+.section-head{display:grid;grid-template-columns:9rem minmax(0,1fr);gap:2rem;margin-bottom:3rem}
+.section-no{color:var(--amber);font-size:.7rem;letter-spacing:.17em;padding-top:.45rem}
+h2{font:700 clamp(2.4rem,6vw,5.4rem)/.92 var(--serif);letter-spacing:-.055em;max-width:12ch}
+.section-copy{color:var(--muted);max-width:48rem;margin-top:1rem}
+.section-copy b{color:var(--paper)}
+
+.verdict{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line)}
+.verdict article{padding:1.25rem;min-height:13rem;border-right:1px solid var(--line);display:flex;flex-direction:column}
+.verdict article:last-child{border-right:0}
+.verdict small{color:var(--muted);font-size:.65rem;letter-spacing:.12em}
+.verdict b{font:700 2.5rem/1 var(--serif);color:var(--green);margin:.8rem 0}
+.verdict p{font-size:.72rem;color:var(--muted);margin-top:auto}
+.verdict article:nth-child(2) b{color:var(--amber)}
+.verdict article:nth-child(3) b{color:var(--cyan)}
+.verdict article:nth-child(4) b{color:var(--rose)}
+.truth{margin-top:1rem;padding:1rem 1.2rem;border:1px solid #55441d;background:#161207;color:#cbbd98}
+.truth b{color:var(--amber)}
+
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line)}
+.era{background:var(--ink);padding:clamp(1.4rem,3vw,2.3rem)}
+.era-label{font-size:.67rem;letter-spacing:.2em;color:var(--muted)}
+.era h3{font:700 clamp(2rem,4vw,3.6rem)/1 var(--serif);margin:.8rem 0 1.7rem;max-width:10ch}
+.era.now h3{color:var(--green)}
+.era ul{list-style:none}
+.era li{position:relative;padding:.72rem 0 .72rem 1.5rem;border-top:1px solid var(--line);color:#bbb8ae}
+.era li::before{content:"-";position:absolute;left:0;color:var(--muted)}
+.era.now li::before{content:"+";color:var(--green)}
+.era li b{color:var(--paper);font-weight:600}
+.era-note{margin-top:1.3rem;color:var(--muted);font-size:.72rem}
+
+.timeline{position:relative;display:grid;grid-template-columns:repeat(2,1fr);gap:1rem 3rem}
+.timeline::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;background:linear-gradient(var(--green),var(--amber),var(--blue))}
+.step{position:relative;border:1px solid var(--line);background:var(--panel);padding:1.15rem;min-height:11rem}
+.step:nth-child(even){transform:translateY(3rem)}
+.step::after{content:"";position:absolute;top:1.4rem;right:-1.85rem;width:.65rem;height:.65rem;border-radius:50%;background:var(--green);box-shadow:0 0 15px rgba(77,255,136,.6)}
+.step:nth-child(even)::after{right:auto;left:-1.85rem;background:var(--amber);box-shadow:0 0 15px rgba(255,196,91,.6)}
+.step-id{font-size:.64rem;color:var(--muted);letter-spacing:.13em}
+.step h3{font-size:.93rem;color:var(--paper);margin:.55rem 0}
+.step p{font-size:.72rem;color:var(--muted)}
+.step code{color:var(--cyan)}
+.step.exp{border-color:#3c4773}
+.step.exp h3{color:var(--blue)}
+.step.exp::after{background:var(--blue);box-shadow:0 0 15px rgba(145,168,255,.6)}
+
+.ledger{background:#0c100d}
+.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+.status{border:1px solid var(--line);padding:1.1rem;min-height:12rem}
+.status header{display:flex;justify-content:space-between;gap:1rem;border-bottom:1px solid var(--line);padding-bottom:.7rem}
+.status h3{font-size:.8rem}
+.pill{font-size:.61rem;letter-spacing:.1em;color:var(--green)}
+.pill.host{color:var(--amber)}
+.pill.gap{color:var(--rose)}
+.status p{font-size:.72rem;color:var(--muted);margin-top:.8rem}
+.status code{color:var(--cyan)}
+
+.checkpoint{display:grid;grid-template-columns:13rem 1fr;gap:2rem;border:1px solid #55441d;background:#151106;padding:clamp(1.3rem,4vw,2.7rem);margin-bottom:1.2rem}
+.checkpoint strong{font:700 2rem/1 var(--serif);color:var(--amber)}
+.checkpoint p{color:#c9bb98}
+.checkpoint code{color:var(--paper)}
+.next{position:relative;overflow:hidden;border:1px solid #2d6844;background:linear-gradient(125deg,#0c1911,#0a0e0b);padding:clamp(1.5rem,5vw,4rem)}
+.next::after{content:"AARCH64";position:absolute;right:-.04em;bottom:-.3em;font:900 clamp(5rem,14vw,12rem)/1 var(--mono);letter-spacing:-.09em;color:rgba(77,255,136,.035)}
+.next .kicker{color:var(--green)}
+.next h3{position:relative;z-index:1;font:700 clamp(3rem,8vw,7rem)/.82 var(--serif);letter-spacing:-.07em;max-width:9ch}
+.next-intro{position:relative;z-index:1;max-width:48rem;margin:1.5rem 0 2rem;color:#bdc8be}
+.deliverables{position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#27402f;border:1px solid #27402f}
+.deliverables article{background:#0b120d;padding:1rem;min-height:9rem}
+.deliverables span{color:var(--green);font-size:.65rem}
+.deliverables b{display:block;margin:.6rem 0;font-size:.8rem}
+.deliverables p{font-size:.68rem;color:#869889}
+.after{margin-top:1.2rem;color:var(--muted);font-size:.72rem}
+.after b{color:var(--blue)}
+
+footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);font-size:.7rem}
+.footer-grid{display:flex;justify-content:space-between;gap:2rem}
+.footer-grid b{color:var(--green)}
+.footer-links{display:flex;gap:1rem;flex-wrap:wrap;justify-content:flex-end}
+.footer-links a:hover{color:var(--green)}
+
+@media(max-width:900px){
+  .hero-grid{grid-template-columns:1fr;gap:2.5rem}.hero-aside{border-left:0;border-top:1px solid var(--line);padding:1rem 0 0;display:grid;grid-template-columns:repeat(2,1fr);gap:0 1rem}
+  .section-head{grid-template-columns:1fr;gap:.7rem}.verdict{grid-template-columns:repeat(2,1fr)}.verdict article:nth-child(2){border-right:0}.verdict article:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .status-grid{grid-template-columns:repeat(2,1fr)}.deliverables{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:640px){
+  body{font-size:14px}.wrap{width:min(100% - 1.2rem,1180px)}nav{padding:.55rem .6rem}.brand{font-size:.72rem}.nav-state{font-size:.58rem}
+  .hero{min-height:auto;padding:4.5rem 0}.scroll{display:none}h1{font-size:clamp(4rem,23vw,6.2rem)}
+  section{padding:4rem 0}.verdict,.compare,.status-grid,.deliverables{grid-template-columns:1fr}.verdict article{border-right:0;border-bottom:1px solid var(--line)}.verdict article:last-child{border-bottom:0}
+  .timeline{grid-template-columns:1fr;padding-left:1.3rem}.timeline::before{left:0}.step:nth-child(even){transform:none}.step::after,.step:nth-child(even)::after{left:-1.68rem;right:auto}
+  .checkpoint{grid-template-columns:1fr;gap:1rem}.footer-grid{display:block}.footer-links{justify-content:flex-start;margin-top:1rem}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<a class="skip" href="#conteudo">Pular para o conteúdo</a>
+<nav aria-label="Navegação da retrospectiva">
+  <a class="brand" href="index.html">FERMI ∞ HART / BEARBOOT</a>
+  <div class="nav-state">RELEASE <b>2026-08-24</b><br>SDK <b>1.3.0 / WIRE 1.1</b></div>
+</nav>
+
+<main id="conteudo">
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="kicker">Estado do projeto / depois das últimas waves</div>
+        <h1>Onde <span>paramos.</span></h1>
+        <p class="lede">O BearBoot deixou de ser apenas um protocolo forte dentro do próprio repositório. Hoje ele também é <b>produto empacotável, prova executável, ferramenta de inspeção e experimento de próxima geração.</b></p>
+      </div>
+      <aside class="hero-aside" aria-label="Resumo do estado atual">
+        <div class="signal"><small>LINHA ESTÁVEL</small><strong class="good">SDK 1.3.0 / wire 1.1</strong></div>
+        <div class="signal"><small>RELEASE</small><strong>Waves 11–15</strong></div>
+        <div class="signal"><small>FRONTEIRA EXPERIMENTAL</small><strong>BBP v2 Draft / offline</strong></div>
+        <div class="signal"><small>WORKTREE</small><strong class="good">gates de release validados</strong></div>
+        <div class="signal"><small>PUBLICAÇÃO</small><strong class="good">sdk-v1.3.0</strong></div>
+      </aside>
+    </div>
+    <div class="scroll" aria-hidden="true">LEIA / COMPARE / DECIDA</div>
+  </header>
+
+  <section id="resumo">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">01 / RESPOSTA CURTA</div>
+        <div><h2>O protocolo virou plataforma.</h2><p class="section-copy">A base continua pequena e congelada. O que cresceu ao redor dela foi a capacidade de <b>provar, importar, capturar, empacotar, distribuir e evoluir</b> sem confundir integridade com confiança.</p></div>
+      </div>
+      <div class="verdict">
+        <article><small>WAVES CONCLUÍDAS</small><b>15</b><p>A campanha fecha com multi-ISA, Profile 0, TPM2 e envelope autenticado.</p></article>
+        <article><small>DELTA PRÉ-WAVE 11</small><b>+10.4k</b><p>10.413 linhas adicionadas e 187 removidas em 83 arquivos até <code>327d209</code>.</p></article>
+        <article><small>PROVAS DE SO</small><b>4</b><p>TinaLinux, MINIX, Linux 0.01 e Josh-Bear na mesma seam OSIF.</p></article>
+        <article><small>VERSÕES ATIVAS</small><b>2</b><p>v1.1 congelada e utilizável; v2.0 Draft isolada e offline.</p></article>
+      </div>
+      <div class="truth"><b>Leitura honesta:</b> SDK 1.3.0 continua usando a ABI v1.1 congelada. AArch64 e RV64 são provas de máquina, enquanto Profile 0, TPM2 e o envelope autenticado permanecem experimentais e não fazem do Draft v2 um wire implantado.</div>
+    </div>
+  </section>
+
+  <section id="antes-agora">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">02 / ANTES E AGORA</div>
+        <div><h2>Mesma missão. Outro alcance.</h2><p class="section-copy">O corte compara a base anterior à campanha com o release SDK 1.3.0.</p></div>
+      </div>
+      <div class="compare">
+        <article class="era before">
+          <div class="era-label">ANTES / PROTOCOLO NO REPOSITÓRIO</div>
+          <h3>Uma fundação técnica convincente.</h3>
+          <ul>
+            <li><b>ABI v1.1 congelada</b>, CRC-64/XZ, builder e parser freestanding.</li>
+            <li><b>Parser adversarial</b>, fuzzer, QEMU bare-metal e verificação de blobs externos.</li>
+            <li><b>Quatro árvores de port</b> já existiam: TinaLinux, MINIX, Linux 0.01 e Josh-Bear.</li>
+            <li><b>Evidência canônica</b> já ligava o handoff ao início de uma cadeia de attestation.</li>
+            <li>Uso ainda dependia da <b>árvore-fonte</b>; não havia SDK versionado nem onboarding extraído.</li>
+            <li>Não havia ferramenta host para <b>capturar e inspecionar</b> handoffs reais.</li>
+            <li>A prova UEFI era um <b>esqueleto de produtor</b>, não um gate OVMF executado.</li>
+          </ul>
+          <p class="era-note">A documentação pública ainda dizia “duas integrações”, embora Linux 0.01 e Josh-Bear já estivessem no código. A capacidade cresceu mais rápido que a narrativa.</p>
+        </article>
+        <article class="era now">
+          <div class="era-label">AGORA / PRODUTO + LABORATÓRIO</div>
+          <h3>Uma superfície consumível e auditável.</h3>
+          <ul>
+            <li><b><code>bbp_init_bounded()</code></b> fecha o parser sobre uma extensão mapeada conhecida em todos os ports.</li>
+            <li><b>QEMU e OVMF</b> executam builder e parser, exigem serial PASS, status distinto e timeout.</li>
+            <li><b><code>bbpctl</code> + BBPC v1</b> permitem capturar, verificar e reproduzir evidência no host.</li>
+            <li><b>Importadores atômicos</b> normalizam Limine, Multiboot2 e snapshots UEFI.</li>
+            <li><b>SDK C, host tools e Rust <code>no_std</code></b> são empacotados de forma reproduzível.</li>
+            <li><b>Release supply chain</b> ganhou manifests, SBOM, Sigstore, tag assinada e gates isolados.</li>
+            <li><b>BBP v2 Draft</b> prova cápsula contígua, offsets relativos, digest canônico e bridge v1.1.</li>
+          </ul>
+          <p class="era-note">A mudança central não é “mais features”. É uma geometria de confiança melhor: cada afirmação relevante ganhou um gate, um artefato ou um limite explícito.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="waves">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">03 / ÚLTIMAS WAVES</div>
+        <div><h2>O caminho que percorremos.</h2><p class="section-copy">A sequência abaixo vem dos dez commits depois de <code>main</code>. Os nomes Wave 8 e Wave 9 estão gravados nos testes; o Draft v2 funciona como a décima wave prática desta campanha.</p></div>
+      </div>
+      <div class="timeline">
+        <article class="step"><div class="step-id">01 / 7a8fab7</div><h3>Bounded handoff</h3><p>Endurecimento do core, inicialização fail-closed e framing canônico de evidência.</p></article>
+        <article class="step"><div class="step-id">02 / 41e8e20</div><h3>Provas de máquina</h3><p>Round-trip QEMU real e aplicação EFI executada por OVMF, ambos com veredito forte.</p></article>
+        <article class="step"><div class="step-id">03 / cafe277</div><h3>Captura host</h3><p><code>bbpctl</code> e BBPC v1 tornam handoffs inspecionáveis fora do boot sem virar wire ABI.</p></article>
+        <article class="step"><div class="step-id">04 / 994f867</div><h3>Importadores</h3><p>Limine, Multiboot2 e UEFI entram por uma tradução bounded e failure-atomic.</p></article>
+        <article class="step"><div class="step-id">05 / 026dc94</div><h3>Geometria de prova</h3><p>Identidade visual e site passaram a derivar fatos do ABI em vez de decorar claims.</p></article>
+        <article class="step"><div class="step-id">WAVE 8 / c00d78d</div><h3>SDK consumível</h3><p>Pacotes C e host reproduzíveis, onboarding e crate Rust sempre <code>no_std</code>.</p></article>
+        <article class="step"><div class="step-id">WAVE 9 / 2160520</div><h3>Release verificável</h3><p>Metadata determinística, SBOM, assinatura keyless e isolamento de permissões no workflow.</p></article>
+        <article class="step"><div class="step-id">FECHAMENTO / e854 + 4df</div><h3>Release 1.2.0</h3><p>Provas visuais atualizadas, inventário Josh corrigido e tag local assinada no commit estável.</p></article>
+        <article class="step exp"><div class="step-id">WAVE 10 PRÁTICA / 327d209</div><h3>Cápsula v2 offline</h3><p>Um extent contíguo, diretório bounded, payloads relativos, digest independente de layout e bridge v1.1.</p></article>
+        <article class="step exp"><div class="step-id">LIMITE INTENCIONAL</div><h3>Ainda não é wire de boot</h3><p>O layout v2 não está congelado, não foi implantado e não cruza uma fronteira online sem transporte autenticado.</p></article>
+        <article class="step"><div class="step-id">WAVE 11 / RELEASE 1.3</div><h3>AArch64 boot proof</h3><p>QEMU entrega o DTB em X0; BearBoot o sela e reentra no consumidor com INFO em X0, sob um gate de máquina reproduzível.</p></article>
+        <article class="step"><div class="step-id">WAVE 12 / RELEASE 1.3</div><h3>RISC-V boot proof</h3><p>OpenSBI entrega hart/DTB em A0/A1; BearBoot sela o handoff e reentra no consumidor com INFO em A0.</p></article>
+        <article class="step exp"><div class="step-id">WAVE 13 / RELEASE 1.3</div><h3>Profile 0</h3><p>Semântica nativa separada, vetores Python/C, fuzz estruturado e compilação x86_64, AArch64 e RV64.</p></article>
+        <article class="step exp"><div class="step-id">WAVE 14 / RELEASE 1.3</div><h3>TPM2 measurement</h3><p>O digest canônico v2 é estendido no PCR 16 de um swtpm real e a equação do PCR é verificada.</p></article>
+        <article class="step exp"><div class="step-id">WAVE 15 / RELEASE 1.3</div><h3>Authenticated envelope</h3><p>HMAC-SHA256 host-only rejeita adulteração, replay e rollback sem alegar assinatura pública ou Secure Boot.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="ledger" id="estado">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">04 / ESTADO ATUAL</div>
+        <div><h2>O que é real hoje.</h2><p class="section-copy">Verde significa prova reproduzível no repositório. Âmbar significa host-tested ou registro externo. Rosa continua sendo lacuna, sem marketing para escondê-la.</p></div>
+      </div>
+      <div class="status-grid">
+        <article class="status"><header><h3>WIRE v1.1</h3><span class="pill">LIVE</span></header><p>ABI congelada, CRC por estrutura, parser bounded, builder e evidência canônica. É a linha compatível do SDK 1.3.0.</p></article>
+        <article class="status"><header><h3>SDK 1.3.0</h3><span class="pill">RELEASE CUT</span></header><p>Pacotes C, host e Rust compartilham a versão, metadata e gates reproduzíveis.</p></article>
+        <article class="status"><header><h3>x86 / UEFI</h3><span class="pill">LIVE</span></header><p><code>make qemu</code> e <code>make qemu-uefi</code> exercitam round-trips reais sob TCG. O segundo não transforma o loader-esqueleto em loader completo.</p></article>
+        <article class="status"><header><h3>QUATRO PORTS</h3><span class="pill host">MIXED PROOF</span></header><p>TinaLinux é reproduzida no CI atual; MINIX, Linux 0.01 e Josh-Bear mantêm registros reais, mas nem todos os boots externos rodam no root CI.</p></article>
+        <article class="status"><header><h3>V2 CAPSULE</h3><span class="pill host">HOST-TESTED</span></header><p>Parser, builder, digest e bridge passam em <code>make v2-test</code>. O Draft é experimental, offline e fora da ABI v1.1.</p></article>
+        <article class="status"><header><h3>ARQUITETURAS</h3><span class="pill host">MULTI-ISA / SDK 1.3</span></header><p>AArch64/X0 e RV64/A0 têm provas de máquina, parser bounded e Device Trees gerados pelo QEMU. LoongArch continua roadmap.</p></article>
+        <article class="status"><header><h3>MEDIÇÃO</h3><span class="pill host">MACHINE PROOF</span></header><p><code>make tpm2-measure-test</code> estende o digest em um TPM2 emulado; ainda não existe produtor de firmware distribuído.</p></article>
+        <article class="status"><header><h3>AUTENTICIDADE</h3><span class="pill host">HOST PROOF</span></header><p>Envelope HMAC host-only cobre identidade, freshness e anti-rollback; assinatura pública e provisionamento de firmware continuam fora do escopo.</p></article>
+        <article class="status"><header><h3>LOADER UEFI</h3><span class="pill gap">SKELETON</span></header><p>Coleta final, ELF load, paging, <code>ExitBootServices</code> e transferência do produtor de referência ainda são incompletos.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section id="proxima">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">05 / PRÓXIMA WAVE</div>
+        <div><h2>O corte 1.3 está pronto.</h2><p class="section-copy">As Waves 11–15 ampliaram as provas sem alterar a ABI. O próximo ciclo continua isolando experimentos v2 da linha estável.</p></div>
+      </div>
+      <div class="checkpoint">
+        <strong>Release checkpoint</strong>
+        <p>SDK 1.3.0 publica as provas multi-ISA e os experimentos host-only, mantendo BBP wire v1.1 congelado e o Draft v2 explicitamente fora da ABI estável.</p>
+      </div>
+      <div class="next">
+        <div class="kicker">Próximo ciclo / firmware trust</div>
+        <h3>Do host proof ao produtor real.</h3>
+        <p class="next-intro">Levar medição e autenticação a um produtor de firmware sem promover prematuramente a cápsula v2. A cápsula continua Draft e offline.</p>
+        <div class="deliverables">
+          <article><span>01</span><b>Firmware producer</b><p>Preencher SECURITY e measurement log a partir de extensões TPM reais.</p></article>
+          <article><span>02</span><b>Public-key policy</b><p>Definir assinatura, provisionamento e rotação sem depender de segredo HMAC compartilhado.</p></article>
+          <article><span>03</span><b>Hardware rollback</b><p>Ligar o índice monotônico a armazenamento resistente a reset e recuperação.</p></article>
+          <article><span>04</span><b>Malformed TPM</b><p>Testar respostas truncadas, oversized, timeout e códigos de erro do transporte.</p></article>
+          <article><span>05</span><b>Concurrency</b><p>Definir locking e recuperação do estado para múltiplos verificadores.</p></article>
+          <article><span>06</span><b>Freeze criteria</b><p>Registrar o que falta antes de qualquer promessa de wire v2 estável.</p></article>
+        </div>
+        <p class="after"><b>Regra:</b> o Draft v2 não será promovido apenas porque os testes estruturais e host proofs passam.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap footer-grid">
+    <div><b>F E R M I ∞ H A R T</b><br>Bear Boot Protocol / snapshot editorial baseado no Git e nos gates do repositório.</div>
+    <div class="footer-links"><a href="index.html">site técnico</a><a href="../STATUS.md">matriz de honestidade</a><a href="../CHANGELOG.md">changelog</a><a href="../docs/rfc/0001-bbp-v2-capsule.md">RFC v2</a></div>
+  </div>
+</footer>
+</body>
+</html>

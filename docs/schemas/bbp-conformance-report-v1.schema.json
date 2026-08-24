@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bearboot.dev/schemas/bbp-conformance-report-v1.schema.json",
+  "title": "BearBoot C SDK host conformance report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sdk_version",
+    "wire_version",
+    "profile",
+    "conformant",
+    "checks"
+  ],
+  "properties": {
+    "schema": {
+      "const": "bbp-conformance-report-v1"
+    },
+    "sdk_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "wire_version": {
+      "const": "1.1"
+    },
+    "profile": {
+      "const": "bbp-c-sdk-host-roundtrip-v1"
+    },
+    "conformant": {
+      "type": "boolean"
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": ["pass", "fail"]
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "conformant": {"const": true}
+        }
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "items": {
+              "properties": {
+                "status": {"const": "pass"}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "conformant": {"const": false}
+        }
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "status": {"const": "fail"}
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

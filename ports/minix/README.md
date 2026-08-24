@@ -15,7 +15,7 @@ Flow:
 
     Limine -> minix entry -> bbp_minix_adapter(limine responses)
                                builds bbp_info + tags via bbp_build.c
-                          -> bbp_init() / bbp_init_ex() validates
+                          -> bbp_init_bounded() validates within the tag arena
                           -> MINIX consumes tags via bbp_find_tag()
 
 ## Deliverables (in THIS directory only)
@@ -34,7 +34,7 @@ Flow:
    - Limine RSDP -> BBP_TAG_ACPI
    - Limine framebuffer -> BBP_TAG_FRAMEBUFFER (optional)
    - cmdline -> BBP_TAG_CMDLINE (set string_crc!)
-   - seal via bbp_builder_finalize, then bbp_init_ex(&k, info, hhdm)
+   - seal via bbp_builder_finalize, then bbp_init_bounded(&k, info, hhdm, tag_phys, tag_bytes)
 
 3. integration.md — exact MINIX paths/flags: where to add -Iinclude, which
    .c files to add to which MINIX makefile, where bbp_minix_adapter() is
@@ -54,6 +54,6 @@ Flow:
 - Every out-of-line pointer you emit (cmdline, etc.) MUST carry its *_crc, and
   the MINIX consumer MUST call bbp_verify_blob before trusting it (ADR-0006).
 - Honor SPEC §10.1: the adapter runs inside MINIX which is already mapped, so
-  feed bbp_init_ex() the HHDM offset MINIX uses; do not assume identity.
+  feed bbp_init_bounded() the HHDM offset and mapped tag arena; do not assume identity.
 - Report results in CONFORMANCE.md + test/ logs. Do not claim it works without
   a serial log proving the parser validated on real/QEMU MINIX.

@@ -35,8 +35,9 @@ static void shex(uint64_t v){ sputs("0x"); for(int i=60;i>=0;i-=4){ sputc("01234
 
 /* ---- the round-trip ------------------------------------------------------*/
 static uint8_t arena[32*1024] __attribute__((aligned(16)));
+static uint8_t guest_exit = 0x11; /* isa-debug-exit status 35: failure */
 
-static int fail(const char*why){ sputs("BBP-QEMU: FAIL: "); sputs(why); sputs("\n"); return 0; }
+static int fail(const char*why){ guest_exit=0x11; sputs("BBP-QEMU: FAIL: "); sputs(why); sputs("\n"); return 0; }
 
 void kmain(void){
     serial_init();
@@ -54,21 +55,26 @@ void kmain(void){
                      sizeof(arena)-sizeof(struct bbp_info));
 
     struct bbp_tag_hhdm *h = bbp_alloc_tag(&b,BBP_TAG_HHDM,1,sizeof(*h));
+    if (!h){ fail("alloc hhdm"); goto halt; }
     h->offset = 0;
     size_t mmsz = sizeof(struct bbp_tag_memory_map)+2*sizeof(struct bbp_memory_entry);
     struct bbp_tag_memory_map *mm = bbp_alloc_tag(&b,BBP_TAG_MEMORY_MAP,1,mmsz);
+    if (!mm){ fail("alloc memmap"); goto halt; }
     mm->entry_count=2; mm->entry_size=sizeof(struct bbp_memory_entry);
     struct bbp_memory_entry *e=(struct bbp_memory_entry*)((uint8_t*)mm+sizeof(*mm));
     e[0].base=0x1000; e[0].length=0x9F000; e[0].type=BBP_MEM_USABLE;
     e[1].base=0x100000; e[1].length=0x7F00000; e[1].type=BBP_MEM_USABLE;
     struct bbp_tag_acpi *a = bbp_alloc_tag(&b,BBP_TAG_ACPI,1,sizeof(*a));
+    if (!a){ fail("alloc acpi"); goto halt; }
     a->rsdp_address=0xE0000; a->acpi_version=0x0604;
 
     bbp_builder_finalize(&b, info, (bbp_phys_t)(uintptr_t)info);
     if (b.overflow){ fail("arena overflow"); goto halt; }
 
     struct bbp_kctx k;
-    bbp_status_t st = bbp_init(&k, info);
+    bbp_status_t st = bbp_init_bounded(
+        &k, info, 0, (bbp_phys_t)(uintptr_t)(arena + sizeof(struct bbp_info)),
+        sizeof(arena) - sizeof(struct bbp_info));
     if (st != BBP_OK){ fail(bbp_strstatus(st)); goto halt; }
 
     const struct bbp_tag_header *t = bbp_find_tag(&k, BBP_TAG_MEMORY_MAP);
@@ -89,9 +95,10 @@ void kmain(void){
     a->rsdp_address = 0xDEAD;
     if (bbp_find_tag(&k, BBP_TAG_ACPI) != NULL){ fail("corrupt-not-rejected"); goto halt; }
 
+    guest_exit = 0x10; /* isa-debug-exit status 33: success */
     sputs("BBP-QEMU: PASS\n");
 halt:
     /* Signal QEMU to exit via isa-debug-exit (port 0xF4) if present, else hlt.*/
-    outb(0xF4, 0x00);
+    outb(0xF4, guest_exit);
     for(;;) __asm__ volatile("hlt");
 }

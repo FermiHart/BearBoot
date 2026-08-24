@@ -5,8 +5,8 @@
  *   SPDX-License-Identifier: BSD-3-Clause
  *
  * The bootloader carves a scratch arena out of memory it owns, appends tags
- * into it, then finalizes into a bbp_info. Every tag's CRC64 is sealed when
- * appended; the info CRC is sealed at finalize. All pointers written are
+ * into it, then finalizes into a bbp_info. Every tag's CRC64 and the info CRC
+ * are sealed at finalize. All pointers written are
  * PHYSICAL (== arena address, since the loader runs identity-mapped).
  */
 #ifndef BBP_BUILD_H
@@ -32,7 +32,8 @@ void bbp_builder_init(struct bbp_builder *b, void *arena,
 
 /* Reserve `total_size` bytes for a tag of `tag_id`/`tag_version`, zero it,
  * stamp the tag_header, chain it after the previous tag, and return a
- * writable pointer to the tag. Returns NULL on overflow (and sets b->overflow).
+ * writable pointer to the tag. Returns NULL on overflow (and sets b->overflow,
+ * which makes subsequent finalization fail closed).
  * The caller fills the body + any trailing array, then calls bbp_seal_tag(). */
 void *bbp_alloc_tag(struct bbp_builder *b, uint64_t tag_id,
                     uint16_t tag_version, size_t total_size);
@@ -46,6 +47,11 @@ void bbp_seal_tag(struct bbp_builder *b, void *tag);
 /* Append a NUL-terminated string into the arena, returns its phys addr
  * (helper for cmdline / metadata blobs). 0 on overflow. */
 bbp_phys_t bbp_arena_strdup(struct bbp_builder *b, const char *s, uint32_t *out_len);
+
+/* Bounded string variant for untrusted/foreign sources. `source_bytes` is the
+ * readable extent and must contain a NUL. The copied length excludes the NUL. */
+bbp_phys_t bbp_arena_strdup_n(struct bbp_builder *b, const char *s,
+                              size_t source_bytes, uint32_t *out_len);
 
 /* Append an arbitrary blob, returns its phys addr (8-byte aligned). */
 bbp_phys_t bbp_arena_blob(struct bbp_builder *b, const void *data, size_t len);

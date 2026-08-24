@@ -15,3 +15,10 @@ Format: Status / Context / Decision / Consequences.
 | 0006 | Per-reference CRC for out-of-line data (v1.1)      | Accepted |
 | 0007 | Post-link header stamping (bbp_stamp)              | Accepted |
 | 0008 | Field typing & info_size coupling                  | Accepted |
+| 0009 | Optional mapped walk window                        | Accepted |
+| 0010 | Host-only BBPC v1 capture container                | Accepted |
+| 0011 | Failure-atomic boot-source importers                | Accepted |
+| 0012 | Versioned SDK and conformance surfaces             | Accepted |
+| 0013 | Keep v2 profiles separate and experimental         | Accepted |
+| 0014 | Separate measurement proof from authentication      | Accepted |
+| 0015 | Host-only authenticated envelope and rollback state | Accepted |

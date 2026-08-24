@@ -1,0 +1,329 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: release
+
+on:
+  push:
+    tags:
+      - "sdk-v*"
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: validate and reproduce release assets
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+    steps:
+      - name: Validate release tag shape
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^sdk-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "release tag must be sdk-vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+
+      - name: Check out the exact tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag identity and provenance
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          tag_object="$(git rev-parse "refs/tags/$RELEASE_TAG")"
+          tag_commit="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          event_commit="$(git rev-parse "$EVENT_SHA^{commit}")"
+          test "$(git rev-parse HEAD)" = "$tag_commit"
+          test "$event_commit" = "$tag_commit"
+          git merge-base --is-ancestor "$tag_commit" "refs/remotes/origin/$DEFAULT_BRANCH"
+
+          if [[ "$(gh api "repos/$REPOSITORY/git/tags/$tag_object" \
+            --jq '.verification.verified')" != true ]]; then
+            reason="$(gh api "repos/$REPOSITORY/git/tags/$tag_object" \
+              --jq '.verification.reason')"
+            echo "GitHub did not verify the annotated tag signature: $reason" >&2
+            exit 1
+          fi
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Install C, QEMU, and OVMF gates
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            binutils-aarch64-linux-gnu binutils-riscv64-linux-gnu \
+            build-essential clang gcc-aarch64-linux-gnu \
+            gcc-riscv64-linux-gnu jq lld ovmf \
+            qemu-system-arm qemu-system-misc qemu-system-x86 swtpm
+
+      - name: Install Rust stable and MSRV 1.77
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup component add --toolchain stable clippy rustfmt
+          rustup toolchain install 1.77.0 --profile minimal
+          rustup default stable
+          cargo +stable --version
+          cargo +1.77.0 --version
+
+      - name: Validate release versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#sdk-v}"
+          test "$(tr -d '\r\n' < sdk/VERSION)" = "$version"
+          crate_version="$(cargo +stable metadata --offline --no-deps \
+            --format-version 1 --manifest-path sdk/rust/bbp-wire/Cargo.toml \
+            | jq -r '.packages[] | select(.name == "bbp-wire") | .version')"
+          test "$crate_version" = "$version"
+          grep -Eq '^#define BBP_VERSION_MAJOR[[:space:]]+1([[:space:]]|$)' include/bbp/bbp.h
+          grep -Eq '^#define BBP_VERSION_MINOR[[:space:]]+1([[:space:]]|$)' include/bbp/bbp.h
+
+      - name: Run all release gates
+        run: |
+          set -euo pipefail
+          make check
+          make v2-portability v2-fuzz
+          make tpm2-measure-test
+          make freestanding CROSS=
+          make qemu
+          make qemu-aarch64
+          make qemu-riscv64
+          make qemu-uefi
+          make ports-check CROSS=
+          make -C ports/tinalinux test
+          make -C ports/linux01 test
+          make -C ports/josh test
+
+      - name: Build and compare release assets twice
+        id: package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+          version="${RELEASE_TAG#sdk-v}"
+          epoch="$(git show -s --format=%ct HEAD)"
+          first="$RUNNER_TEMP/release-first"
+          second="$RUNNER_TEMP/release-second"
+          release_dir="$GITHUB_WORKSPACE/build/release"
+          rm -rf "$first" "$second" "$release_dir"
+          mkdir -p "$first/sdk" "$second/sdk" "$release_dir"
+          export SOURCE_DATE_EPOCH="$epoch"
+
+          python3 tools/package_sdk.py --release --output-dir "$first/sdk"
+          python3 tools/package_sdk.py --release --output-dir "$second/sdk"
+          for name in \
+            "bearboot-c-sdk-$version.tar.gz" \
+            "bearboot-host-tools-$version.tar.gz"; do
+            cmp --silent "$first/sdk/$name" "$second/sdk/$name"
+            install -m 0644 "$first/sdk/$name" "$release_dir/$name"
+          done
+
+          CARGO_TARGET_DIR="$first/cargo" cargo +stable package --frozen \
+            --manifest-path sdk/rust/bbp-wire/Cargo.toml
+          CARGO_TARGET_DIR="$second/cargo" cargo +stable package --frozen \
+            --manifest-path sdk/rust/bbp-wire/Cargo.toml
+          crate="bbp-wire-$version.crate"
+          cmp --silent "$first/cargo/package/$crate" "$second/cargo/package/$crate"
+          install -m 0644 "$first/cargo/package/$crate" "$release_dir/$crate"
+
+          python3 tools/generate_release_metadata.py \
+            --source-revision "$(git rev-parse HEAD)" \
+            --output-dir "$release_dir" \
+            --artifact "$release_dir/bearboot-c-sdk-$version.tar.gz" \
+            --artifact "$release_dir/bearboot-host-tools-$version.tar.gz" \
+            --artifact "$release_dir/$crate"
+          test -s "$release_dir/SUPPORT-MATRIX.json"
+          test -s "$release_dir/bearboot-sdk-$version.spdx.json"
+          jq -e --arg version "$version" \
+            '.package_version == $version and .wire_version == "1.1" and
+             .title == ("BearBoot SDK " + $version + " (BBP wire 1.1)")' \
+            "$release_dir/SUPPORT-MATRIX.json" >/dev/null
+          jq -e '(.spdxVersion | startswith("SPDX-")) and (.packages | type == "array")' \
+            "$release_dir/bearboot-sdk-$version.spdx.json" >/dev/null
+
+          (
+            cd "$release_dir"
+            sha256sum \
+              "bearboot-c-sdk-$version.tar.gz" \
+              "bearboot-host-tools-$version.tar.gz" \
+              "$crate" \
+              SUPPORT-MATRIX.json \
+              "bearboot-sdk-$version.spdx.json" > SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload validated release inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-input-${{ github.sha }}
+          path: build/release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  sign:
+    name: sign release assets
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      id-token: write
+    steps:
+      - name: Download validated release inputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-input-${{ github.sha }}
+          path: release
+
+      - name: Revalidate transferred assets
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          expected=(
+            "release/bearboot-c-sdk-$VERSION.tar.gz"
+            "release/bearboot-host-tools-$VERSION.tar.gz"
+            "release/bbp-wire-$VERSION.crate"
+             "release/SUPPORT-MATRIX.json"
+            "release/bearboot-sdk-$VERSION.spdx.json"
+            "release/SHA256SUMS"
+          )
+          shopt -s nullglob
+          actual=(release/*)
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for file in "${expected[@]}"; do test -f "$file"; done
+          (cd release && sha256sum --check SHA256SUMS)
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.3
+
+      - name: Keyless-sign and attest release assets
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          issuer="https://token.actions.githubusercontent.com"
+          identity="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/.github/workflows/release.yml@$GITHUB_REF"
+          sbom="release/bearboot-sdk-$VERSION.spdx.json"
+          payloads=(
+            "release/bearboot-c-sdk-$VERSION.tar.gz"
+            "release/bearboot-host-tools-$VERSION.tar.gz"
+            "release/bbp-wire-$VERSION.crate"
+             "release/SUPPORT-MATRIX.json"
+            "$sbom"
+            "release/SHA256SUMS"
+          )
+
+          for file in "${payloads[@]}"; do
+            cosign sign-blob --yes --bundle "$file.sigstore.json" "$file"
+            cosign verify-blob \
+              --bundle "$file.sigstore.json" \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer "$issuer" \
+              "$file"
+          done
+          for file in "${payloads[@]:0:3}"; do
+            cosign attest-blob --yes --type spdxjson --predicate "$sbom" \
+              --bundle "$file.sbom.sigstore.json" "$file"
+            cosign verify-blob-attestation --type spdxjson \
+              --bundle "$file.sbom.sigstore.json" \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer "$issuer" \
+              "$file"
+          done
+
+      - name: Upload signed release bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ github.ref_name }}
+          path: release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  publish:
+    name: publish GitHub release
+    needs: [validate, sign]
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download signed release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-${{ github.ref_name }}
+          path: release
+
+      - name: Validate signed release bundle
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          payloads=(
+            "release/bearboot-c-sdk-$VERSION.tar.gz"
+            "release/bearboot-host-tools-$VERSION.tar.gz"
+            "release/bbp-wire-$VERSION.crate"
+            "release/SUPPORT-MATRIX.json"
+            "release/bearboot-sdk-$VERSION.spdx.json"
+            "release/SHA256SUMS"
+          )
+          expected=("${payloads[@]}")
+          for file in "${payloads[@]}"; do
+            expected+=("$file.sigstore.json")
+          done
+          for file in "${payloads[@]:0:3}"; do
+            expected+=("$file.sbom.sigstore.json")
+          done
+          shopt -s nullglob
+          actual=(release/*)
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for file in "${expected[@]}"; do test -f "$file"; done
+          (cd release && sha256sum --check SHA256SUMS)
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "release $RELEASE_TAG already exists; refusing to replace it" >&2
+            exit 1
+          fi
+          notes="$RUNNER_TEMP/release-notes.md"
+          printf '%s\n\n%s\n%s\n' \
+            "Reproducible C SDK, host tools, and no_std Rust crate for BBP wire 1.1." \
+            "Verify SHA256SUMS and the accompanying Sigstore bundles before use." \
+            "The crate is not automatically published to crates.io." > "$notes"
+          gh release create "$RELEASE_TAG" release/* \
+            --verify-tag \
+            --title "BearBoot SDK $VERSION (BBP wire 1.1)" \
+            --notes-file "$notes"

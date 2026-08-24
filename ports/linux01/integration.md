@@ -22,8 +22,8 @@ normally whether or not validation succeeds.
 
 Because the kernel is identity-mapped, the handoff is the SIMPLEST possible BBP
 case (SPEC §10.1(a)): the HHDM offset is literally 0, every tag pointer is a
-true physical that is also a valid virtual, and the parser is seeded with offset
-0 via `bbp_init` (no `bbp_init_ex`, no higher-half translation).
+true physical that is also a valid virtual, and `bbp_init_bounded` receives
+offset 0 plus the exact static tag arena (no higher-half translation).
 
 --------------------------------------------------------------------------
 ## 1. Vendored layout (kernel/bbp/)

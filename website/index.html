@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+<!-- Copyright (c) 2026, F E R M I INFINITY H A R T <contact@fermihart.com> -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BearBoot - sealed handoff, bounded trust</title>
+<meta name="description" content="Bear Boot Protocol is a CRC-sealed, UUID-versioned boot handoff with a defensive kernel parser that treats every byte as untrusted input.">
+<meta name="author" content="F E R M I INFINITY H A R T">
+<meta name="theme-color" content="#060806">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+:root{
+  --bg:#060806;--deep:#070a12;--panel:#0b0f0b;--panel2:#101510;--line:#1d271d;
+  --fg:#c8e6c8;--bright:#f4f0dd;--dim:#91ad91;--green:#46ff7d;--amber:#ffb020;
+  --jade:#65fbd2;--gold:#ffcc66;--rose:#ff6b8a;--blue:#8ea1ff;--violet:#d58cff;
+  --red:#ff5252;--mono:ui-monospace,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;background:var(--bg)}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--mono);overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:999;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 4px);mix-blend-mode:multiply}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at 75% 8%,rgba(101,251,210,.07),transparent 30%),radial-gradient(circle at 12% 46%,rgba(255,176,32,.045),transparent 25%)}
+::selection{background:var(--green);color:#02120a}
+a{color:inherit}
+button,a{font:inherit}
+button{color:inherit}
+a:focus-visible,button:focus-visible{outline:2px solid #fff;outline-offset:4px}
+.skip{position:fixed;left:1rem;top:.7rem;z-index:1001;padding:.45rem .7rem;background:var(--green);color:#02120a;font-weight:800;transform:translateY(-180%)}
+.skip:focus{transform:none}
+.wrap{width:min(1160px,calc(100% - 2.4rem));margin-inline:auto}
+.hairline{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+
+nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:1rem;padding:.62rem max(1rem,calc((100vw - 1160px)/2));background:rgba(6,8,6,.93);border-bottom:1px solid var(--line);backdrop-filter:blur(12px);overflow-x:auto}
+.brand{display:flex;align-items:center;gap:.65rem;text-decoration:none;color:var(--green);font-weight:800;letter-spacing:.12em;white-space:nowrap}
+.brand-mark{position:relative;width:1.5rem;height:1.5rem;border:1px solid var(--jade);border-radius:50%;box-shadow:0 0 16px rgba(101,251,210,.22)}
+.brand-mark::before,.brand-mark::after{content:"";position:absolute;inset:4px;border:1px solid var(--gold);transform:rotate(45deg)}
+.brand-mark::after{transform:rotate(0deg)}
+.navlinks{display:flex;gap:.15rem;margin-left:auto}
+.navlinks a{text-decoration:none;color:var(--dim);padding:.25rem .55rem;font-size:.78rem;white-space:nowrap}
+.navlinks a:hover{color:var(--green)}
+.version{border:1px solid #3a2e10;color:var(--amber);padding:.08rem .48rem;font-size:.7rem;white-space:nowrap}
+
+.hero{min-height:calc(100vh - 3rem);display:grid;align-content:center;padding:5.5rem 0 3.6rem;position:relative}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) 25rem;gap:4rem;align-items:end}
+.eyebrow{color:var(--jade);font-size:.76rem;font-weight:800;letter-spacing:.28em;text-transform:uppercase;margin-bottom:1.35rem}
+.hero h1{font-size:clamp(3.8rem,9vw,8rem);line-height:.82;letter-spacing:-.065em;color:var(--bright);max-width:8ch;text-transform:uppercase}
+.hero h1 span{display:block;color:var(--green);text-shadow:0 0 14px rgba(70,255,125,.36)}
+.hero-lede{max-width:43rem;margin-top:2rem;font-size:clamp(1rem,2vw,1.18rem);color:var(--fg)}
+.hero-lede b{color:var(--gold)}
+.actions{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:2rem}
+.action{display:inline-flex;align-items:center;gap:.6rem;padding:.66rem 1rem;border:1px solid var(--green);text-decoration:none;color:var(--green);background:#0c1a0f;cursor:pointer}
+.action:hover{background:var(--green);color:#02120a}
+.action.secondary{border-color:var(--line);background:var(--panel);color:var(--fg)}
+.action.secondary:hover{border-color:var(--jade);color:var(--jade)}
+.hero-aside{border-left:1px solid var(--line);padding-left:1.4rem}
+.aside-label{color:var(--dim);font-size:.68rem;letter-spacing:.2em;margin-bottom:.8rem}
+.metric{display:grid;grid-template-columns:1fr auto;gap:1rem;padding:.72rem 0;border-top:1px solid var(--line)}
+.metric:last-child{border-bottom:1px solid var(--line)}
+.metric span{color:var(--dim);font-size:.76rem}
+.metric b{font-size:1.15rem;color:var(--jade)}
+.metric:nth-child(3) b{color:var(--gold)}
+.metric:nth-child(4) b{color:var(--rose)}
+.metric:nth-child(5) b{color:var(--violet)}
+.hero-note{margin-top:1.1rem;color:var(--dim);font-size:.72rem}
+.hero-note b{color:var(--amber)}
+.scroll-cue{position:absolute;bottom:1.2rem;left:50%;transform:translateX(-50%);color:var(--dim);font-size:.65rem;letter-spacing:.22em}
+
+.seal{padding:4.5rem 0}
+.seal-frame{position:relative;background:var(--deep);border:1px solid #252d42;box-shadow:0 30px 80px rgba(0,0,0,.28)}
+.seal-frame picture,.seal-frame img{display:block;width:100%}
+.seal-label{position:absolute;top:-.75rem;left:1.25rem;background:var(--bg);border:1px solid var(--line);padding:.18rem .58rem;color:var(--dim);font-size:.68rem;letter-spacing:.14em}
+.seal-caption{display:flex;justify-content:space-between;gap:1rem;padding:.7rem 1rem;border-top:1px solid #252d42;color:var(--dim);font-size:.7rem}
+.seal-caption b{color:var(--jade);font-weight:500}
+
+section{padding:6.2rem 0;scroll-margin-top:3.5rem}
+.section-head{display:grid;grid-template-columns:10rem 1fr;gap:2rem;margin-bottom:3rem}
+.section-no{color:var(--amber);font-size:.72rem;letter-spacing:.2em;padding-top:.4rem}
+.section-title h2{font-size:clamp(2rem,5vw,4.4rem);line-height:.98;letter-spacing:-.045em;color:var(--bright);max-width:14ch;text-transform:uppercase}
+.section-title p{margin-top:1rem;color:var(--dim);max-width:47rem}
+.section-title p b{color:var(--fg)}
+
+.lab{background:linear-gradient(135deg,#090d0a,#090c15);border-block:1px solid var(--line)}
+.lab-grid{display:grid;grid-template-columns:1fr 18rem;gap:2rem;align-items:start}
+.wire{position:relative;display:grid;grid-template-columns:repeat(5,1fr);gap:.65rem;padding:3rem 0}
+.wire::before{content:"";position:absolute;left:8%;right:8%;top:50%;height:1px;background:linear-gradient(90deg,var(--blue),var(--gold),var(--jade));opacity:.45}
+.wire-node{position:relative;z-index:1;min-height:8rem;padding:.8rem;background:#080c0b;border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;transition:.2s ease}
+.wire-node .hex{color:var(--dim);font-size:.65rem}
+.wire-node b{color:var(--fg);font-size:.8rem;letter-spacing:.08em}
+.wire-node i{width:.65rem;height:.65rem;border-radius:50%;background:var(--green);box-shadow:0 0 12px rgba(70,255,125,.7)}
+.wire-node.sealed{border-color:#5d4820}
+.wire-node.sealed b{color:var(--gold)}
+.wire-node.parser{border-color:#215548}
+.wire-node.parser b{color:var(--jade)}
+.wire-node.kernel b{color:var(--green)}
+.wire.corrupt .wire-node.tags{border-color:var(--red);transform:translateY(-5px)}
+.wire.corrupt .wire-node.tags i{background:var(--red);box-shadow:0 0 12px rgba(255,82,82,.8)}
+.wire.corrupt .wire-node.parser{border-color:var(--red)}
+.wire.corrupt .wire-node.parser b{color:var(--red)}
+.wire.corrupt .wire-node.kernel{opacity:.22}
+.lab-control{border:1px solid var(--line);background:var(--panel);padding:1rem}
+.lab-control .label{font-size:.66rem;color:var(--dim);letter-spacing:.18em}
+.lab-state{margin:.8rem 0 1.1rem;color:var(--green);min-height:4.8rem}
+.lab-state strong{display:block;font-size:1.4rem;letter-spacing:.03em}
+.lab-state small{color:var(--dim)}
+.lab-state.bad,.lab-state.bad small{color:var(--red)}
+.lab-button{width:100%;padding:.65rem;border:1px solid var(--amber);background:#181207;color:var(--gold);cursor:pointer;text-align:left}
+.lab-button:hover{background:var(--gold);color:#181207}
+
+.anatomy{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+.struct{background:var(--bg);padding:1.45rem;min-height:21rem;display:flex;flex-direction:column}
+.struct-kicker{font-size:.67rem;letter-spacing:.16em;color:var(--dim)}
+.struct h3{font-size:1.3rem;margin:.45rem 0;color:var(--jade)}
+.struct:nth-child(2) h3{color:var(--gold)}
+.struct:nth-child(3) h3{color:var(--rose)}
+.struct-size{font-size:3.4rem;line-height:1;color:var(--bright);letter-spacing:-.07em;margin:1.2rem 0}
+.struct-size small{font-size:.9rem;color:var(--dim);letter-spacing:0}
+.fields{display:flex;flex-wrap:wrap;gap:.34rem;margin-top:auto}
+.fields span{border:1px solid var(--line);padding:.15rem .35rem;color:var(--dim);font-size:.66rem}
+.flow-code{margin-top:1.5rem;padding:1rem 1.2rem;background:#020402;border:1px solid var(--line);overflow:auto;color:var(--dim);font-size:.76rem;white-space:pre}
+.flow-code b{color:var(--green);font-weight:500}.flow-code em{color:var(--gold);font-style:normal}
+
+.tags{background:var(--deep);border-block:1px solid #222a3c}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.filter{border:1px solid #273047;background:#0a0f1d;padding:.35rem .65rem;color:#8997af;font-size:.7rem;cursor:pointer;text-transform:uppercase;letter-spacing:.08em}
+.filter:hover,.filter.active{border-color:var(--jade);color:var(--jade)}
+.tag-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.55rem}
+.tag-node{position:relative;min-height:7.2rem;padding:.8rem;border:1px solid #273047;background:#0a0f1d;transition:opacity .16s,transform .16s,border-color .16s}
+.tag-node::before{content:"";position:absolute;left:.8rem;top:.8rem;width:.42rem;height:.42rem;border-radius:50%;background:var(--tag-color,var(--jade));box-shadow:0 0 12px var(--tag-color,var(--jade))}
+.tag-node b{display:block;margin-top:1.8rem;color:#dce4f2;font-size:.76rem;overflow-wrap:anywhere}
+.tag-node span{display:block;color:#71809a;font-size:.62rem;margin-top:.35rem}
+.tag-node:hover{transform:translateY(-3px);border-color:var(--tag-color,var(--jade))}
+.tag-node.muted{opacity:.12}
+.tag-node[data-cat="core"]{--tag-color:var(--jade)}
+.tag-node[data-cat="memory"]{--tag-color:var(--gold)}
+.tag-node[data-cat="device"]{--tag-color:var(--rose)}
+.tag-node[data-cat="security"]{--tag-color:var(--violet)}
+.tag-node[data-cat="platform"]{--tag-color:var(--blue)}
+.tag-node[data-cat="debug"]{--tag-color:var(--green)}
+.tag-foot{display:flex;justify-content:space-between;gap:1rem;margin-top:1rem;color:#71809a;font-size:.68rem}
+
+.proof-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.proof-card{border:1px solid var(--line);padding:1.1rem;background:var(--panel)}
+.proof-card header{display:flex;justify-content:space-between;gap:1rem;padding-bottom:.8rem;border-bottom:1px solid var(--line)}
+.proof-card h3{font-size:.84rem;color:var(--fg)}
+.state{font-size:.65rem;letter-spacing:.1em;color:var(--green)}
+.state.build{color:var(--amber)}
+.state.scope{color:var(--violet)}
+.proof-card p{margin-top:.8rem;color:var(--dim);font-size:.76rem}
+.proof-card code{color:var(--jade)}
+.truth{margin-top:1rem;border:1px solid #493817;background:#120e06;padding:1rem;color:#d8c794}
+.truth b{color:var(--gold)}
+
+.ports{background:var(--panel);border-block:1px solid var(--line)}
+.port-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem}
+.port-card{background:var(--bg);border:1px solid var(--line);padding:1rem;min-height:16rem;display:flex;flex-direction:column}
+.port-card .port-id{font-size:.62rem;color:var(--dim);letter-spacing:.14em}
+.port-card h3{margin:.7rem 0;color:var(--green);font-size:1.05rem}
+.port-card p{color:var(--dim);font-size:.72rem}
+.port-card .port-proof{margin-top:auto;padding-top:1rem;color:var(--jade);font-size:.66rem}
+.port-card:nth-child(2) h3{color:var(--gold)}
+.port-card:nth-child(3) h3{color:var(--rose)}
+.port-card:nth-child(4) h3{color:var(--violet)}
+
+.boundary{padding:7rem 0}
+.boundary-box{border:1px solid #4a3715;background:linear-gradient(120deg,#120d04,#080b08);padding:clamp(1.5rem,5vw,4rem);position:relative;overflow:hidden}
+.boundary-box::after{content:"CRC != TRUST";position:absolute;right:-.06em;bottom:-.28em;color:rgba(255,204,102,.045);font-size:clamp(4rem,12vw,10rem);font-weight:900;letter-spacing:-.08em;white-space:nowrap}
+.boundary-box .eyebrow{color:var(--gold)}
+.boundary-box h2{position:relative;z-index:1;font-size:clamp(2.4rem,7vw,6.5rem);line-height:.9;color:var(--bright);max-width:10ch;letter-spacing:-.06em;text-transform:uppercase}
+.boundary-box p{position:relative;z-index:1;margin-top:1.5rem;max-width:43rem;color:#c2b58d}
+.boundary-box p b{color:var(--gold)}
+
+footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);font-size:.72rem}
+.footer-grid{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}
+.footer-brand{color:var(--green);font-weight:800;letter-spacing:.14em}
+.footer-links{display:flex;gap:1rem;flex-wrap:wrap;justify-content:flex-end}
+.footer-links a:hover{color:var(--green)}
+
+@media(max-width:900px){
+  .hero-grid{grid-template-columns:1fr;gap:2.5rem}.hero-aside{border-left:0;border-top:1px solid var(--line);padding:1rem 0 0;display:grid;grid-template-columns:repeat(2,1fr);gap:0 1rem}.aside-label,.hero-note{grid-column:1/-1}
+  .section-head{grid-template-columns:1fr;gap:.7rem}.lab-grid{grid-template-columns:1fr}.anatomy{grid-template-columns:1fr}.struct{min-height:15rem}.tag-grid{grid-template-columns:repeat(3,1fr)}.port-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:620px){
+  body{font-size:14px}.wrap{width:min(100% - 1.2rem,1160px)}nav{padding:.5rem .6rem}.brand{font-size:.74rem}.brand span:last-child{display:none}.navlinks a:nth-child(2),.navlinks a:nth-child(3){display:none}
+  .version{display:none}.hero{padding-top:4rem;min-height:auto}.hero h1{font-size:clamp(3.2rem,18vw,5rem)}.hero-aside{grid-template-columns:1fr 1fr}.scroll-cue{display:none}
+  .seal{padding:2.8rem 0}.seal-caption{display:block}.seal-caption b{display:block;margin-bottom:.25rem}
+  section{padding:4rem 0}.wire{grid-template-columns:1fr;padding:1rem 0}.wire::before{top:8%;bottom:8%;left:50%;right:auto;width:1px;height:auto}.wire-node{min-height:5.2rem}.proof-grid,.port-grid{grid-template-columns:1fr}.tag-grid{grid-template-columns:repeat(2,1fr)}.tag-node{min-height:6.4rem}.tag-foot,.footer-grid{display:block}.footer-links{justify-content:flex-start;margin-top:1rem}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style>
+</head>
+<body data-abi="1.1" data-tags="15" data-header-bytes="160" data-info-bytes="144" data-tag-bytes="32">
+<a class="skip" href="#main">Skip to protocol</a>
+<nav aria-label="Primary navigation">
+  <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span><span>F E R M I &infin; H A R T</span><span>/ BEARBOOT</span></a>
+  <div class="navlinks">
+    <a href="#contract">contract</a><a href="#tags">tags</a><a href="#proof">proof</a><a href="#ports">ports</a><a href="estado.html">agora</a>
+  </div>
+  <span class="version">SDK 1.3.0 / ABI 1.1</span>
+</nav>
+
+<main id="main">
+  <header class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow">Bear Boot Protocol / sealed handoff</div>
+        <h1>The handoff <span>is hostile.</span></h1>
+        <p class="hero-lede">A complementary boot-handoff layer with UUID-versioned tags, <b>CRC-64/XZ integrity</b>, and a kernel parser built to distrust every byte it receives.</p>
+        <div class="actions">
+          <a class="action" href="#contract">Inspect the wire contract <span aria-hidden="true">-&gt;</span></a>
+          <button class="action secondary" type="button" data-corrupt-jump>Corrupt one tag</button>
+        </div>
+      </div>
+      <aside class="hero-aside" aria-label="Canonical ABI facts">
+        <div class="aside-label">CANONICAL / include/bbp/bbp.h</div>
+        <div class="metric"><span>KERNEL HEADER</span><b>160 B</b></div>
+        <div class="metric"><span>HANDOFF INFO</span><b>144 B</b></div>
+        <div class="metric"><span>TAG FRAME</span><b>32 B</b></div>
+        <div class="metric"><span>TAG UUIDs</span><b>15</b></div>
+        <p class="hero-note"><b>Not a bootloader.</b> BBP rides alongside Limine, UEFI, or a native kernel boot path.</p>
+      </aside>
+    </div>
+    <div class="scroll-cue" aria-hidden="true">SCROLL / VERIFY</div>
+  </header>
+
+  <div class="hairline"></div>
+  <div class="seal">
+    <div class="wrap seal-frame">
+      <span class="seal-label">ARTIFACT-BOUND / GENERATED</span>
+      <picture>
+        <source media="(max-width:620px)" srcset="../readme/hero-proof-geometry-mobile.svg">
+        <img src="../readme/hero-proof-geometry.svg" width="1200" height="640" alt="BearBoot proof geometry derived from the frozen ABI, parser, builder, and adversarial tests">
+      </picture>
+      <div class="seal-caption"><b>FERMI HART PROOF GEOMETRY / 02</b><span>Change the frozen core and the constellation changes.</span></div>
+    </div>
+  </div>
+
+  <section class="lab" id="lab">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">01 / FAILURE PATH</div>
+        <div class="section-title"><h2>Refusal is a feature.</h2><p>The producer may be buggy or hostile. BBP validates structure before use, bounds the walk, checks each seal, and treats a corrupt tag as <b>absent</b>.</p></div>
+      </div>
+      <div class="lab-grid">
+        <div class="wire" id="wire" aria-label="Interactive BBP handoff chain">
+          <div class="wire-node"><span class="hex">UPSTREAM</span><b>PRODUCER</b><i></i></div>
+          <div class="wire-node sealed"><span class="hex">BEAR_INFO</span><b>INFO + CRC</b><i></i></div>
+          <div class="wire-node sealed tags"><span class="hex">UUID CHAIN</span><b>TAGS + CRC</b><i></i></div>
+          <div class="wire-node parser"><span class="hex">UNTRUSTED</span><b>PARSER</b><i></i></div>
+          <div class="wire-node kernel"><span class="hex">DELIVERED</span><b>KERNEL</b><i></i></div>
+        </div>
+        <div class="lab-control">
+          <div class="label">LIVE CONTRACT MODEL</div>
+          <div class="lab-state" id="lab-state" aria-live="polite"><strong>ACCEPTED</strong><small>Tag structure and CRC agree.</small></div>
+          <button class="lab-button" id="corrupt" type="button">[ FLIP ONE PAYLOAD BYTE ]</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contract">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">02 / WIRE CONTRACT</div>
+        <div class="section-title"><h2>Three structures. No implicit trust.</h2><p>Fixed-width, little-endian and packed. Every boundary structure is guarded by a compile-time size assertion; layout drift fails the build.</p></div>
+      </div>
+      <div class="anatomy">
+        <article class="struct"><div class="struct-kicker">KERNEL PUBLISHES</div><h3>bbp_header</h3><div class="struct-size">160 <small>BYTES</small></div><p>The kernel identity, requested tags, paging intent and stamped entry point.</p><div class="fields"><span>BEAR_BOOT</span><span>entry</span><span>requests</span><span>UUID</span><span>CRC</span></div></article>
+        <article class="struct"><div class="struct-kicker">PRODUCER BUILDS</div><h3>bbp_info</h3><div class="struct-size">144 <small>BYTES</small></div><p>The handoff root: producer identity, architecture, timestamps and first tag pointer.</p><div class="fields"><span>BEAR_INFO</span><span>arch</span><span>tag_count</span><span>first_tag</span><span>CRC</span></div></article>
+        <article class="struct"><div class="struct-kicker">CHAIN REPEATS</div><h3>bbp_tag_header</h3><div class="struct-size">32 <small>BYTES</small></div><p>A UUID, bounded size, version, next physical pointer and per-tag checksum.</p><div class="fields"><span>tag_id</span><span>tag_size</span><span>version</span><span>next</span><span>CRC</span></div></article>
+      </div>
+      <div class="flow-code" aria-label="Six-line BBP contract"><b>KERNEL</b> emits .bbp_hdr  -&gt;  <em>PRODUCER</em> validates requests
+<em>PRODUCER</em> builds INFO + UUID tags  -&gt;  seals the complete chain
+entry(<b>RDI</b> / <b>X0</b> / <b>A0</b>)  -&gt;  bbp_init_bounded()
+parser validates magic / version / size / bounds / CRC
+bbp_find_tag() returns only a validated view
+bad input  -&gt;  REFUSE / SKIP / ABSENT  -&gt;  never forged data</div>
+    </div>
+  </section>
+
+  <section class="tags" id="tags">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">03 / CONSTELLATION</div>
+        <div class="section-title"><h2>Fifteen UUIDs. Seven namespaces.</h2><p>The upper sixteen bits select a category; the lower forty-eight identify the tag. Unknown tags remain walkable and ignorable.</p></div>
+      </div>
+      <div class="filters" aria-label="Filter tags by category">
+        <button class="filter active" type="button" data-filter="all">all / 15</button><button class="filter" type="button" data-filter="core">core</button><button class="filter" type="button" data-filter="memory">memory</button><button class="filter" type="button" data-filter="device">device</button><button class="filter" type="button" data-filter="security">security</button><button class="filter" type="button" data-filter="platform">platform</button><button class="filter" type="button" data-filter="debug">debug</button>
+      </div>
+      <div class="tag-grid" id="tag-grid">
+        <article class="tag-node" data-cat="core"><b>SMP</b><span>CORE / 0001</span></article>
+        <article class="tag-node" data-cat="core"><b>MODULES</b><span>CORE / 0002</span></article>
+        <article class="tag-node" data-cat="core"><b>CMDLINE</b><span>CORE / 0003</span></article>
+        <article class="tag-node" data-cat="memory"><b>MEMORY_MAP</b><span>MEMORY / 0001</span></article>
+        <article class="tag-node" data-cat="memory"><b>HHDM</b><span>MEMORY / 0002</span></article>
+        <article class="tag-node" data-cat="memory"><b>KERNEL_ADDRESS</b><span>MEMORY / 0003</span></article>
+        <article class="tag-node" data-cat="device"><b>FRAMEBUFFER</b><span>DEVICE / 0001</span></article>
+        <article class="tag-node" data-cat="device"><b>PCIE</b><span>DEVICE / 0002</span></article>
+        <article class="tag-node" data-cat="security"><b>SECURITY</b><span>SECURITY / 0001</span></article>
+        <article class="tag-node" data-cat="platform"><b>ACPI</b><span>PLATFORM / 0001</span></article>
+        <article class="tag-node" data-cat="platform"><b>DEVICETREE</b><span>PLATFORM / 0002</span></article>
+        <article class="tag-node" data-cat="platform"><b>EFI</b><span>PLATFORM / 0003</span></article>
+        <article class="tag-node" data-cat="platform"><b>HYPERVISOR</b><span>PLATFORM / 0004</span></article>
+        <article class="tag-node" data-cat="platform"><b>SMBIOS</b><span>PLATFORM / 0005</span></article>
+        <article class="tag-node" data-cat="debug"><b>METRICS</b><span>DEBUG / 0001</span></article>
+      </div>
+      <div class="tag-foot"><span>VENDOR / FFFF remains reserved for private extension.</span><span>source: include/bbp/bbp.h</span></div>
+    </div>
+  </section>
+
+  <section id="proof">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">04 / CLAIM LEDGER</div>
+        <div class="section-title"><h2>State the proof. State the limit.</h2><p>A green word only appears where a command or checked-in execution record supports it. Structure-only work stays visibly structure-only.</p></div>
+      </div>
+      <div class="proof-grid">
+        <article class="proof-card"><header><h3>FROZEN ABI LAYOUT</h3><span class="state">LIVE</span></header><p><code>make abi</code> compiles 28 exact structure-size assertions. Reordering the wire contract fails before boot.</p></article>
+        <article class="proof-card"><header><h3>ADVERSARIAL PARSER</h3><span class="state">LIVE</span></header><p><code>make test</code> covers bad magic, forged lengths, cyclic chains, pointer wrap, CRC tamper and blob boundaries.</p></article>
+        <article class="proof-card"><header><h3>MALFORMED-INPUT FUZZING</h3><span class="state">LIVE</span></header><p><code>make fuzz</code> runs a bounded libFuzzer/ASan smoke campaign or a deterministic fallback driver.</p></article>
+        <article class="proof-card"><header><h3>BARE-METAL ROUNDTRIP</h3><span class="state">LIVE</span></header><p><code>make qemu</code> boots the real builder/parser proof under QEMU/TCG and requires serial PASS plus a distinct guest success status.</p></article>
+        <article class="proof-card"><header><h3>x86_64 / i386 PORT EVIDENCE</h3><span class="state">CHECKED IN</span></header><p>Four ports carry conformance reports and serial records. Current root CI does not reproduce every external OS boot.</p></article>
+        <article class="proof-card"><header><h3>AARCH64 / RISC-V / LOONGARCH</h3><span class="state">MULTI-ISA / SDK 1.3</span></header><p><code>make qemu-aarch64</code> and <code>make qemu-riscv64</code> prove X0/A0 handoffs with CRC-verified QEMU Device Trees. LoongArch remains roadmap.</p></article>
+      </div>
+      <div class="truth"><b>Trust boundary:</b> a malicious producer can recompute CRC. BBP detects corruption and rejects malformed framing; Secure Boot and measured boot provide authenticity.</div>
+    </div>
+  </section>
+
+  <section class="ports" id="ports">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="section-no">05 / OSIF SEAM</div>
+        <div class="section-title"><h2>One frozen core. Four different kernels.</h2><p>The OS-interface isolates allocation, logging, time and physical mapping. Each integration documents its own aliases, limits and evidence.</p></div>
+      </div>
+      <div class="port-grid">
+        <article class="port-card"><div class="port-id">PORT / NATIVE LINUX</div><h3>TinaLinux</h3><p>Native Linux tables become five CRC-sealed tags at late_initcall without replacing the existing boot path.</p><div class="port-proof">QEMU+KVM SERIAL RECORD / 5 TAGS</div></article>
+        <article class="port-card"><div class="port-id">PORT / LIMINE</div><h3>MINIX x86_64</h3><p>A higher-half Limine adapter keeps the kernel-image and HHDM aliases explicitly separate.</p><div class="port-proof">REAL MINIX SERIAL RECORD / 6 TAGS</div></article>
+        <article class="port-card"><div class="port-id">PORT / IDENTITY MAP</div><h3>Linux 0.01</h3><p>The 1991 fixed RAM model truthfully produces only memory map, HHDM and kernel address tags.</p><div class="port-proof">IN-KERNEL QEMU RECORD / 3 TAGS</div></article>
+        <article class="port-card"><div class="port-id">PORT / PMM ARENA</div><h3>Josh-Bear</h3><p>A bounded walk window surrounds PMM-backed tags; verified boot entropy seeds the kernel CSPRNG.</p><div class="port-proof">REAL QEMU RECORD / 5 TAGS</div></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="boundary">
+    <div class="wrap boundary-box">
+      <div class="eyebrow">The non-claim is part of the protocol</div>
+      <h2>Integrity is not authenticity.</h2>
+      <p>CRC-64/XZ detects accidental corruption and casual tampering. A producer controlling the bytes can recompute it. <b>BBP never promotes a valid checksum into a trusted identity.</b></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap footer-grid">
+    <div><div class="footer-brand">F E R M I &infin; H A R T</div><div>Bear Boot Protocol / BSD-3-Clause + Patent Grant</div></div>
+    <div class="footer-links"><a href="estado.html">estado atual</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const wire = document.getElementById('wire');
+  const state = document.getElementById('lab-state');
+  const button = document.getElementById('corrupt');
+  let corrupt = false;
+
+  function setCorrupt(value) {
+    corrupt = value;
+    wire.classList.toggle('corrupt', corrupt);
+    state.classList.toggle('bad', corrupt);
+    state.innerHTML = corrupt
+      ? '<strong>REJECTED</strong><small>Payload changed. Stored CRC no longer agrees. Tag becomes absent.</small>'
+      : '<strong>ACCEPTED</strong><small>Tag structure and CRC agree.</small>';
+    button.textContent = corrupt ? '[ RESTORE SEALED BYTE ]' : '[ FLIP ONE PAYLOAD BYTE ]';
+  }
+  button.addEventListener('click', () => setCorrupt(!corrupt));
+  document.querySelector('[data-corrupt-jump]').addEventListener('click', () => {
+    document.getElementById('lab').scrollIntoView({behavior:'smooth'});
+    setCorrupt(true);
+  });
+
+  const filters = [...document.querySelectorAll('.filter')];
+  const tags = [...document.querySelectorAll('.tag-node')];
+  filters.forEach(filter => filter.addEventListener('click', () => {
+    const selected = filter.dataset.filter;
+    filters.forEach(item => item.classList.toggle('active', item === filter));
+    tags.forEach(tag => tag.classList.toggle('muted', selected !== 'all' && tag.dataset.cat !== selected));
+  }));
+})();
+</script>
+</body>
+</html>
