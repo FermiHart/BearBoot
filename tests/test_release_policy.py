@@ -55,6 +55,14 @@ class ReleasePolicyTests(unittest.TestCase):
         return tuple(re.findall(r'^\s*"release/([^"]+)"\s*$',
                                 match.group("body"), flags=re.MULTILINE))
 
+    def test_manual_resume_requires_an_explicit_release_tag(self) -> None:
+        trigger = self.workflow.get("on", self.workflow.get(True))
+        manual = trigger["workflow_dispatch"]
+        self.assertEqual(manual["inputs"]["release_tag"]["required"], True)
+        self.assertGreaterEqual(
+            self.text.count("inputs.release_tag || github.ref_name"), 8
+        )
+
     def test_workflow_has_an_exact_publication_asset_allowlist(self) -> None:
         validate = self.script("publish", "Validate signed release bundle")
         upload = self.script("publish", "Upload exact assets to owned draft")
@@ -75,14 +83,18 @@ class ReleasePolicyTests(unittest.TestCase):
         self.assertIn("gpg.ssh.allowedSignersFile=.github/release-signers", validate)
         self.assertIn('verify-tag "refs/tags/$RELEASE_TAG"', validate)
         self.assertIn('git rev-parse "refs/tags/$RELEASE_TAG^{commit}"', validate)
+        self.assertIn('if [[ -n "$EVENT_SHA" ]]', validate)
         self.assertIn('test "$event_commit" = "$tag_commit"', validate)
 
         stage = self.script("publish", "Create or resume owned draft")
         self.assertIn("--draft", stage)
-        self.assertIn("GITHUB_SHA", stage)
+        self.assertIn("TAG_COMMIT", stage)
         self.assertIn("GITHUB_RUN_ID", stage)
         self.assertIn("RELEASE_TAG", stage)
-        self.assertRegex(stage, r"marker=.*RELEASE_TAG.*GITHUB_SHA.*GITHUB_RUN_ID")
+        self.assertRegex(stage, r"owner=.*RELEASE_TAG.*TAG_COMMIT")
+        self.assertRegex(stage, r"marker=.*owner.*GITHUB_RUN_ID")
+        self.assertIn("for attempt in {1..10}", stage)
+        self.assertIn("sleep 1", stage)
         self.assertRegex(stage, r"\.draft")
         self.assertIn(".published_at", stage)
         self.assertNotIn(".target_commitish", stage)
@@ -90,7 +102,7 @@ class ReleasePolicyTests(unittest.TestCase):
         self.assertIn(".draft == true", stage)
         self.assertIn(".published_at == null", stage)
         self.assertIn(".tag_name == $tag", stage)
-        self.assertIn("startswith($marker", stage)
+        self.assertIn("startswith($owner", stage)
         self.assertRegex(stage, r"refus|reject")
 
         names = [step.get("name") for step in self.jobs["publish"]["steps"]]
