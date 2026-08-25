@@ -16,8 +16,8 @@ parsed by a hardened, adversarial-input-safe consumer.**
 ```
    Author:  F E R M I  ∞  H A R T  <contact@fermihart.com>
    License: BSD-3-Clause + Patent Grant (see LICENSE)
-    Status:  SDK 1.4.0 release candidate / BBP wire 1.1 - ABI frozen.
-             Cut pending workflow. No sdk-v1.4.0 tag or release is claimed yet.
+    Status:  SDK 1.4.0 / BBP wire 1.1 - ABI frozen.
+   Release:  sdk-v1.4.0 published with 15 verified assets.
 ```
 
 > **What BBP is:** a thin integrity + portability layer between *whatever booted
@@ -195,7 +195,7 @@ failure-atomic host translation, not live firmware collection; see
 
 ## SDK onboarding
 
-The C SDK, host tools, and Rust crate share release-candidate version `1.4.0`.
+The C SDK, host tools, and Rust crate share release version `1.4.0`.
 The compatible boot wire remains frozen BBP v1.1. The C, host, and Rust package
 allowlists now include experimental offline v2/Profile 0/HMAC surfaces and a
 shared canonical vector; those APIs remain Draft, are not negotiated from v1.1,
@@ -223,10 +223,11 @@ runner contract in `docs/physical-hardware-runner.md` defines how board identity
 and raw serial must be captured, but this repository contains no physical PASS
 proof.
 
-SDK 1.4.0 is prepared as a release candidate only. Wave 25's workflow can resume
-only its own matching draft, reconciles the exact allowlisted remote assets, and
-publishes only after checksum and Sigstore verification. The tag and release are
-not present until that workflow succeeds.
+SDK 1.4.0 is published from the signed tag
+[`sdk-v1.4.0`](https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.4.0).
+Wave 25's workflow resumed only its matching draft, reconciled the exact 15
+allowlisted remote assets, and published only after checksum and Sigstore
+verification.
 
 Verify a port against the frozen wire ABI and the core implementation in the
 current checkout (example: TinaLinux):

@@ -58,8 +58,8 @@ def main():
         "make ports-hosted-check evidence-check",
         "injected monotonic floor",
         "exact serial PASS",
-        "release candidate",
-        "cut pending workflow",
+        "RELEASE / PUBLISHED",
+        "exact 15 verified assets",
         "no physical PASS proof",
         "hero-proof-geometry.svg",
     ):
@@ -75,10 +75,10 @@ def main():
         "BBP v2 Draft / offline",
         "AArch64 boot proof",
         "Release checkpoint",
-        f"WAVE 16 / SDK {SDK_SERIES} RC",
-        f"WAVE 25 / SDK {SDK_SERIES} RC",
+        f"WAVE 16 / SDK {SDK_SERIES}",
+        f"WAVE 25 / SDK {SDK_SERIES}",
         "TCG2 + SECURITY",
-        "release candidate",
+        "Release checkpoint / concluído",
         "nenhum PASS físico",
         "INTEGRAÇÕES OSIF",
         "Linux 0.01 tem harness host",
@@ -111,8 +111,10 @@ def main():
     ))
     require(presented_versions == {SDK_VERSION},
             f"site SDK versions drifted from {SDK_VERSION}: {presented_versions}")
-    require(f"releases/tag/sdk-v{SDK_VERSION}" not in page,
-            f"site claims SDK {SDK_VERSION} before workflow publication")
+    release_path = f"releases/tag/sdk-v{SDK_VERSION}"
+    require(release_path in page, f"site does not link published SDK {SDK_VERSION}")
+    require(release_path in state_page,
+            f"current-state page does not link published SDK {SDK_VERSION}")
     for document, name in ((page, "site"), (state_page, "current-state page")):
         ids = set(re.findall(r'\bid="([^"]+)"', document))
         fragments = set(re.findall(r'href="#([^"]+)"', document))
@@ -122,11 +124,13 @@ def main():
         "never forged data",
         "IN-KERNEL QEMU RECORD",
         "INFO / RDI",
+        "release candidate",
+        "cut pending workflow",
     ):
         require(stale not in page, f"site carries stale or overstated claim: {stale}")
     require((ROOT / "readme/hero-proof-geometry.svg").exists(), "desktop geometry missing")
     require((ROOT / "readme/hero-proof-geometry-mobile.svg").exists(), "mobile geometry missing")
-    print(f"BearBoot site: PASS (SDK {SDK_VERSION} RC, ABI {major}.{minor}, "
+    print(f"BearBoot site: PASS (SDK {SDK_VERSION} published, ABI {major}.{minor}, "
           f"{len(tags)} tags, 4 integration records)")
     return 0
 

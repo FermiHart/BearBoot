@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BearBoot - sealed handoff, bounded trust</title>
-<meta name="description" content="BearBoot SDK 1.4.0 release candidate: frozen BBP v1.1, constrained OVMF loader and TCG2 proofs, SDKs, four hosted ports, and explicitly experimental v2/auth surfaces.">
+<meta name="description" content="BearBoot SDK 1.4.0: frozen BBP v1.1, constrained OVMF loader and TCG2 proofs, SDKs, four hosted ports, and explicitly experimental v2/auth surfaces.">
 <meta name="author" content="F E R M I INFINITY H A R T">
 <meta name="theme-color" content="#060806">
 <script>document.documentElement.classList.add('js')</script>
@@ -267,7 +267,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
         <div class="metric"><span>HANDOFF INFO</span><b>144 B</b></div>
         <div class="metric"><span>TAG FRAME</span><b>32 B</b></div>
         <div class="metric"><span>TAG UUIDs</span><b>15</b></div>
-        <p class="hero-note"><b>Candidate:</b> SDK 1.4.0 / BBP wire 1.1. Cut pending workflow; no 1.4.0 tag or release is claimed. <b>Not a bootloader replacement.</b></p>
+        <p class="hero-note"><b>Published:</b> <a href="https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.4.0">SDK 1.4.0</a> / BBP wire 1.1. Signed tag and exact 15-asset release verified. <b>Not a bootloader replacement.</b></p>
       </aside>
     </div>
     <div class="scroll-cue" aria-hidden="true">SCROLL / VERIFY</div>
@@ -387,7 +387,7 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
         <article class="product-row"><div class="product-id">C SDK / LIVE</div><div><h3>Extract, build, prove.</h3><p>A C11-only allowlisted archive compiles the full SDK and importers, runs a builder-to-bounded-parser round trip and emits deterministic <code>conformance.json</code>.</p></div><div class="product-command">make onboarding<small>Host conformance, not a machine boot.</small></div></article>
         <article class="product-row"><div class="product-id">RUST / HOST-TESTED</div><div><h3><code>bbp-wire</code>, always <code>no_std</code>.</h3><p>Rust 2021 / MSRV 1.77, no dependencies, allocator, unsafe code or build script. Frozen v1.1 validation sits beside explicitly experimental slice-only v2, Profile 0 and HMAC framing.</p></div><div class="product-command">make sdk-rust-msrv-test<small><code>publish = false</code>; package proof is not registry publication.</small></div></article>
         <article class="product-row"><div class="product-id">BBPCTL / LIVE</div><div><h3>Capture bytes without dereferencing history.</h3><p>BBPC v1 preserves INFO, tags and original physical topology for bounded inspect, verify and canonical evidence workflows. It is a 96-byte host container, never boot wire.</p></div><div class="product-command">make bbpctl-test<small>No out-of-line blob capture in BBPC v1.</small></div></article>
-        <article class="product-row"><div class="product-id">RELEASE / CANDIDATE</div><div><h3>Allowlisted bytes with resumable provenance.</h3><p>C SDK, host tools and Rust source packages use fixed metadata and exact allowlists. The signed-tag workflow stages an owned draft, rechecks SHA-256 and Sigstore, reconciles remote assets, then publishes.</p></div><div class="product-command">make sdk-check release-metadata-test<small>SDK 1.4.0 is cut pending workflow, not published here.</small></div></article>
+        <article class="product-row"><div class="product-id">RELEASE / PUBLISHED</div><div><h3>Allowlisted bytes with resumable provenance.</h3><p>C SDK, host tools and Rust source packages use fixed metadata and exact allowlists. The signed-tag workflow stages an owned draft, rechecks SHA-256 and Sigstore, reconciles remote assets, then publishes.</p></div><div class="product-command">make sdk-check release-metadata-test<small><a href="https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.4.0">SDK 1.4.0</a> ships the exact 15 verified assets.</small></div></article>
       </div>
     </div>
   </section>
@@ -408,7 +408,7 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
         <article class="proof-card"><header><h3>AARCH64 + RISC-V</h3><span class="state">MACHINE PROOF</span></header><p><code>make qemu-aarch64 qemu-riscv64</code> proves X0/A0 handoffs with copied, CRC-verified QEMU Device Trees and tamper rejection.<span class="verdict">LIMIT: protocol machines, not OS ports.</span></p></article>
         <article class="proof-card"><header><h3>OSIF + EVIDENCE CONTRACT</h3><span class="state recorded">HOSTED + RECORDED</span></header><p><code>make ports-hosted-check evidence-check</code> runs all four current adapters and keeps hosted, emulator and physical provenance separate.<span class="verdict">LIMIT: external OS logs are recorded history; no physical PASS proof ships.</span></p></article>
         <article class="proof-card"><header><h3>PUBLIC AUTH + ROLLBACK</h3><span class="state scope">EXPERIMENTAL</span></header><p><code>make auth2-test rollback-test</code> proves host ECDSA P-256 policy plus persistent A/B recovery bounded by an injected monotonic floor.<span class="verdict">LIMIT: not firmware, Secure Boot or physical TPM NV.</span></p></article>
-        <article class="proof-card"><header><h3>RELEASE TRANSACTION</h3><span class="state build">CUT PENDING</span></header><p><code>python3 -m unittest tests.test_release_policy</code> checks exact assets, owned-draft resume, Sigstore re-verification, remote digests and isolated permissions.<span class="verdict">LIMIT: policy proof does not publish or claim SDK 1.4.0.</span></p></article>
+        <article class="proof-card"><header><h3>RELEASE TRANSACTION</h3><span class="state">PUBLISHED</span></header><p><code>python3 -m unittest tests.test_release_policy</code> checks exact assets, owned-draft resume, Sigstore re-verification, remote digests and isolated permissions.<span class="verdict">VERDICT: the isolated workflow published the signed tag only after all release checks passed.</span></p></article>
       </div>
       <div class="truth"><b>Vocabulary:</b> LIVE means reproducible in this repository; MACHINE PROOF executes a target ISA or firmware context; HOST-TESTED never implies boot; RECORDED names checked-in external evidence; EXPERIMENTAL stays outside the stable ABI.</div>
     </div>
@@ -453,7 +453,7 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
         <div class="section-title"><h2>Evolution without ambiguity.</h2><p>The shipping boot contract and the experimental laboratory are deliberately different objects, with an explicit bounded bridge between them.</p></div>
       </div>
       <div class="frontier-grid">
-        <article class="frontier-side"><div class="eyebrow">FROZEN WIRE / SDK 1.4.0 RC</div><h3>BBP wire v1.1</h3><div class="frontier-list">
+        <article class="frontier-side"><div class="eyebrow">FROZEN WIRE / SDK 1.4.0</div><h3>BBP wire v1.1</h3><div class="frontier-list">
           <div class="frontier-item"><b>Frozen pointer-chain ABI</b><span>160-byte HEADER, 144-byte INFO, 32-byte tag frame and 15 UUID definitions.</span></div>
           <div class="frontier-item"><b>Defensive consumer</b><span>Mapped-window parsing, CRC, count clamping, typed bodies, blob verification and canonical evidence.</span></div>
           <div class="frontier-item"><b>Distributed stable surface</b><span>The frozen v1.1 C/Rust framing remains compatible; package version does not alter wire version.</span></div>
@@ -488,7 +488,7 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
 <footer>
   <div class="wrap footer-grid">
     <div><div class="footer-brand">F E R M I &infin; H A R T</div><div>Bear Boot Protocol / BSD-3-Clause + Patent Grant</div></div>
-    <div class="footer-links"><a href="estado.html" lang="pt-BR" hreflang="pt-BR">estado atual</a><a href="../CHANGELOG.md">SDK 1.4.0 RC</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
+    <div class="footer-links"><a href="estado.html" lang="pt-BR" hreflang="pt-BR">estado atual</a><a href="https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.4.0">SDK 1.4.0</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
   </div>
 </footer>
 
