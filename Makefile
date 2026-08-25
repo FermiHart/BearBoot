@@ -18,7 +18,7 @@
 #   make sdk-package   build reproducible local SDK archives
 #   make release-metadata-test verify support-matrix and SPDX generation
 #   make v2-test       verify the experimental offline v2 capsule and bridge
-#   make v2-portability cross-compile the v2 Draft core for three ISAs
+#   make v2-portability cross-compile the v2 Draft core and bridge for three ISAs
 #   make abi           just verify the _Static_asserts compile (fastest gate)
 #   make check         run host gates plus generated documentation checks
 #   make clean
@@ -477,12 +477,16 @@ v2-portability:
 	    -o $(BUILD)/v2-portability/bbp_v2-x86_64.o
 	$(V2_X86_64_CC) $(V2_PORTABLE_FLAGS) -c v2/bbp_v2_profile.c \
 	    -o $(BUILD)/v2-portability/profile-x86_64.o
+	$(V2_X86_64_CC) $(V2_PORTABLE_FLAGS) -c bridge/bbp_bridge.c \
+	    -o $(BUILD)/v2-portability/bridge-x86_64.o
 	$(AARCH64_CC) $(V2_PORTABLE_FLAGS) -mgeneral-regs-only -c v2/bbp_v2.c \
 	    -o $(BUILD)/v2-portability/bbp_v2-aarch64.o
 	$(RISCV64_CC) $(V2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 \
 	    -c v2/bbp_v2.c -o $(BUILD)/v2-portability/bbp_v2-riscv64.o
 	$(AARCH64_CC) $(V2_PORTABLE_FLAGS) -mgeneral-regs-only -c v2/bbp_v2_profile.c -o $(BUILD)/v2-portability/profile-aarch64.o
 	$(RISCV64_CC) $(V2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 -c v2/bbp_v2_profile.c -o $(BUILD)/v2-portability/profile-riscv64.o
+	$(AARCH64_CC) $(V2_PORTABLE_FLAGS) -mgeneral-regs-only -c bridge/bbp_bridge.c -o $(BUILD)/v2-portability/bridge-aarch64.o
+	$(RISCV64_CC) $(V2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 -c bridge/bbp_bridge.c -o $(BUILD)/v2-portability/bridge-riscv64.o
 	@echo "BBP v2 portability: PASS (x86_64, AArch64, RV64)"
 
 v2-profile-test: $(BUILD)/v2_profile_selftest

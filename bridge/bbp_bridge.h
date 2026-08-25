@@ -40,11 +40,13 @@ struct bbp_v2_v1_source {
 
 struct bbp_v2_bridge_report {
     uint32_t tag_count;
-    uint32_t external_reference_tags;
+    /* Includes normalized INFO when its next_context is nonzero. */
+    uint32_t external_reference_entries;
 };
 
 /* Caller-owned bounded scratch. It is intentionally explicit: bridge calls
- * never allocate and never hide a large stack frame in early boot code. */
+ * never allocate and never hide a large stack frame in early boot code.
+ * It must not overlap the source, destination, or result controls. */
 struct bbp_v2_bridge_workspace {
     bbp_phys_t visited[BBP_V2_MAX_ENTRIES];
     struct bbp_v2_build_entry entries[BBP_V2_MAX_ENTRIES + 1u];

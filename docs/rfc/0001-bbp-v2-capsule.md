@@ -145,7 +145,10 @@ following bytes are fed in order:
 
 Offsets, alignments, CRC values, and padding are omitted. Consequently a
 physical re-layout with unchanged semantic order and payloads yields the same
-digest stream. Reordering entries changes the stream.
+digest stream. Reordering entries changes the stream. For an entry marked
+`BBP_V2_EF_EXTERNAL_PHYS`, the digest covers the marker and the inline payload
+bytes containing the physical reference values. It does not cover the bytes of
+the referenced objects.
 
 Parsed views and entry views borrow the caller's capsule storage. That complete
 extent must remain readable and immutable until all derived views are discarded.
@@ -172,15 +175,30 @@ not dereference or copy them implicitly:
 
 - default conversion fails with `BBP_V2_ERR_POLICY`;
 - callers must set `BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS` to preserve them;
-- preserved entries carry `BBP_V2_EF_EXTERNAL_PHYS`; and
+- every preserved entry whose inline payload contains such references carries
+  `BBP_V2_EF_EXTERNAL_PHYS`, and entries without them must not carry it; and
 - reverse conversion requires the same explicit opt-in.
 
-The caller is responsible for the lifetime, mapping, authorization, and CRC
-policy of preserved external objects. Both bridge directions finish all
-fallible validation and capacity planning before modifying destination bytes.
-The source INFO and every byte span returned by the map callback must remain
-immutable for the complete conversion; the bridge cannot make a mutable
-physical producer atomic.
+All capsule payloads remain inline and capsule-relative. The marker describes
+physical reference values inside an inline payload; it is not another payload
+storage mode. Known v1.1 tags are classified as self-contained only when their
+version, flags, size, and array stride match the exact known layout. Unknown
+tags and opaque extensions are conservatively marked external.
+
+The caller is responsible for the lifetime, mapping, integrity,
+authorization, and access policy of referenced external objects. Capsule CRC,
+canonical digest, and an enclosing authentication envelope cover reference
+values but do not authenticate, authorize, or make immutable the referenced
+bytes. Consumers must validate those objects separately before use. Both bridge
+directions finish all fallible validation and capacity planning before
+modifying destination bytes. Unknown policy bits and aliased result controls
+are rejected. Forward conversion also requires its caller-owned workspace,
+source descriptor, mapped source spans, destination, and result controls to be
+disjoint. An initial mapping pass proves disjointness before the workspace is
+modified, and every repeated map result is rechecked before destination
+publication. The source INFO and every byte span returned by the map callback
+must remain immutable for the complete conversion; the bridge cannot make a
+mutable physical producer atomic.
 
 ## Wire and Security Limits
 
@@ -189,7 +207,8 @@ physical producer atomic.
 | Total capsule extent | 64 MiB |
 | Directory entries | 1024 |
 | Payload alignment | 4096 bytes |
-| Cumulative CRC bytes | 96 MiB |
+| Generic parse/build CRC work | 96 MiB |
+| Bridge source-validation CRC work | 96 MiB across both passes |
 | Bridge v1 tag size | 16 MiB |
 | Bridge v1 INFO extent | 64 MiB |
 | Bridge physical ceiling | 2^48 bytes |

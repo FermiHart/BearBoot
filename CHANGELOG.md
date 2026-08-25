@@ -6,6 +6,16 @@ independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
 ## Unreleased
 
+### BBP v2 explicit bridge ownership (Wave 28)
+- Every v2 payload remains inline; the bridge marker now exactly identifies
+  inline v1.1 payloads containing physical references outside the capsule.
+- The bridge rejects false markers, unknown policy bits, nonzero normalized
+  INFO reserved bytes, opaque known-tag extensions without opt-in, and aliases
+  among source, workspace, output, and result controls before publication.
+- CRC, digest, and authentication scope is explicit: reference values are
+  covered, but referenced external bytes require separate lifetime, integrity,
+  authorization, and access policy.
+
 ### BBP v2 shared Draft corpus (Wave 27)
 - A deterministic 46-case corpus now covers accepted physical layouts, generic
   framing failures, and every current Profile 0 rule family in C, Rust, and

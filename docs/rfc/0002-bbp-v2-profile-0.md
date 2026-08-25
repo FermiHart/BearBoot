@@ -100,6 +100,9 @@ bytes or require bounded FDT validation.
 
 The returned Device Tree pointer borrows the capsule extent. The complete
 capsule must remain readable and immutable while the Profile 0 view is used.
+This native inline Device Tree payload is distinct from a bridged v1 Device Tree
+tag: the latter contains physical reference values, is marked
+`BBP_V2_EF_EXTERNAL_PHYS`, and receives no Profile 0 validation or ownership.
 `bbp_v2_p0_validate` reparses the capsule, so a mutation after an earlier generic
 parse that invalidates framing, padding, or CRC is rejected before output is
 published. Reparse is not a lock or TOCTOU defense: a writer can construct a new

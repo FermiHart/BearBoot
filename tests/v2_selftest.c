@@ -357,6 +357,27 @@ static const void *counting_map(void *user, bbp_phys_t address, size_t size)
     return NULL;
 }
 
+struct bounded_map_context {
+    const uint8_t *base;
+    size_t size;
+    unsigned unexpected;
+};
+
+static const void *bounded_map(void *user, bbp_phys_t address, size_t size)
+{
+    struct bounded_map_context *context =
+        (struct bounded_map_context *)user;
+    uintptr_t base = (uintptr_t)context->base;
+    uintptr_t requested = (uintptr_t)address;
+
+    if (requested < base || size > context->size ||
+        requested - base > context->size - size) {
+        context->unexpected++;
+        return NULL;
+    }
+    return (const void *)requested;
+}
+
 static void test_bridge_roundtrip_and_policy(void)
 {
     uint8_t v1[2048], v2[4096], back[2048], before[4096];
@@ -388,7 +409,7 @@ static void test_bridge_roundtrip_and_policy(void)
     CHECK(bbp_v2_from_v1(&source, 0, &workspace, v2, sizeof(v2), &v2_size,
                          &report) == BBP_V2_OK,
           "bounded v1 to v2 bridge succeeds");
-    CHECK(report.tag_count == 1 && report.external_reference_tags == 0,
+    CHECK(report.tag_count == 1 && report.external_reference_entries == 0,
           "bridge report describes normalized input");
     CHECK(bbp_v2_parse(v2, v2_size, &view) == BBP_V2_OK,
           "bridged v2 capsule parses");
@@ -429,7 +450,7 @@ static void test_bridge_roundtrip_and_policy(void)
     CHECK(bbp_v2_from_v1(&source, BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS,
                          &workspace, v2, sizeof(v2), &v2_size,
                          &report) == BBP_V2_OK &&
-          report.external_reference_tags == 1,
+          report.external_reference_entries == 1,
           "explicit policy preserves and reports external physical refs");
     CHECK(bbp_v2_parse(v2, v2_size, &view) == BBP_V2_OK,
           "external-reference capsule remains structurally valid");
@@ -459,10 +480,10 @@ static void test_bridge_roundtrip_and_policy(void)
     CHECK(memcmp(back, before, sizeof(back)) == 0,
           "reverse bridge policy failure is destination-atomic");
     CHECK(bbp_v2_to_v1(&view, BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS,
-                        back, sizeof(back), (bbp_phys_t)(uintptr_t)back,
-                        &back_size, &report) == BBP_V2_OK &&
-           report.external_reference_tags == 1,
-           "reverse bridge preserves external refs only after explicit opt-in");
+                       back, sizeof(back), (bbp_phys_t)(uintptr_t)back,
+                       &back_size, &report) == BBP_V2_OK &&
+          report.external_reference_entries == 1,
+          "reverse bridge preserves external refs only after explicit opt-in");
 
     store16(v1 + 18, BBP_VERSION_MINOR + 1u);
     store64(v1 + 136, 0);
@@ -484,6 +505,259 @@ static void test_bridge_roundtrip_and_policy(void)
           "forward bridge rejects physical addresses at the 2^48 ceiling");
 }
 
+static void test_bridge_ownership_controls(void)
+{
+    uint8_t v1[2048], v2[4096], forged[4096], before[4096];
+    struct bbp_info *info = (struct bbp_info *)v1;
+    struct bbp_builder builder;
+    struct bbp_v2_bridge_workspace workspace;
+    struct bbp_v2_bridge_report report;
+    struct bbp_v2_v1_source source;
+    struct bbp_v2_view view;
+    struct bounded_map_context map_context;
+    size_t v2_size = 0, written = 0, restored_size = 0;
+    union {
+        max_align_t alignment;
+        struct bbp_v2_bridge_report report;
+        size_t written;
+        uint8_t bytes[4096];
+    } control;
+    union {
+        max_align_t alignment;
+        struct bbp_v2_bridge_workspace workspace;
+        uint8_t bytes[sizeof(struct bbp_v2_bridge_workspace)];
+    } shared;
+
+    memset(v1, 0, sizeof(v1));
+    bbp_builder_init(&builder, v1 + sizeof(*info),
+                     (bbp_phys_t)(uintptr_t)(v1 + sizeof(*info)),
+                     sizeof(v1) - sizeof(*info));
+    {
+        struct bbp_tag_hhdm *tag = bbp_alloc_tag(
+            &builder, BBP_TAG_HHDM, 1, sizeof(*tag));
+        tag->offset = 0;
+    }
+    info->architecture = BBP_ARCH_X86_64;
+    info->cpu_count = 1;
+    bbp_builder_finalize(&builder, info, (bbp_phys_t)(uintptr_t)info);
+    source = (struct bbp_v2_v1_source){info, identity_map, NULL};
+    CHECK(bbp_v2_from_v1(&source, 0, &workspace, v2, sizeof(v2), &v2_size,
+                         &report) == BBP_V2_OK &&
+          bbp_v2_parse(v2, v2_size, &view) == BBP_V2_OK,
+          "ownership fixture bridges to v2");
+
+    memset(before, 0xa5, sizeof(before));
+    memcpy(forged, before, sizeof(forged));
+    CHECK(bbp_v2_from_v1(&source, 2u, &workspace, forged, sizeof(forged),
+                         &written, &report) == BBP_V2_ERR_POLICY &&
+          memcmp(forged, before, sizeof(forged)) == 0,
+          "forward bridge rejects unknown policy bits atomically");
+    CHECK(bbp_v2_to_v1(&view, 2u, forged, sizeof(forged),
+                       (bbp_phys_t)(uintptr_t)forged, &written,
+                       &report) == BBP_V2_ERR_POLICY &&
+          memcmp(forged, before, sizeof(forged)) == 0,
+          "reverse bridge rejects unknown policy bits atomically");
+
+    info->next_context = UINT64_C(0x2000);
+    info->checksum = 0;
+    info->checksum = crc_skip_field((const uint8_t *)info, sizeof(*info), 136);
+    CHECK(bbp_v2_from_v1(&source, BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS,
+                         &workspace, forged, sizeof(forged), &written,
+                         &report) == BBP_V2_OK &&
+          report.external_reference_entries == 1 &&
+          bbp_v2_parse(forged, written, &view) == BBP_V2_OK &&
+          bbp_v2_to_v1(&view, BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS,
+                       before, sizeof(before),
+                       (bbp_phys_t)(uintptr_t)before, &restored_size,
+                       &report) == BBP_V2_OK &&
+          report.external_reference_entries == 1 &&
+          load64(before + 128) == UINT64_C(0x2000),
+          "bridge reports and preserves an external INFO next context");
+    info->next_context = 0;
+    info->checksum = 0;
+    info->checksum = crc_skip_field((const uint8_t *)info, sizeof(*info), 136);
+
+    memcpy(forged, v2, v2_size);
+    store32(forged + BBP_V2_HEADER_SIZE + BBP_V2_DIRENT_SIZE + 8,
+            BBP_V2_EF_V1_WIRE | BBP_V2_EF_EXTERNAL_PHYS);
+    reseal(forged, v2_size);
+    CHECK(bbp_v2_parse(forged, v2_size, &view) == BBP_V2_OK &&
+          bbp_v2_to_v1(&view, BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS,
+                       before, sizeof(before),
+                       (bbp_phys_t)(uintptr_t)before, &written,
+                       &report) == BBP_V2_ERR_SOURCE,
+          "reverse bridge rejects a false external marker");
+
+    memcpy(forged, v2, v2_size);
+    {
+        size_t info_offset = (size_t)load64(
+            forged + BBP_V2_HEADER_SIZE + 16);
+        forged[info_offset + 92] = 1;
+        store64(forged + BBP_V2_HEADER_SIZE + 32,
+                bbp_crc64(forged + info_offset,
+                          sizeof(struct bbp_v2_v1_info_payload)));
+        reseal(forged, v2_size);
+    }
+    CHECK(bbp_v2_parse(forged, v2_size, &view) == BBP_V2_OK &&
+          bbp_v2_to_v1(&view, 0, before, sizeof(before),
+                       (bbp_phys_t)(uintptr_t)before, &written,
+                       &report) == BBP_V2_ERR_SOURCE,
+          "reverse bridge rejects nonzero normalized INFO reserved bytes");
+
+    memset(control.bytes, 0xa5, sizeof(control.bytes));
+    memcpy(before, control.bytes, sizeof(before));
+    CHECK(bbp_v2_from_v1(&source, 0, &workspace, control.bytes,
+                         sizeof(control.bytes), &written,
+                         &control.report) == BBP_V2_ERR_SOURCE &&
+          memcmp(control.bytes, before, sizeof(before)) == 0,
+          "forward bridge rejects report inside its output");
+
+    memset(control.bytes, 0xa5, sizeof(control.bytes));
+    memcpy(before, control.bytes, sizeof(before));
+    CHECK(bbp_v2_parse(v2, v2_size, &view) == BBP_V2_OK &&
+          bbp_v2_to_v1(&view, 0, control.bytes, sizeof(control.bytes),
+                       (bbp_phys_t)(uintptr_t)control.bytes, &written,
+                       &control.report) == BBP_V2_ERR_SOURCE &&
+          memcmp(control.bytes, before, sizeof(before)) == 0,
+          "reverse bridge rejects report inside its output");
+
+    memset(control.bytes, 0xa5, sizeof(control.bytes));
+    memcpy(before, control.bytes, sizeof(before));
+    CHECK(bbp_v2_to_v1(&view, 0, control.bytes, sizeof(control.bytes),
+                       (bbp_phys_t)(uintptr_t)control.bytes,
+                       &control.written, &report) == BBP_V2_ERR_SOURCE &&
+          memcmp(control.bytes, before, sizeof(before)) == 0,
+          "reverse bridge rejects written inside its output");
+
+    memset(control.bytes, 0xa5, sizeof(control.bytes));
+    memset(before, 0xa5, sizeof(before));
+    CHECK(bbp_v2_from_v1(&source, 0, &workspace, before, sizeof(before),
+                         &control.written,
+                         &control.report) == BBP_V2_ERR_SOURCE &&
+          memcmp(before, control.bytes, sizeof(before)) == 0,
+          "bridge rejects overlapping written and report controls");
+
+    memset(shared.bytes, 0xa5, sizeof(shared.bytes));
+    memcpy(before, shared.bytes, sizeof(before));
+    CHECK(bbp_v2_from_v1(&source, 0, &shared.workspace, shared.bytes,
+                         sizeof(before), &written,
+                         &report) == BBP_V2_ERR_SOURCE &&
+          memcmp(shared.bytes, before, sizeof(before)) == 0,
+          "forward bridge rejects workspace inside its output atomically");
+
+    memset(shared.bytes, 0xa5, sizeof(shared.bytes));
+    memcpy(shared.bytes, info, sizeof(*info));
+    memcpy(forged, shared.bytes, sizeof(*info));
+    source.info = (const struct bbp_info *)shared.bytes;
+    memset(before, 0xa5, sizeof(before));
+    CHECK(bbp_v2_from_v1(&source, 0, &shared.workspace, before,
+                         sizeof(before), &written,
+                         &report) == BBP_V2_ERR_SOURCE &&
+          memcmp(shared.bytes, forged, sizeof(*info)) == 0,
+          "forward bridge rejects workspace overlapping source INFO");
+    source.info = info;
+
+    memset(shared.bytes, 0, sizeof(shared.bytes));
+    memset(v1, 0, sizeof(v1));
+    bbp_builder_init(&builder, (uint8_t *)&shared.workspace.entries[1],
+                     (bbp_phys_t)(uintptr_t)&shared.workspace.entries[1], 128);
+    {
+        struct bbp_tag_hhdm *tag = bbp_alloc_tag(
+            &builder, BBP_TAG_HHDM, 1, sizeof(*tag));
+        tag->offset = 0;
+    }
+    bbp_builder_finalize(&builder, info, (bbp_phys_t)(uintptr_t)info);
+    source.info = info;
+    memcpy(forged, &shared.workspace.entries[1],
+           sizeof(struct bbp_tag_hhdm));
+    memset(before, 0xa5, sizeof(before));
+    CHECK(bbp_v2_from_v1(&source, 0, &shared.workspace, before,
+                         sizeof(before), &written,
+                         &report) == BBP_V2_ERR_SOURCE &&
+          memcmp(&shared.workspace.entries[1], forged,
+                 sizeof(struct bbp_tag_hhdm)) == 0,
+          "forward bridge rejects a mapped tag inside its workspace");
+
+    memset(v1, 0, sizeof(v1));
+    bbp_builder_init(&builder, v1 + sizeof(*info),
+                     (bbp_phys_t)(uintptr_t)(v1 + sizeof(*info)),
+                     sizeof(v1) - sizeof(*info));
+    {
+        struct bbp_tag_hhdm *tag = bbp_alloc_tag(
+            &builder, BBP_TAG_HHDM, 1, sizeof(*tag) + 8u);
+        tag->offset = 0;
+        store64((uint8_t *)tag + sizeof(*tag), UINT64_C(0x12345000));
+    }
+    bbp_builder_finalize(&builder, info, (bbp_phys_t)(uintptr_t)info);
+    memset(forged, 0xa5, sizeof(forged));
+    memcpy(before, forged, sizeof(before));
+    CHECK(bbp_v2_from_v1(&source, 0, &workspace, forged, sizeof(forged),
+                         &written, &report) == BBP_V2_ERR_POLICY &&
+          memcmp(forged, before, sizeof(forged)) == 0,
+          "known opaque extensions are conservatively external");
+    CHECK(bbp_v2_from_v1(&source, BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS,
+                         &workspace, forged, sizeof(forged), &written,
+                         &report) == BBP_V2_OK &&
+          report.external_reference_entries == 1,
+          "explicit policy preserves a marked opaque extension");
+
+    memset(v1, 0, sizeof(v1));
+    bbp_builder_init(&builder, v1 + sizeof(*info),
+                     (bbp_phys_t)(uintptr_t)(v1 + sizeof(*info)),
+                     sizeof(v1) - sizeof(*info));
+    {
+        struct bbp_tag_pcie *tag = bbp_alloc_tag(
+            &builder, BBP_TAG_PCIE, 1,
+            sizeof(*tag) + sizeof(struct bbp_pcie_device));
+        struct bbp_pcie_device *device =
+            (struct bbp_pcie_device *)((uint8_t *)tag + sizeof(*tag));
+        tag->device_count = 1;
+        device->bar_count = 0;
+    }
+    bbp_builder_finalize(&builder, info, (bbp_phys_t)(uintptr_t)info);
+    CHECK(bbp_v2_from_v1(&source, 0, &workspace, forged, sizeof(forged),
+                         &written, &report) == BBP_V2_OK &&
+          report.external_reference_entries == 0,
+          "pointer-free PCIe topology remains self-contained");
+    {
+        struct bbp_tag_pcie *tag = (struct bbp_tag_pcie *)(v1 + sizeof(*info));
+        struct bbp_pcie_device *device =
+            (struct bbp_pcie_device *)((uint8_t *)tag + sizeof(*tag));
+        device->bar_count = 1;
+        device->bars[0].base = UINT64_C(0x1000);
+        tag->header.checksum = 0;
+        tag->header.checksum = crc_skip_field(
+            (const uint8_t *)tag, tag->header.tag_size, 24);
+    }
+    CHECK(bbp_v2_from_v1(&source, 0, &workspace, forged, sizeof(forged),
+                         &written, &report) == BBP_V2_ERR_POLICY &&
+          bbp_v2_from_v1(&source, BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS,
+                         &workspace, forged, sizeof(forged), &written,
+                         &report) == BBP_V2_OK &&
+          report.external_reference_entries == 1,
+          "PCIe BAR bases require and receive the external marker");
+
+    memset(v1, 0, sizeof(v1));
+    bbp_builder_init(&builder, v1 + sizeof(*info),
+                     (bbp_phys_t)(uintptr_t)(v1 + sizeof(*info)),
+                     sizeof(v1) - sizeof(*info));
+    (void)bbp_alloc_tag(&builder, BBP_TAG_HHDM, 1,
+                        sizeof(struct bbp_tag_hhdm));
+    (void)bbp_alloc_tag(&builder, BBP_TAG_HHDM, 1,
+                        sizeof(struct bbp_tag_hhdm));
+    bbp_builder_finalize(&builder, info, (bbp_phys_t)(uintptr_t)info);
+    store64(v1 + sizeof(*info) + 16, UINT64_C(0x1000));
+    map_context.base = v1 + sizeof(*info);
+    map_context.size = sizeof(v1) - sizeof(*info);
+    map_context.unexpected = 0;
+    source.map = bounded_map;
+    source.map_user = &map_context;
+    CHECK(bbp_v2_from_v1(&source, 0, &workspace, forged, sizeof(forged),
+                         &written, &report) == BBP_V2_ERR_SOURCE &&
+          map_context.unexpected == 0,
+          "forward bridge authenticates a tag before following its link");
+}
+
 int main(void)
 {
     test_layout_and_roundtrip();
@@ -492,6 +766,7 @@ int main(void)
     test_builder_control_aliases();
     test_relayout_digest();
     test_bridge_roundtrip_and_policy();
+    test_bridge_ownership_controls();
     printf("BBP v2 selftest: %s (%d failures)\n",
            failures ? "FAILED" : "PASSED", failures);
     return failures != 0;

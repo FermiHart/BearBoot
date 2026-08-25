@@ -93,8 +93,9 @@ _Static_assert(offsetof(struct bbp_v2_directory_entry, alignment) == 40,
 _Static_assert(offsetof(struct bbp_v2_directory_entry, reserved1) == 44,
                "bbp_v2_directory_entry.reserved1 ABI");
 
-/* Directory flags used by the v1 bridge. Other entry types remain opaque to
- * the core parser and are accepted without a registry dependency. */
+/* Directory flags used by the v1 bridge. EXTERNAL_PHYS means the inline
+ * payload contains physical references outside the capsule; it does not make
+ * the payload external. Other entry types remain opaque to the core parser. */
 #define BBP_V2_EF_EXTERNAL_PHYS (1u << 0)
 #define BBP_V2_EF_V1_WIRE       (1u << 1)
 

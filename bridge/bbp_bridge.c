@@ -98,44 +98,63 @@ static int array_fits(size_t total, size_t base, uint32_t count, size_t stride)
     return (size_t)count <= (total - base) / stride;
 }
 
+static int array_is_exact(size_t total, size_t base, uint32_t count,
+                          size_t stride)
+{
+    if (!array_fits(total, base, count, stride)) return 0;
+    return (total - base) / stride == count &&
+           (total - base) % stride == 0;
+}
+
 /* Returns -1 for a malformed known tag, 0 for a self-contained tag, and 1
  * when conversion can only preserve physical references as external values. */
 static int tag_external_references(const uint8_t *tag, size_t size)
 {
     uint64_t id = get64(tag);
     uint32_t count, i;
+    int opaque = get16(tag + 12) != 1u || get16(tag + 14) != BBP_TF_NONE;
 
     switch (id) {
     case BBP_TAG_HHDM:
-        return size >= sizeof(struct bbp_tag_hhdm) ? 0 : -1;
+        if (size < sizeof(struct bbp_tag_hhdm)) return -1;
+        return opaque || size != sizeof(struct bbp_tag_hhdm);
     case BBP_TAG_KERNEL_ADDRESS:
-        return size >= sizeof(struct bbp_tag_kernel_address) ? 0 : -1;
+        if (size < sizeof(struct bbp_tag_kernel_address)) return -1;
+        return opaque || size != sizeof(struct bbp_tag_kernel_address);
     case BBP_TAG_MEMORY_MAP:
         if (size < sizeof(struct bbp_tag_memory_map)) return -1;
         count = get32(tag + 32);
         if (get32(tag + 36) < sizeof(struct bbp_memory_entry) ||
             !array_fits(size, sizeof(struct bbp_tag_memory_map), count,
-                        get32(tag + 36))) return -1;
-        return 0;
+                         get32(tag + 36))) return -1;
+        return opaque || get32(tag + 36) != sizeof(struct bbp_memory_entry) ||
+               !array_is_exact(size, sizeof(struct bbp_tag_memory_map), count,
+                               get32(tag + 36));
     case BBP_TAG_CMDLINE:
         if (size < sizeof(struct bbp_tag_cmdline)) return -1;
-        return get64(tag + 32) != 0;
+        return get64(tag + 32) != 0 || opaque ||
+               size != sizeof(struct bbp_tag_cmdline);
     case BBP_TAG_ACPI:
         if (size < sizeof(struct bbp_tag_acpi)) return -1;
-        return get64(tag + 32) != 0 || get64(tag + 40) != 0;
+        return get64(tag + 32) != 0 || get64(tag + 40) != 0 || opaque ||
+               size != sizeof(struct bbp_tag_acpi);
     case BBP_TAG_SMBIOS:
         if (size < sizeof(struct bbp_tag_smbios)) return -1;
-        return get64(tag + 32) != 0 || get64(tag + 40) != 0;
+        return get64(tag + 32) != 0 || get64(tag + 40) != 0 || opaque ||
+               size != sizeof(struct bbp_tag_smbios);
     case BBP_TAG_EFI:
         if (size < sizeof(struct bbp_tag_efi)) return -1;
-        return get64(tag + 32) != 0 || get64(tag + 40) != 0;
+        return get64(tag + 32) != 0 || get64(tag + 40) != 0 || opaque ||
+               size != sizeof(struct bbp_tag_efi);
     case BBP_TAG_DEVICETREE:
         if (size < sizeof(struct bbp_tag_devicetree)) return -1;
-        return get64(tag + 32) != 0 || get64(tag + 56) != 0;
+        return get64(tag + 32) != 0 || get64(tag + 56) != 0 || opaque ||
+               size != sizeof(struct bbp_tag_devicetree);
     case BBP_TAG_SECURITY:
         if (size < sizeof(struct bbp_tag_security)) return -1;
         return get64(tag + 32) != 0 || get64(tag + 64) != 0 ||
-               get64(tag + 80) != 0 || get64(tag + 96) != 0;
+               get64(tag + 80) != 0 || get64(tag + 96) != 0 || opaque ||
+               size != sizeof(struct bbp_tag_security);
     case BBP_TAG_FRAMEBUFFER:
         if (size < sizeof(struct bbp_tag_framebuffer)) return -1;
         count = get16(tag + 40);
@@ -147,7 +166,9 @@ static int tag_external_references(const uint8_t *tag, size_t size)
                                      (size_t)i * sizeof(struct bbp_display_info);
             if (get64(display + 32) != 0) return 1;
         }
-        return 0;
+        return opaque || !array_is_exact(
+            size, sizeof(struct bbp_tag_framebuffer), count,
+            sizeof(struct bbp_display_info));
     case BBP_TAG_SMP:
         if (size < sizeof(struct bbp_tag_smp)) return -1;
         count = get32(tag + 32);
@@ -158,7 +179,8 @@ static int tag_external_references(const uint8_t *tag, size_t size)
                                  (size_t)i * sizeof(struct bbp_cpu_info);
             if (get64(cpu + 32) != 0) return 1;
         }
-        return 0;
+        return opaque || !array_is_exact(size, sizeof(struct bbp_tag_smp),
+                                         count, sizeof(struct bbp_cpu_info));
     case BBP_TAG_MODULES:
         if (size < sizeof(struct bbp_tag_modules)) return -1;
         count = get32(tag + 32);
@@ -169,20 +191,40 @@ static int tag_external_references(const uint8_t *tag, size_t size)
                                     (size_t)i * sizeof(struct bbp_module_entry);
             if (get64(module) != 0 || get64(module + 96) != 0) return 1;
         }
-        return 0;
+        return opaque || !array_is_exact(
+            size, sizeof(struct bbp_tag_modules), count,
+            sizeof(struct bbp_module_entry));
     case BBP_TAG_PCIE:
         if (size < sizeof(struct bbp_tag_pcie)) return -1;
         count = get32(tag + 40);
         if (!array_fits(size, sizeof(struct bbp_tag_pcie), count,
                         sizeof(struct bbp_pcie_device))) return -1;
-        return get64(tag + 32) != 0 || count != 0;
+        if (get64(tag + 32) != 0) return 1;
+        for (i = 0; i < count; i++) {
+            const uint8_t *device = tag + sizeof(struct bbp_tag_pcie) +
+                                    (size_t)i * sizeof(struct bbp_pcie_device);
+            uint32_t bar_count = get32(device + 16);
+            uint32_t j;
+            if (bar_count > 6u) return -1;
+            for (j = 0; j < 6u; j++) {
+                if (get64(device + 24u + (size_t)j *
+                          sizeof(struct bbp_pcie_bar)) != 0) return 1;
+            }
+        }
+        return opaque || !array_is_exact(
+            size, sizeof(struct bbp_tag_pcie), count,
+            sizeof(struct bbp_pcie_device));
     case BBP_TAG_METRICS:
         if (size < sizeof(struct bbp_tag_metrics)) return -1;
         count = get32(tag + 40);
-        return array_fits(size, sizeof(struct bbp_tag_metrics), count,
-                          sizeof(struct bbp_boot_phase)) ? 0 : -1;
+        if (!array_fits(size, sizeof(struct bbp_tag_metrics), count,
+                        sizeof(struct bbp_boot_phase))) return -1;
+        return opaque || !array_is_exact(
+            size, sizeof(struct bbp_tag_metrics), count,
+            sizeof(struct bbp_boot_phase));
     case BBP_TAG_HYPERVISOR:
-        return size >= sizeof(struct bbp_tag_hypervisor) ? 0 : -1;
+        if (size < sizeof(struct bbp_tag_hypervisor)) return -1;
+        return opaque || size != sizeof(struct bbp_tag_hypervisor);
     default:
         /* An opaque v1 body cannot honestly be claimed pointer-free. */
         return 1;
@@ -214,13 +256,43 @@ bbp_v2_status_t bbp_v2_from_v1(
     const uint8_t *info;
     uint32_t tag_count, external_count = 0, i;
     uint64_t current;
-    size_t built = 0;
+    size_t built = 0, projected, payload_work;
+    size_t source_crc_work = sizeof(struct bbp_info);
     bbp_v2_status_t status;
     struct bbp_v2_bridge_report candidate;
 
     if (!source || !source->info || !workspace || !output || !written)
         return BBP_V2_ERR_NULL;
+    if ((policy & ~BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS) != 0)
+        return BBP_V2_ERR_POLICY;
+    if (memory_ranges_overlap(output, capacity, written, sizeof(*written)) ||
+        memory_ranges_overlap(output, capacity, workspace,
+                              sizeof(*workspace)) ||
+        memory_ranges_overlap(output, capacity, source, sizeof(*source)) ||
+        memory_ranges_overlap(workspace, sizeof(*workspace), source,
+                              sizeof(*source)) ||
+        (report &&
+         (memory_ranges_overlap(output, capacity, report, sizeof(*report)) ||
+          memory_ranges_overlap(written, sizeof(*written), report,
+                                sizeof(*report)) ||
+          memory_ranges_overlap(workspace, sizeof(*workspace), report,
+                                sizeof(*report)) ||
+          memory_ranges_overlap(source, sizeof(*source), report,
+                                sizeof(*report)))) ||
+        memory_ranges_overlap(workspace, sizeof(*workspace), written,
+                              sizeof(*written)) ||
+        memory_ranges_overlap(source, sizeof(*source), written,
+                              sizeof(*written)))
+        return BBP_V2_ERR_SOURCE;
     info = (const uint8_t *)source->info;
+    if (memory_ranges_overlap(info, sizeof(struct bbp_info), output, capacity) ||
+        memory_ranges_overlap(info, sizeof(struct bbp_info), workspace,
+                              sizeof(*workspace)) ||
+        memory_ranges_overlap(info, sizeof(struct bbp_info), written,
+                              sizeof(*written)) ||
+        (report && memory_ranges_overlap(info, sizeof(struct bbp_info), report,
+                                         sizeof(*report))))
+        return BBP_V2_ERR_SOURCE;
     if (!bytes_equal(info, v1_info_magic, sizeof(v1_info_magic)) ||
         get16(info + 16) != BBP_VERSION_MAJOR ||
         get16(info + 18) != BBP_VERSION_MINOR)
@@ -235,6 +307,72 @@ bbp_v2_status_t bbp_v2_from_v1(
     if ((tag_count == 0) != (current == 0) ||
         (current != 0 && ((current & 7u) != 0 || !source->map)))
         return BBP_V2_ERR_SOURCE;
+    if (get64(info + 128) != 0 &&
+        (policy & BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS) == 0)
+        return BBP_V2_ERR_POLICY;
+
+    /* Prove every mapped source span disjoint from mutable call storage before
+     * the workspace is touched. The immutable map contract then permits the
+     * normal validating pass below to populate descriptors safely. */
+    projected = BBP_V2_HEADER_SIZE +
+                (size_t)(tag_count + 1u) * BBP_V2_DIRENT_SIZE;
+    projected = (projected + 7u) & ~(size_t)7u;
+    projected += sizeof(struct bbp_v2_v1_info_payload);
+    payload_work = sizeof(struct bbp_v2_v1_info_payload);
+    for (i = 0; i < tag_count; i++) {
+        const uint8_t *mapped_header, *tag;
+        uint8_t header[sizeof(struct bbp_tag_header)];
+        uint32_t size;
+
+        if (current == 0 || (current & 7u) != 0 ||
+            current >= V1_MAX_PHYS ||
+            sizeof(header) > V1_MAX_PHYS - current)
+            return BBP_V2_ERR_SOURCE;
+        mapped_header = (const uint8_t *)source->map(
+            source->map_user, current, sizeof(struct bbp_tag_header));
+        if (!mapped_header ||
+            memory_ranges_overlap(mapped_header, sizeof(header), workspace,
+                                  sizeof(*workspace)) ||
+            memory_ranges_overlap(mapped_header, sizeof(header), output,
+                                  capacity) ||
+            memory_ranges_overlap(mapped_header, sizeof(header), written,
+                                  sizeof(*written)) ||
+            memory_ranges_overlap(mapped_header, sizeof(header), source,
+                                  sizeof(*source)) ||
+            (report && memory_ranges_overlap(mapped_header, sizeof(header),
+                                             report, sizeof(*report))))
+            return BBP_V2_ERR_SOURCE;
+        bytes_copy(header, mapped_header, sizeof(header));
+        size = get32(header + 8);
+        if (size < sizeof(struct bbp_tag_header) || size > V1_MAX_TAG_SIZE ||
+            size > V1_MAX_PHYS - current)
+            return BBP_V2_ERR_SOURCE;
+        projected = (projected + 7u) & ~(size_t)7u;
+        if (size > (size_t)-1 - projected) return BBP_V2_ERR_OVERFLOW;
+        projected += size;
+        if (size > BBP_V2_MAX_CRC_WORK - payload_work)
+            return BBP_V2_ERR_WORK;
+        payload_work += size;
+        if (projected > BBP_V2_MAX_EXTENT) return BBP_V2_ERR_EXTENT;
+        if (projected > BBP_V2_MAX_CRC_WORK - payload_work)
+            return BBP_V2_ERR_WORK;
+        if (size > (BBP_V2_MAX_CRC_WORK - source_crc_work) / 2u)
+            return BBP_V2_ERR_WORK;
+        source_crc_work += (size_t)size * 2u;
+        tag = (const uint8_t *)source->map(source->map_user, current, size);
+        if (!tag || !bytes_equal(tag, header, sizeof(header)) ||
+            memory_ranges_overlap(tag, size, workspace, sizeof(*workspace)) ||
+            memory_ranges_overlap(tag, size, output, capacity) ||
+            memory_ranges_overlap(tag, size, written, sizeof(*written)) ||
+            memory_ranges_overlap(tag, size, source, sizeof(*source)) ||
+            (report && memory_ranges_overlap(tag, size, report,
+                                             sizeof(*report))) ||
+            crc_skip(tag, size, 24) != get64(tag + 24))
+            return BBP_V2_ERR_SOURCE;
+        current = get64(tag + 16);
+    }
+    if (current != 0) return BBP_V2_ERR_SOURCE;
+    current = get64(info + 120);
 
     normalize_info(&workspace->info_payload, info);
     workspace->entries[0].type = BBP_V2_ENTRY_V1_INFO;
@@ -244,8 +382,6 @@ bbp_v2_status_t bbp_v2_from_v1(
     workspace->entries[0].data = &workspace->info_payload;
     workspace->entries[0].size = sizeof(workspace->info_payload);
     if (get64(info + 128) != 0) {
-        if ((policy & BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS) == 0)
-            return BBP_V2_ERR_POLICY;
         workspace->entries[0].flags |= BBP_V2_EF_EXTERNAL_PHYS;
         external_count++;
     }
@@ -264,10 +400,20 @@ bbp_v2_status_t bbp_v2_from_v1(
         for (j = 0; j < i; j++) {
             if (workspace->visited[j] == current) return BBP_V2_ERR_SOURCE;
         }
-        workspace->visited[i] = current;
         mapped_header = (const uint8_t *)source->map(
             source->map_user, current, sizeof(struct bbp_tag_header));
-        if (!mapped_header) return BBP_V2_ERR_SOURCE;
+        if (!mapped_header ||
+            memory_ranges_overlap(mapped_header, sizeof(header), workspace,
+                                  sizeof(*workspace)) ||
+            memory_ranges_overlap(mapped_header, sizeof(header), output,
+                                  capacity) ||
+            memory_ranges_overlap(mapped_header, sizeof(header), written,
+                                  sizeof(*written)) ||
+            memory_ranges_overlap(mapped_header, sizeof(header), source,
+                                  sizeof(*source)) ||
+            (report && memory_ranges_overlap(mapped_header, sizeof(header),
+                                             report, sizeof(*report))))
+            return BBP_V2_ERR_SOURCE;
         bytes_copy(header, mapped_header, sizeof(header));
         size = get32(header + 8);
         if (size < sizeof(struct bbp_tag_header) || size > V1_MAX_TAG_SIZE)
@@ -281,6 +427,12 @@ bbp_v2_status_t bbp_v2_from_v1(
         }
         tag = (const uint8_t *)source->map(source->map_user, current, size);
         if (!tag || !bytes_equal(tag, header, sizeof(header)) ||
+            memory_ranges_overlap(tag, size, workspace, sizeof(*workspace)) ||
+            memory_ranges_overlap(tag, size, output, capacity) ||
+            memory_ranges_overlap(tag, size, written, sizeof(*written)) ||
+            memory_ranges_overlap(tag, size, source, sizeof(*source)) ||
+            (report && memory_ranges_overlap(tag, size, report,
+                                             sizeof(*report))) ||
             crc_skip(tag, size, 24) != get64(tag + 24))
             return BBP_V2_ERR_SOURCE;
         external = tag_external_references(tag, size);
@@ -288,6 +440,7 @@ bbp_v2_status_t bbp_v2_from_v1(
         if (external && (policy & BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS) == 0)
             return BBP_V2_ERR_POLICY;
 
+        workspace->visited[i] = current;
         workspace->entries[i + 1u].type = get64(tag);
         workspace->entries[i + 1u].flags = BBP_V2_EF_V1_WIRE |
             (external ? BBP_V2_EF_EXTERNAL_PHYS : 0u);
@@ -319,7 +472,7 @@ bbp_v2_status_t bbp_v2_from_v1(
     put64((uint8_t *)output + 40, capsule_crc((const uint8_t *)output, built));
 
     candidate.tag_count = tag_count;
-    candidate.external_reference_tags = external_count;
+    candidate.external_reference_entries = external_count;
     if (report) *report = candidate;
     *written = built;
     return BBP_V2_OK;
@@ -363,6 +516,16 @@ bbp_v2_status_t bbp_v2_to_v1(
 
     if (!source || !source->data || !output || !written)
         return BBP_V2_ERR_NULL;
+    if ((policy & ~BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS) != 0)
+        return BBP_V2_ERR_POLICY;
+    if (memory_ranges_overlap(source, sizeof(*source), written,
+                              sizeof(*written)) ||
+        (report &&
+         (memory_ranges_overlap(written, sizeof(*written), report,
+                                sizeof(*report)) ||
+          memory_ranges_overlap(source, sizeof(*source), report,
+                                sizeof(*report)))))
+        return BBP_V2_ERR_SOURCE;
     status = bbp_v2_parse(source->data, source->total_size, &checked);
     if (status != BBP_V2_OK) return status;
     if (checked.entry_count == 0) return BBP_V2_ERR_SOURCE;
@@ -372,10 +535,11 @@ bbp_v2_status_t bbp_v2_to_v1(
         info_entry.size != sizeof(struct bbp_v2_v1_info_payload) ||
         (info_entry.flags & ~BBP_V2_EF_EXTERNAL_PHYS) != 0)
         return BBP_V2_ERR_SOURCE;
-    if ((info_entry.flags & BBP_V2_EF_EXTERNAL_PHYS) != 0) external_count++;
-    if (get64(info_entry.data + 96) != 0 &&
-        (info_entry.flags & BBP_V2_EF_EXTERNAL_PHYS) == 0)
+    if (get32(info_entry.data + 92) != 0 ||
+        ((get64(info_entry.data + 96) != 0) !=
+         ((info_entry.flags & BBP_V2_EF_EXTERNAL_PHYS) != 0)))
         return BBP_V2_ERR_SOURCE;
+    if ((info_entry.flags & BBP_V2_EF_EXTERNAL_PHYS) != 0) external_count++;
     tag_count = checked.entry_count - 1u;
 
     for (i = 0; i < tag_count; i++) {
@@ -394,7 +558,8 @@ bbp_v2_status_t bbp_v2_to_v1(
             return BBP_V2_ERR_SOURCE;
         external = tag_external_references(entry.data, entry.size);
         if (external < 0 ||
-            (external && (entry.flags & BBP_V2_EF_EXTERNAL_PHYS) == 0))
+            ((external != 0) !=
+             ((entry.flags & BBP_V2_EF_EXTERNAL_PHYS) != 0)))
             return BBP_V2_ERR_SOURCE;
         if ((entry.flags & BBP_V2_EF_EXTERNAL_PHYS) != 0) external_count++;
         if (cursor > (size_t)-1 - 7u) return BBP_V2_ERR_OVERFLOW;
@@ -412,6 +577,15 @@ bbp_v2_status_t bbp_v2_to_v1(
         output_phys >= V1_MAX_PHYS || total > V1_MAX_PHYS - output_phys)
         return BBP_V2_ERR_OVERFLOW;
     if (memory_ranges_overlap(output, total, checked.data, checked.total_size))
+        return BBP_V2_ERR_SOURCE;
+    if (memory_ranges_overlap(output, total, written, sizeof(*written)) ||
+        memory_ranges_overlap(output, total, source, sizeof(*source)) ||
+        memory_ranges_overlap(checked.data, checked.total_size, written,
+                              sizeof(*written)) ||
+        (report &&
+         (memory_ranges_overlap(output, total, report, sizeof(*report)) ||
+          memory_ranges_overlap(checked.data, checked.total_size, report,
+                                sizeof(*report)))))
         return BBP_V2_ERR_SOURCE;
 
     bytes_zero(output, total);
@@ -437,7 +611,7 @@ bbp_v2_status_t bbp_v2_to_v1(
                  (uint32_t)total);
 
     candidate.tag_count = tag_count;
-    candidate.external_reference_tags = external_count;
+    candidate.external_reference_entries = external_count;
     if (report) *report = candidate;
     *written = total;
     return BBP_V2_OK;

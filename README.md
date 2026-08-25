@@ -136,7 +136,7 @@ make auth2-test     # host-only ECDSA P-256 public-key policy proof
 make rollback-test # persistent A/B journal policy with an injected floor
 make ports-hosted-check # run all four current-checkout hosted adapter gates
 make evidence-check # hosted/emulator/physical evidence-contract tests
-make v2-portability # compile the v2 Draft core for x86_64, AArch64, and RV64
+make v2-portability # compile the v2 Draft core/bridge for x86_64, AArch64, and RV64
 make sdk-check     # extracted C/host packages + no_std Rust parity tests
 make sdk-package   # reproducible local archives under build/dist/
 ```
