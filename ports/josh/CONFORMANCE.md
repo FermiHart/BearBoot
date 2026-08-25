@@ -3,11 +3,11 @@
 ## Identity
 - OS / branch:            Josh-Bear "lisabeth" x86_64, Limine boot ($JOSH)
 - Port version:           1.0.0
-- BBP core commit pinned: ae5d3e2 ("docs: add ADR-0009 (walk window), SPEC §10.3,
-                          changelog for v1.1 hardening"). The core files
-                          include/bbp/*, kernel/bbp_kernel.{c,h},
-                          bootloader/bbp_build.{c,h} are UNMODIFIED vs ae5d3e2
-                          (ABI-frozen; `git status` on those paths is clean).
+- Historical external-OS core revision: ae5d3e2 ("docs: add ADR-0009 (walk
+                          window), SPEC §10.3, changelog for v1.1 hardening").
+                          This identifies `test/serial.log`, not the current core.
+- Current hosted/scaffold revision: the BearBoot checkout at gate execution;
+                          release metadata records that exact source revision.
 - BBP protocol version:   1.1
 - Toolchain:              hosted harness: Apple clang 17.0.0 (cc).
                           scaffold-check: x86_64-elf-gcc 16.1.0.
@@ -57,13 +57,16 @@ bring-up bug cannot occur.
 | SECURITY         | optional | **yes (real boot)** | entropy_crc — SET; carries 48 B boot entropy (root-of-trust seed). Josh bbp_verify_blob()s it, then seeds its CSPRNG. TPM/measured-boot fields zeroed in v1. |
 
 ## Validation evidence (REQUIRED — no green claims without these)
-- [x] `make scaffold-check` passes (compiles+links against frozen core)
+- [x] `make scaffold-check` passes (compiles+links against the core in the
+      current checkout)
       => "Josh-Bear port scaffold compiles + links against frozen BBP core."
       (x86_64-elf-gcc 16.1.0, -ffreestanding -Wall -Wextra -Werror, zero warnings;
       osif.c + adapter.c + bbp_kernel.c + bbp_build.c link into one relocatable
-      object — every symbol the port uses exists in the frozen core ABI.)
+      object — every symbol the port uses exists in the current core while the
+      wire ABI remains frozen.)
 - [x] `make` / `make test` passes the hosted harness (synthetic Limine data fed to
-      the SHIPPED osif.c + adapter.c, validated through the public parser API):
+      the shipped osif.c + adapter.c, validated through the public parser API).
+      The checked output is `test/run.log`:
         bbp_josh_adapter -> ok
           tag HHDM         : present
           tag MEMORY_MAP   : present
@@ -76,32 +79,43 @@ bring-up bug cannot occur.
           cmdline verify_blob -> ok                         (CMDLINE CRC verified)
         total tags walked: 6
         RESULT: PASS
-- [x] bbp_init_bounded returned BBP_OK on the current harness boot data (the
-      "bbp_josh_adapter -> ok" line is bbp_strstatus(st) with st==BBP_OK; the 5
+- [x] bbp_init_bounded returned BBP_OK on the hosted harness snapshot (the
+      "bbp_josh_adapter -> ok" line is bbp_strstatus(st) with st==BBP_OK; the 6
       tags are CRC-validated by the parser, walked via bbp_for_each_tag).
 - [x] bbp_verify_blob called on the out-of-line CMDLINE before reading it
       (harness "cmdline verify_blob -> ok"), per ADR-0006.
-- [x] Real/QEMU Josh serial log showing the parser validated — **CONFIRMED.**
+- [x] Historical external Josh/QEMU serial record showing the parser validated.
       `bbp_josh_init()` is wired into `kernel/boot/lisabeth_kernel.c` right after
       `heap_init` per ../integration.md §4. Captured proof (test/serial.log):
         [BBP] josh adapter ok, 0x5 tags, hhdm=0xffff800000000000 (CRC-sealed, parser-validated)
         [BBP] boot entropy: 0x30 bytes via rdrand, CRC ok (root-of-trust seed)
         [NET] crypto: CSPRNG seeded from BBP root-of-trust entropy
       5 tags = HHDM + MEMORY_MAP + FRAMEBUFFER + SMP + SECURITY (count is hex via
-      Josh's kserial_puthex; no CMDLINE on real boot — see gap 4). Josh VERIFIES
+      Josh's kserial_puthex; no CMDLINE in the external OS record — see gap 4). Josh VERIFIES
       the SECURITY entropy blob (bbp_verify_blob) and seeds its CSPRNG from it —
       BBP in the read path. hhdm is Limine's canonical higher-half base.
 
+### Evidence scope / substrate / replay
+| artifact / command | proof scope | substrate | replay | core revision |
+|--------------------|-------------|-----------|--------|---------------|
+| `make test` | hosted adapter (6 tags) | host process, synthetic Limine data | reproducible from current checkout | current checkout |
+| `test/run.log` | archived hosted adapter output (6 tags) | host process, synthetic Limine data | recorded hosted output; current command is separately replayable | ae5d3e2 report provenance |
+| `test/serial.log` | full Josh OS boot (5 tags) | QEMU + Limine + external Josh tree | recorded only; external tree not archived here | ae5d3e2 |
+
+The hosted six-tag output and external five-tag record are different proofs and
+must not be cited interchangeably. The archived OS record does not prove a Josh
+boot at the current BearBoot source revision.
+
 ## Deviations / known gaps (honest accounting)
-1. **Real-Josh-boot serial proof: CONFIRMED** (test/serial.log). The hosted
-   harness proves osif.c + adapter.c against the frozen core on synthetic Limine
+1. Historical Josh-boot serial record: `test/serial.log`. The hosted
+   harness proves osif.c + adapter.c against the current checkout on synthetic Limine
    data (6 tags incl. CMDLINE and SECURITY); the live Josh boot shows the adapter validating
    5 real Limine-derived tags (no CMDLINE — Josh has no Limine command line).
 2. now_ns uses a nominal 1 GHz TSC assumption (relative boot metrics only).
 3. No KERNEL_ADDRESS / ACPI tags in v1 — out of scope. KERNEL_ADDRESS is
    unnecessary because the single direct map needs no slide reconciliation.
    SECURITY is now produced (entropy only; TPM/measured-boot still out of scope).
-4. No CMDLINE on real boot (Josh boots with no Limine kernel command line in v1);
+4. No CMDLINE in the external OS record (Josh boots with no Limine kernel command line in v1);
    the tag + string_crc path is exercised by the harness and ready for when a
    cmdline is added.
 5. Framebuffer EDID not forwarded (edid_crc=0); width/height/pitch/format are.

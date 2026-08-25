@@ -44,11 +44,11 @@ const struct bbp_kctx *bbp_minix_boot_ctx(void)
 }
 
 /*
- * Return the ACPI RSDP physical address from the CRC-VERIFIED BBP ACPI tag, or
+ * Return the ACPI RSDP physical pointer from the CRC-verified BBP ACPI tag, or
  * 0 if there is no valid BBP context or no ACPI tag. Unlike reading the raw
  * Limine response, this value only comes back non-zero after the tag's CRC-64
- * passed in the parser — a corrupt ACPI tag is treated as absent (returns 0),
- * so the kernel never feeds a tampered RSDP pointer to the ACPI subsystem.
+ * passed in the parser. The ACPI subsystem must still validate the pointed-to
+ * RSDP signature, extent, and ACPI checksum before use.
  * Plain u64 return: no BBP types cross into the MINIX -nostdinc TU.
  */
 uint64_t bbp_minix_get_rsdp(void)
@@ -58,7 +58,7 @@ uint64_t bbp_minix_get_rsdp(void)
     /* g_ctx.verify_tag_crc is 1 (set by bbp_init_ex), so bbp_find_tag skips a
      * CRC-failing tag — a returned tag is integrity-checked. */
     const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_ACPI);
-    if (!t)
+    if (!t || t->tag_size < sizeof(struct bbp_tag_acpi))
         return 0;
     const struct bbp_tag_acpi *ac = (const struct bbp_tag_acpi *)t;
     return ac->rsdp_address;
@@ -77,7 +77,7 @@ int bbp_minix_ctx_hhdm(uint64_t *out)
     if (!g_ctx_valid || !out)
         return 0;
     const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_HHDM);
-    if (!t)
+    if (!t || t->tag_size < sizeof(struct bbp_tag_hhdm))
         return 0;
     const struct bbp_tag_hhdm *h = (const struct bbp_tag_hhdm *)t;
     *out = (uint64_t)h->offset;
@@ -99,18 +99,28 @@ int bbp_minix_verify_memmap(uint64_t raw_usable, uint64_t *bbp_usable,
     if (!g_ctx_valid)
         return 0;
     const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_MEMORY_MAP);
-    if (!t)
+    if (!t || t->tag_size < sizeof(struct bbp_tag_memory_map))
         return 0;
     const struct bbp_tag_memory_map *mm = (const struct bbp_tag_memory_map *)t;
-    const struct bbp_memory_entry *e =
-        (const struct bbp_memory_entry *)((const char *)mm + sizeof(*mm));
+    uint32_t count = 0;
+    const struct bbp_memory_entry *e;
     uint64_t usable = 0;
     uint32_t i;
-    for (i = 0; i < mm->entry_count; i++)
-        if (e[i].type == BBP_MEM_USABLE)
+    if (mm->entry_size != sizeof(struct bbp_memory_entry))
+        return 0;
+    e = (const struct bbp_memory_entry *)bbp_tag_array(
+        t, sizeof(*mm), sizeof(*e), mm->entry_count, &count);
+    if (count != mm->entry_count)
+        return 0;
+    for (i = 0; i < count; i++) {
+        if (e[i].type == BBP_MEM_USABLE) {
+            if (usable > UINT64_MAX - e[i].length)
+                return 0;
             usable += e[i].length;
+        }
+    }
     if (bbp_usable) *bbp_usable = usable;
-    if (entries)    *entries = mm->entry_count;
+    if (entries)    *entries = count;
     return usable == raw_usable;
 }
 
@@ -127,7 +137,7 @@ int bbp_minix_verify_smp(uint32_t *cpu_count, uint32_t *bsp_id, int *x2apic)
     if (!g_ctx_valid)
         return 0;
     const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_SMP);
-    if (!t)
+    if (!t || t->tag_size < sizeof(struct bbp_tag_smp))
         return 0;
     const struct bbp_tag_smp *smp = (const struct bbp_tag_smp *)t;
     if (cpu_count) *cpu_count = smp->cpu_count;
@@ -150,7 +160,7 @@ int bbp_minix_get_kernel_address(uint64_t *phys, uint64_t *virt)
     if (!g_ctx_valid || !phys || !virt)
         return 0;
     const struct bbp_tag_header *t = bbp_find_tag(&g_ctx, BBP_TAG_KERNEL_ADDRESS);
-    if (!t)
+    if (!t || t->tag_size < sizeof(struct bbp_tag_kernel_address))
         return 0;
     const struct bbp_tag_kernel_address *k =
         (const struct bbp_tag_kernel_address *)t;

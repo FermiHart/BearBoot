@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BearBoot - sealed handoff, bounded trust</title>
-<meta name="description" content="BearBoot SDK 1.3.0: frozen BBP v1.1 handoff, defensive parser, SDKs, host capture, multi-ISA machine proofs, OS integrations, and an explicitly isolated v2 laboratory.">
+<meta name="description" content="BearBoot SDK 1.4.0 release candidate: frozen BBP v1.1, constrained OVMF loader and TCG2 proofs, SDKs, four hosted ports, and explicitly experimental v2/auth surfaces.">
 <meta name="author" content="F E R M I INFINITY H A R T">
 <meta name="theme-color" content="#060806">
 <script>document.documentElement.classList.add('js')</script>
@@ -246,7 +246,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
   <div class="navlinks">
     <a href="#contract">wire</a><a href="#ingestion">ingest</a><a href="#products">sdk</a><a href="#proof">proof</a><a href="#machines">machines</a><a href="#frontier">v2 lab</a><a href="estado.html" lang="pt-BR" hreflang="pt-BR">agora</a>
   </div>
-  <span class="version">SDK 1.3.0 / ABI 1.1</span>
+  <span class="version">SDK 1.4.0 / ABI 1.1 / RC</span>
 </nav>
 
 <main id="main">
@@ -255,7 +255,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
       <div>
         <div class="eyebrow">Bear Boot Protocol / sealed handoff</div>
         <h1>The handoff <span>is hostile.</span></h1>
-        <p class="hero-lede">A frozen boot-handoff ABI surrounded by a <b>defensive parser, importers, SDKs, host capture, four OS seams, multi-ISA machine proofs</b>, and an isolated next-generation laboratory.</p>
+        <p class="hero-lede">A frozen boot-handoff ABI surrounded by a <b>defensive parser, a constrained OVMF loader, TCG2 measurement, SDKs, four OS seams, and multi-ISA machine proofs</b>, with v2/auth kept in an isolated laboratory.</p>
         <div class="actions">
           <a class="action" href="#proof">Inspect the proof ledger <span aria-hidden="true">-&gt;</span></a>
           <button class="action secondary" type="button" data-corrupt-jump>Corrupt one tag</button>
@@ -267,7 +267,7 @@ footer{border-top:1px solid var(--line);padding:2rem 0 3rem;color:var(--dim);fon
         <div class="metric"><span>HANDOFF INFO</span><b>144 B</b></div>
         <div class="metric"><span>TAG FRAME</span><b>32 B</b></div>
         <div class="metric"><span>TAG UUIDs</span><b>15</b></div>
-        <p class="hero-note"><b>Stable:</b> SDK 1.3.0 / BBP wire 1.1. <b>Not a bootloader.</b> BBP rides alongside Limine, UEFI, Multiboot2, or a native kernel path.</p>
+        <p class="hero-note"><b>Candidate:</b> SDK 1.4.0 / BBP wire 1.1. Cut pending workflow; no 1.4.0 tag or release is claimed. <b>Not a bootloader replacement.</b></p>
       </aside>
     </div>
     <div class="scroll-cue" aria-hidden="true">SCROLL / VERIFY</div>
@@ -343,7 +343,7 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
         <article class="ingest-node engine"><small>FAILURE-ATOMIC</small><b>IMPORT + BUILD</b><span>Overlap, capacity, malformed framing or overflow leaves builder and arena unchanged.</span></article>
         <article class="ingest-node output"><small>FROZEN OUTPUT</small><b>BBP v1.1</b><span>INFO plus deterministic UUID tag chain, each structure CRC-sealed.</span></article>
       </div>
-      <div class="scope-note"><b>PROOF</b><span><code>make importers-test</code> executes successful round trips and adversarial source framing. Live firmware collection remains external; <code>bootloader/efi_main.c</code> is still a reference skeleton.</span></div>
+      <div class="scope-note"><b>PROOF</b><span><code>make importers-test</code> executes successful round trips and adversarial source framing. That host gate does not prove live collection; the separate constrained loader and TCG2 machine gates do.</span></div>
     </div>
   </section>
 
@@ -385,9 +385,9 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
       </div>
       <div class="product-grid">
         <article class="product-row"><div class="product-id">C SDK / LIVE</div><div><h3>Extract, build, prove.</h3><p>A C11-only allowlisted archive compiles the full SDK and importers, runs a builder-to-bounded-parser round trip and emits deterministic <code>conformance.json</code>.</p></div><div class="product-command">make onboarding<small>Host conformance, not a machine boot.</small></div></article>
-        <article class="product-row"><div class="product-id">RUST / HOST-TESTED</div><div><h3><code>bbp-wire</code>, always <code>no_std</code>.</h3><p>Rust 2021 / MSRV 1.77, no dependencies, allocator, unsafe code or build script. Slice-only CRC/framing validation never converts physical values into pointers.</p></div><div class="product-command">make sdk-rust-msrv-test<small>Unknown IDs remain visible without gaining semantic trust.</small></div></article>
+        <article class="product-row"><div class="product-id">RUST / HOST-TESTED</div><div><h3><code>bbp-wire</code>, always <code>no_std</code>.</h3><p>Rust 2021 / MSRV 1.77, no dependencies, allocator, unsafe code or build script. Frozen v1.1 validation sits beside explicitly experimental slice-only v2, Profile 0 and HMAC framing.</p></div><div class="product-command">make sdk-rust-msrv-test<small><code>publish = false</code>; package proof is not registry publication.</small></div></article>
         <article class="product-row"><div class="product-id">BBPCTL / LIVE</div><div><h3>Capture bytes without dereferencing history.</h3><p>BBPC v1 preserves INFO, tags and original physical topology for bounded inspect, verify and canonical evidence workflows. It is a 96-byte host container, never boot wire.</p></div><div class="product-command">make bbpctl-test<small>No out-of-line blob capture in BBPC v1.</small></div></article>
-        <article class="product-row"><div class="product-id">RELEASE / REPRODUCIBLE</div><div><h3>Allowlisted bytes with provenance.</h3><p>C SDK, host tools and Rust crate use fixed metadata, SHA-256 manifests, artifact-level SPDX, signed tags and keyless Sigstore bundles. Release mode rejects dirty or development sources.</p></div><div class="product-command">make sdk-check release-metadata-test<small>The signed-tag release workflow emits and verifies the SHA-256, SPDX and Sigstore material.</small></div></article>
+        <article class="product-row"><div class="product-id">RELEASE / CANDIDATE</div><div><h3>Allowlisted bytes with resumable provenance.</h3><p>C SDK, host tools and Rust source packages use fixed metadata and exact allowlists. The signed-tag workflow stages an owned draft, rechecks SHA-256 and Sigstore, reconciles remote assets, then publishes.</p></div><div class="product-command">make sdk-check release-metadata-test<small>SDK 1.4.0 is cut pending workflow, not published here.</small></div></article>
       </div>
     </div>
   </section>
@@ -402,13 +402,13 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
         <article class="proof-card"><header><h3>FROZEN ABI LAYOUT</h3><span class="state">LIVE</span></header><p><code>make abi</code> compiles 28 exact structure-size assertions.<span class="verdict">VERDICT: layout drift fails the build, before boot.</span></p></article>
         <article class="proof-card"><header><h3>BOUNDED PARSER + EVIDENCE</h3><span class="state">LIVE</span></header><p><code>make test</code> covers 16-byte magics, typed extents, cycles, pointer wrap, forged counts, blob CRC and a domain-separated INFO+tags evidence stream.<span class="verdict">LIMIT: mapped immutable input and semantic validation remain consumer obligations.</span></p></article>
         <article class="proof-card"><header><h3>MALFORMED-INPUT FUZZING</h3><span class="state">LIVE</span></header><p><code>make fuzz</code> runs raw and structure-aware harnesses under libFuzzer+ASan or a deterministic watchdog fallback.<span class="verdict">VERDICT: bounded completion, no crash or hang.</span></p></article>
-        <article class="proof-card"><header><h3>IMPORTERS</h3><span class="state build">HOST-TESTED</span></header><p><code>make importers-test</code> executes Limine, raw Multiboot2 and final UEFI translation, including failure atomicity and overlap rejection.<span class="verdict">LIMIT: source collection is external.</span></p></article>
-        <article class="proof-card"><header><h3>SDK + HOST TOOLS</h3><span class="state">LIVE</span></header><p><code>make sdk-check bbpctl-test</code> validates extracted C onboarding, Rust MSRV, reproducible archives and bounded BBPC capture tooling.<span class="verdict">VERDICT: distributable host surfaces agree with wire 1.1.</span></p></article>
-        <article class="proof-card"><header><h3>x86 BARE METAL + OVMF</h3><span class="state">MACHINE PROOF</span></header><p><code>make qemu qemu-uefi</code> requires serial PASS, timeout discipline and distinct guest status from real builder/parser execution.<span class="verdict">LIMIT: OVMF harness is not the incomplete reference UEFI loader.</span></p></article>
+        <article class="proof-card"><header><h3>IMPORTERS + SDK SURFACES</h3><span class="state build">HOST-TESTED</span></header><p><code>make importers-test bbpctl-test sdk-check</code> covers atomic ingestion, bounded capture, extracted C/host examples and Rust package parity.<span class="verdict">LIMIT: packaged v2/Profile 0/HMAC APIs remain experimental and offline.</span></p></article>
+        <article class="proof-card"><header><h3>CONSTRAINED OVMF LOADER</h3><span class="state">MACHINE PROOF</span></header><p><code>make qemu-uefi-loader</code> requires exact serial PASS and status 33 after ELF64 load, HEADER requests, final EBS map, paging/HHDM, three tags and RDI transfer.<span class="verdict">LIMIT: constrained x86_64 proof, not a general-purpose production loader.</span></p></article>
+        <article class="proof-card"><header><h3>UEFI TCG2 + SECURITY</h3><span class="state">MACHINE PROOF</span></header><p><code>make qemu-uefi-tcg2</code> extends PCR16 through OVMF TCG2 into persistent <code>swtpm</code>, publishes the v1.1 SECURITY log and independently reads it back.<span class="verdict">LIMIT: not physical TPM, Secure Boot, provisioning or firmware identity.</span></p></article>
         <article class="proof-card"><header><h3>AARCH64 + RISC-V</h3><span class="state">MACHINE PROOF</span></header><p><code>make qemu-aarch64 qemu-riscv64</code> proves X0/A0 handoffs with copied, CRC-verified QEMU Device Trees and tamper rejection.<span class="verdict">LIMIT: protocol machines, not OS ports.</span></p></article>
-        <article class="proof-card"><header><h3>OSIF INTEGRATIONS</h3><span class="state recorded">LIVE + RECORDED</span></header><p><code>make ports-check</code> compiles all four seams; hosted harnesses and external boot records document each integration separately.<span class="verdict">LIMIT: root CI does not replay every external OS boot.</span></p></article>
-        <article class="proof-card"><header><h3>V2 PROFILE + PORTABILITY</h3><span class="state scope">EXPERIMENTAL</span></header><p><code>make v2-test v2-profile-test v2-vectors-test v2-fuzz v2-portability</code> covers capsule framing, Profile 0, Python/C vectors and three-ISA freestanding compilation.<span class="verdict">LIMIT: offline Draft, not frozen or deployed wire.</span></p></article>
-        <article class="proof-card"><header><h3>TPM2 + AUTH ENVELOPE</h3><span class="state scope">EXPERIMENTAL</span></header><p><code>make tpm2-measure-test auth-envelope-test</code> proves PCR16 extension and host-only HMAC replay/rollback policy across key rotation.<span class="verdict">LIMIT: not Secure Boot, public-key identity or firmware provisioning.</span></p></article>
+        <article class="proof-card"><header><h3>OSIF + EVIDENCE CONTRACT</h3><span class="state recorded">HOSTED + RECORDED</span></header><p><code>make ports-hosted-check evidence-check</code> runs all four current adapters and keeps hosted, emulator and physical provenance separate.<span class="verdict">LIMIT: external OS logs are recorded history; no physical PASS proof ships.</span></p></article>
+        <article class="proof-card"><header><h3>PUBLIC AUTH + ROLLBACK</h3><span class="state scope">EXPERIMENTAL</span></header><p><code>make auth2-test rollback-test</code> proves host ECDSA P-256 policy plus persistent A/B recovery bounded by an injected monotonic floor.<span class="verdict">LIMIT: not firmware, Secure Boot or physical TPM NV.</span></p></article>
+        <article class="proof-card"><header><h3>RELEASE TRANSACTION</h3><span class="state build">CUT PENDING</span></header><p><code>python3 -m unittest tests.test_release_policy</code> checks exact assets, owned-draft resume, Sigstore re-verification, remote digests and isolated permissions.<span class="verdict">LIMIT: policy proof does not publish or claim SDK 1.4.0.</span></p></article>
       </div>
       <div class="truth"><b>Vocabulary:</b> LIVE means reproducible in this repository; MACHINE PROOF executes a target ISA or firmware context; HOST-TESTED never implies boot; RECORDED names checked-in external evidence; EXPERIMENTAL stays outside the stable ABI.</div>
     </div>
@@ -422,7 +422,7 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
       </div>
       <div class="machine-grid">
         <article class="machine"><small>x86 / MULTIBOOT1</small><h3>BARE METAL</h3><div class="register"><span>IN / MULTIBOOT1</span><span>VERDICT / 33</span></div><p>The i386 rig builds INFO locally and executes the bounded parser under QEMU/TCG with a real memory-map round trip.</p><code>make qemu → BBP-QEMU: PASS</code></article>
-        <article class="machine"><small>x86_64 / OVMF</small><h3>UEFI CONTEXT</h3><div class="register"><span>PE/COFF</span><span>STATUS / 33</span></div><p>OVMF loads the EFI app and executes the same core. This does not validate ELF loading, EBS or the reference loader transfer path.</p><code>make qemu-uefi → BBP-UEFI: PASS</code></article>
+        <article class="machine"><small>x86_64 / OVMF</small><h3>CONSTRAINED LOADER</h3><div class="register"><span>ELF64 + EBS</span><span>RDI / INFO</span></div><p>OVMF executes bounded ELF loading, final map/EBS, four-level paging, HHDM and a three-tag transfer into the kernel parser.</p><code>make qemu-uefi-loader → BBP-UEFI-LOADER: PASS</code></article>
         <article class="machine"><small>AARCH64 / QEMU VIRT</small><h3>X0 → X0</h3><div class="register"><span>IN / DTB X0</span><span>OUT / INFO X0</span></div><p>The real QEMU DTB is copied, CRC-sealed, consumed and tamper-tested with memory and kernel-address tags.</p><code>make qemu-aarch64 → BBP-AARCH64: PASS</code></article>
         <article class="machine"><small>RV64 / OPENSBI</small><h3>A1 → A0</h3><div class="register"><span>IN / DTB A1</span><span>OUT / INFO A0</span></div><p>OpenSBI supplies hart/DTB state; BearBoot transfers a bounded handoff and rejects payload or tag corruption.</p><code>make qemu-riscv64 → BBP-RISCV64: PASS</code></article>
       </div>
@@ -437,10 +437,10 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
         <div class="section-title"><h2>One frozen core. Four different kernels.</h2><p>The OS-interface isolates allocation, logging, time and physical mapping. Each integration documents its own aliases, limits and evidence.</p></div>
       </div>
       <div class="port-grid">
-        <article class="port-card"><div class="port-id">LIVE / NATIVE LINUX</div><h3>TinaLinux</h3><p>Native Linux tables become five CRC-sealed tags at <code>late_initcall</code> without replacing the existing boot path.</p><div class="port-proof">HOST GATE + QEMU/KVM RECORD / 5 TAGS</div></article>
+        <article class="port-card"><div class="port-id">HOST + RECORDED / NATIVE</div><h3>TinaLinux</h3><p>Native Linux tables become five CRC-sealed tags at <code>late_initcall</code> without replacing the existing boot path.</p><div class="port-proof">CURRENT HOST GATE + HISTORICAL QEMU/KVM / 5 TAGS</div></article>
         <article class="port-card"><div class="port-id">RECORDED / LIMINE</div><h3>MINIX x86_64</h3><p>A higher-half Limine adapter keeps kernel-image and HHDM aliases separate. The six-tag real-MINIX transcript is distinct from the standalone harness.</p><div class="port-proof">serial-all6-consumers.log / 6 TAGS</div></article>
         <article class="port-card"><div class="port-id">HOST-TESTED / IDENTITY MAP</div><h3>Linux 0.01</h3><p>The 1991 fixed RAM model truthfully produces only memory map, HHDM and kernel address. The checked serial artifact is a hosted adapter proof.</p><div class="port-proof">HOSTED HARNESS / 3 TAGS</div></article>
-        <article class="port-card"><div class="port-id">RECORDED / PMM ARENA</div><h3>Josh-Bear</h3><p>A bounded walk window surrounds PMM-backed tags; a verified 48-byte entropy blob seeds the kernel CSPRNG.</p><div class="port-proof">REAL QEMU + HOST GATE / 6 TAGS</div></article>
+        <article class="port-card"><div class="port-id">HOST + RECORDED / PMM</div><h3>Josh-Bear</h3><p>A bounded walk window surrounds PMM-backed tags; an optional 48-byte hardware-RNG blob is CRC-checked before use and omitted if RDSEED/RDRAND fails.</p><div class="port-proof">HOSTED / 6 TAGS; HISTORICAL QEMU / 5 TAGS</div></article>
       </div>
       <div class="scope-note"><b>COMMON SEAM</b><span>All four adapters call <code>bbp_init_bounded()</code>. <code>make ports-check</code> compiles every port against the frozen core; checked-in external boots remain records unless CI explicitly reruns them.</span></div>
     </div>
@@ -453,19 +453,20 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
         <div class="section-title"><h2>Evolution without ambiguity.</h2><p>The shipping boot contract and the experimental laboratory are deliberately different objects, with an explicit bounded bridge between them.</p></div>
       </div>
       <div class="frontier-grid">
-        <article class="frontier-side"><div class="eyebrow">STABLE / SDK 1.3.0</div><h3>BBP wire v1.1</h3><div class="frontier-list">
+        <article class="frontier-side"><div class="eyebrow">FROZEN WIRE / SDK 1.4.0 RC</div><h3>BBP wire v1.1</h3><div class="frontier-list">
           <div class="frontier-item"><b>Frozen pointer-chain ABI</b><span>160-byte HEADER, 144-byte INFO, 32-byte tag frame and 15 UUID definitions.</span></div>
           <div class="frontier-item"><b>Defensive consumer</b><span>Mapped-window parsing, CRC, count clamping, typed bodies, blob verification and canonical evidence.</span></div>
-          <div class="frontier-item"><b>Distributed surfaces</b><span>C SDK, Rust crate, host capture, deterministic metadata and release packages.</span></div>
+          <div class="frontier-item"><b>Distributed stable surface</b><span>The frozen v1.1 C/Rust framing remains compatible; package version does not alter wire version.</span></div>
           <div class="frontier-item"><b>BBPC v1 is separate</b><span>Host archival container preserving topology; never a boot handoff or v2 capsule.</span></div>
         </div></article>
         <article class="frontier-side experimental"><div class="eyebrow">EXPERIMENTAL / OFFLINE</div><h3>BBP v2 Draft</h3><div class="frontier-list">
           <div class="frontier-item"><b>Contiguous bounded capsule</b><span>Exact extent, 64-byte header, 48-byte directory entries, relative offsets, zero padding and per-payload CRC.</span></div>
           <div class="frontier-item"><b>Profile 0</b><span>Identity, validated memory ranges, kernel address and inline DTB as a separate semantic layer.</span></div>
           <div class="frontier-item"><b>Independent + portable proof</b><span>Python/C vectors, layout-independent digest, fuzzing and freestanding x86_64/AArch64/RV64 compilation.</span></div>
-          <div class="frontier-item"><b>Measurement, then authentication</b><span>PCR16 <code>swtpm</code> machine proof plus host-only HMAC global rollback floor across key rotation.</span></div>
+          <div class="frontier-item"><b>Experimental package surfaces</b><span>C, Rust and host packages carry v2/Profile 0/HMAC examples and one shared vector without a stability promise.</span></div>
+          <div class="frontier-item"><b>Trust policy proofs</b><span>Host-only ECDSA P-256 plus persistent A/B recovery bounded by an injected monotonic floor.</span></div>
         </div></article>
-        <div class="frontier-rule"><b>NON-PROMOTION RULE:</b> v2 is not frozen, deployed, negotiated from v1.1 or authenticated by CRC. The HMAC envelope is not a public-key signature, and the TPM proof is not producer identity.</div>
+        <div class="frontier-rule"><b>NON-PROMOTION RULE:</b> v2/auth is not frozen, deployed or negotiated from v1.1. P-256 is a host proof, TCG2 is not Secure Boot, journal files are not TPM NV, and no physical machine proof is present.</div>
       </div>
     </div>
   </section>
@@ -487,7 +488,7 @@ bad framing  -&gt;  REFUSE / SKIP / ABSENT; semantic truth remains consumer poli
 <footer>
   <div class="wrap footer-grid">
     <div><div class="footer-brand">F E R M I &infin; H A R T</div><div>Bear Boot Protocol / BSD-3-Clause + Patent Grant</div></div>
-    <div class="footer-links"><a href="estado.html" lang="pt-BR" hreflang="pt-BR">estado atual</a><a href="https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.3.0">SDK 1.3.0</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
+    <div class="footer-links"><a href="estado.html" lang="pt-BR" hreflang="pt-BR">estado atual</a><a href="../CHANGELOG.md">SDK 1.4.0 RC</a><a href="https://github.com/FermiHart/BearBoot">source</a><a href="../SPEC.md">specification</a><a href="../SECURITY.md">security</a><a href="../STATUS.md">honesty matrix</a></div>
   </div>
 </footer>
 

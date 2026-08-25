@@ -1,12 +1,14 @@
 # BBP Port Conformance Report — TEMPLATE
 
-Copy to your port dir as CONFORMANCE.md and fill every field. A port is not
-"done" until this is complete and backed by a serial log in test/.
+Copy to your port dir as CONFORMANCE.md and fill every field. Do not collapse a
+hosted process, machine harness, emulator OS boot, and physical-machine boot into
+one claim. A reported but unarchived run must be labeled as such, not "recorded."
 
 ## Identity
 - OS / branch:            <e.g. MINIX x86_64, limine-boot>
 - Port version:           <e.g. 0.1.0>
-- BBP core commit pinned: <git rev of include/bbp + kernel/ + bootloader/>
+- Historical evidence core revision: <commit recorded by each archived run>
+- Current hosted/scaffold revision:   <current checkout; record exact commit in release metadata>
 - BBP protocol version:   1.1
 - Toolchain:              <e.g. x86_64-elf-gcc 16.1.0>
 - Date / author:
@@ -37,12 +39,19 @@ Copy to your port dir as CONFORMANCE.md and fill every field. A port is not
 | SECURITY         |          |          | measurements/entropy   |
 
 ## Validation evidence (REQUIRED — no green claims without these)
-- [ ] `make scaffold-check` passes (compiles against frozen core)
-- [ ] Core self-test still green against the pinned commit (`make test` in root)
-- [ ] Real/QEMU MINIX serial log in test/ showing the parser validated:
-      paste the line(s), e.g. "bbp: minix adapter ok, N tags, hhdm=0x..."
-- [ ] bbp_init returned BBP_OK on real boot data
+- [ ] `make scaffold-check` passes against the core in the current checkout
+- [ ] Current hosted gate passes; state clearly that it is not a machine/OS boot
+- [ ] Every archived record has scope, substrate, replay status, core revision,
+      and repository-relative artifact path:
+
+| artifact / command | proof scope | substrate | replay | core revision |
+|--------------------|-------------|-----------|--------|---------------|
+| `<path or command>` | `<hosted-adapter / adapter-machine-harness / full-os-boot / physical-os-boot>` | `<host process / QEMU / QEMU+KVM / physical model>` | `<reproducible / recorded-only / unarchived-not-replayable>` | `<commit>` |
+
+- [ ] Machine/OS log shows `bbp_init` returned BBP_OK on that substrate
 - [ ] bbp_verify_blob called on every out-of-line payload consumed
+- [ ] Physical hardware is claimed only when the artifact identifies physical
+      hardware; KVM acceleration is still emulator evidence
 
 ## Deviations / known gaps
 <list anything not done, with why. Honesty here is the whole point.>

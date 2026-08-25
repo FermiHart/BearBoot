@@ -4,6 +4,50 @@ All notable changes. BBP wire compatibility uses `MAJOR.MINOR`: MAJOR bumps on
 an ABI break and MINOR on backward-compatible wire additions. SDK packages use
 independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
+## BearBoot SDK 1.4.0 (BBP wire 1.1) - 2026-08-25
+
+Release candidate prepared in-tree. The signed tag, release assets, and public
+release remain pending the release workflow.
+
+### Added / proven (Waves 16-24)
+- Higher-half request-array symbols are stamped as physical addresses through
+  their containing ELF64 `PT_LOAD`; malformed or non-loadable symbols fail
+  without modifying the image.
+- `make qemu-uefi-loader` exercises the constrained x86_64 loader end to end
+  under OVMF/TCG: bounded ELF64 loading, stamped HEADER requests, final memory
+  map and `ExitBootServices`, four-level paging/HHDM, three required v1.1 tags,
+  and RDI transfer into the kernel parser. This is a complete proof of that
+  constrained contract, not a general-purpose or production firmware loader.
+- `make qemu-uefi-tcg2` discovers UEFI TCG2 in OVMF, extends SHA-256 evidence
+  into PCR 16 of `swtpm`, publishes and consumes a CRC-sealed v1.1 SECURITY
+  measurement log, and independently verifies the persistent PCR value. It is
+  not Secure Boot, firmware identity, production provisioning, or physical TPM
+  evidence.
+- RFC 0004 and `make auth2-test` provide an offline host proof for exact-extent
+  ECDSA P-256/SHA-256 envelopes, root-signed key manifests, key lifecycle and
+  recovery policy. This is not a firmware verifier or Secure Boot implementation.
+- `make rollback-test` proves a persistent alternating A/B journal, torn-write
+  recovery, writer serialization, sequence CAS, release/recovery roles, and a
+  caller-injected monotonic floor. The included floor provider is a hosted test
+  double, not physical TPM NV or a firmware counter.
+- All four OSIF ports expose and run a common hosted gate against the current
+  checkout. Historical external emulator/OS records remain separately labeled;
+  Linux 0.01's reported in-kernel run remains unarchived.
+- A closed execution-evidence v1 schema separates hosted, emulator, and physical
+  identity, raw serial, command status, and artifact digests. Unauthenticated
+  physical claims are rejected as proof by default; no physical PASS proof is
+  shipped.
+- C, host, and dependency-free `no_std` Rust packages carry explicit experimental
+  v2 capsule/Profile 0/HMAC framing and byte-identical vectors. v2/auth remain
+  Draft, offline, non-publishable where applicable, and outside frozen wire 1.1.
+
+### Release policy (Wave 25)
+- Publication is a hardened draft-first transaction with an exact 15-asset
+  allowlist, checksum and Sigstore re-verification, run/commit/tag ownership,
+  resumable `--clobber` uploads, remote digest reconciliation, and publication
+  only after every check passes. It refuses foreign, unexpected, or already
+  published drafts and does not delete release objects.
+
 ## BearBoot SDK 1.3.0 (BBP wire 1.1) - 2026-08-24
 
 ### Added

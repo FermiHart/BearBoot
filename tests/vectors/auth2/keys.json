@@ -1,0 +1,16 @@
+[
+  {
+    "public_key": "release.public.pem",
+    "role": "release",
+    "activation_generation": 1,
+    "retirement_generation": 20,
+    "revoked": false
+  },
+  {
+    "public_key": "recovery.public.pem",
+    "role": "recovery",
+    "activation_generation": 1,
+    "retirement_generation": 20,
+    "revoked": false
+  }
+]

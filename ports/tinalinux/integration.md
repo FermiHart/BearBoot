@@ -181,7 +181,8 @@ surfaced at link and were fixed (no BBP involvement):
 --------------------------------------------------------------------------
 ## 7. Tech debt / future work
 
-- Route the ACPI subsystem through `bbp_tina_get_rsdp()` (CRC-verified RSDP) to
+- Route the ACPI subsystem through `bbp_tina_get_rsdp()` (CRC-verified pointer;
+  the pointed-to RSDP still needs normal ACPI validation) to
   replace the legacy low-memory RSDP scan — the accessor is shipped.
 - Populate the ACPI tag's xsdt_address / acpi_version by parsing the RSDP.
 - Bump BBP_TINA_ARENA_ORDER if a future consumer adds many large tags.

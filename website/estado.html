@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
-<!-- Snapshot editorial do release SDK 1.3.0 em 2026-08-24. -->
+<!-- Snapshot editorial do candidato SDK 1.4.0 em 2026-08-25. -->
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
@@ -108,7 +108,7 @@ h2{font:700 clamp(2.4rem,6vw,5.4rem)/.92 var(--serif);letter-spacing:-.055em;max
 .checkpoint p{color:#c9bb98}
 .checkpoint code{color:var(--paper)}
 .next{position:relative;overflow:hidden;border:1px solid #2d6844;background:linear-gradient(125deg,#0c1911,#0a0e0b);padding:clamp(1.5rem,5vw,4rem)}
-.next::after{content:"AARCH64";position:absolute;right:-.04em;bottom:-.3em;font:900 clamp(5rem,14vw,12rem)/1 var(--mono);letter-spacing:-.09em;color:rgba(77,255,136,.035)}
+.next::after{content:"1.4 RC";position:absolute;right:-.04em;bottom:-.3em;font:900 clamp(5rem,14vw,12rem)/1 var(--mono);letter-spacing:-.09em;color:rgba(77,255,136,.035)}
 .next .kicker{color:var(--green)}
 .next h3{position:relative;z-index:1;font:700 clamp(3rem,8vw,7rem)/.82 var(--serif);letter-spacing:-.07em;max-width:9ch}
 .next-intro{position:relative;z-index:1;max-width:48rem;margin:1.5rem 0 2rem;color:#bdc8be}
@@ -145,7 +145,7 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
 <a class="skip" href="#conteudo">Pular para o conteúdo</a>
 <nav aria-label="Navegação da retrospectiva">
   <a class="brand" href="index.html">FERMI ∞ HART / BEARBOOT</a>
-  <div class="nav-state">RELEASE <b>2026-08-24</b><br>SDK <b>1.3.0 / WIRE 1.1</b></div>
+  <div class="nav-state">CANDIDATO <b>2026-08-25</b><br>SDK <b>1.4.0 / WIRE 1.1</b></div>
 </nav>
 
 <main id="conteudo">
@@ -157,11 +157,11 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
         <p class="lede">O BearBoot deixou de ser apenas um protocolo forte dentro do próprio repositório. Hoje ele também é <b>produto empacotável, prova executável, ferramenta de inspeção e experimento de próxima geração.</b></p>
       </div>
       <aside class="hero-aside" aria-label="Resumo do estado atual">
-        <div class="signal"><small>LINHA ESTÁVEL</small><strong class="good">SDK 1.3.0 / wire 1.1</strong></div>
-        <div class="signal"><small>RELEASE</small><strong>Waves 11–15</strong></div>
+        <div class="signal"><small>CANDIDATO</small><strong class="good">SDK 1.4.0 / wire 1.1</strong></div>
+        <div class="signal"><small>FECHAMENTO</small><strong>Waves 16–25</strong></div>
         <div class="signal"><small>FRONTEIRA EXPERIMENTAL</small><strong>BBP v2 Draft / offline</strong></div>
-        <div class="signal"><small>REVISÃO PROVADA</small><strong class="good">ebc0573 / gates verdes</strong></div>
-        <div class="signal"><small>TAG ASSINADA</small><strong class="good">sdk-v1.3.0</strong></div>
+        <div class="signal"><small>ESTADO DO CORTE</small><strong class="warn">release candidate</strong></div>
+        <div class="signal"><small>TAG / RELEASE</small><strong class="warn">pendente do workflow</strong></div>
       </aside>
     </div>
     <div class="scroll" aria-hidden="true">LEIA / COMPARE / DECIDA</div>
@@ -174,12 +174,12 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
         <div><h2>O protocolo virou plataforma.</h2><p class="section-copy">A base continua pequena e congelada. O que cresceu ao redor dela foi a capacidade de <b>provar, importar, capturar, empacotar, distribuir e evoluir</b> sem confundir integridade com confiança.</p></div>
       </div>
       <div class="verdict">
-        <article><small>WAVES CONCLUÍDAS</small><b>15</b><p>A campanha fecha com multi-ISA, Profile 0, TPM2 e envelope autenticado.</p></article>
-        <article><small>DELTA PRÉ-WAVE 11</small><b>+10.4k</b><p>10.413 linhas adicionadas e 187 removidas em 83 arquivos até <code>327d209</code>.</p></article>
+        <article><small>WAVES CONCLUÍDAS</small><b>25</b><p>O fechamento 16–25 leva loader, TCG2, políticas de trust, evidência e release até um candidato verificável.</p></article>
+        <article><small>WAVES DESTE CORTE</small><b>10</b><p>Cada entrega tem gate e limite explícito; nenhuma transforma host proof em prova de firmware.</p></article>
         <article><small>INTEGRAÇÕES OSIF</small><b>4</b><p>TinaLinux, MINIX, Linux 0.01 e Josh-Bear na mesma seam, com níveis de prova distintos.</p></article>
         <article><small>VERSÕES ATIVAS</small><b>2</b><p>v1.1 congelada e utilizável; v2.0 Draft isolada e offline.</p></article>
       </div>
-      <div class="truth"><b>Leitura honesta:</b> SDK 1.3.0 continua usando a ABI v1.1 congelada. AArch64 e RV64 são provas de máquina, enquanto Profile 0, TPM2 e o envelope autenticado permanecem experimentais e não fazem do Draft v2 um wire implantado.</div>
+      <div class="truth"><b>Leitura honesta:</b> SDK 1.4.0 continua usando a ABI v1.1 congelada. O loader OVMF e o coletor TCG2 têm provas de máquina restritas; P-256 e rollback são host proofs; v2/auth continua experimental; não há prova física. O corte ainda aguarda tag e publicação pelo workflow.</div>
     </div>
   </section>
 
@@ -187,7 +187,7 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
     <div class="wrap">
       <div class="section-head">
         <div class="section-no">02 / ANTES E AGORA</div>
-        <div><h2>Mesma missão. Outro alcance.</h2><p class="section-copy">O corte compara a base anterior à campanha com o release SDK 1.3.0.</p></div>
+        <div><h2>Mesma missão. Outro alcance.</h2><p class="section-copy">O corte compara a base anterior à campanha com o candidato SDK 1.4.0.</p></div>
       </div>
       <div class="compare">
         <article class="era before">
@@ -205,16 +205,18 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
           <p class="era-note">A documentação pública ainda dizia “duas integrações”, embora Linux 0.01 e Josh-Bear já estivessem no código. A capacidade cresceu mais rápido que a narrativa.</p>
         </article>
         <article class="era now">
-          <div class="era-label">AGORA / PRODUTO + LABORATÓRIO</div>
+          <div class="era-label">AGORA / MÁQUINA + POLÍTICA + PRODUTO</div>
           <h3>Uma superfície consumível e auditável.</h3>
           <ul>
             <li><b><code>bbp_init_bounded()</code></b> fecha o parser sobre uma extensão mapeada conhecida em todos os ports.</li>
-            <li><b>QEMU e OVMF</b> executam builder e parser, exigem serial PASS, status distinto e timeout.</li>
+            <li><b>Loader OVMF restrito</b> executa ELF64, HEADER, EBS, paginação, tags e transferência RDI até o kernel.</li>
+            <li><b>UEFI TCG2</b> estende PCR16 em <code>swtpm</code> e publica SECURITY com log externo verificado.</li>
             <li><b><code>bbpctl</code> + BBPC v1</b> permitem capturar, verificar e reproduzir evidência no host.</li>
             <li><b>Importadores atômicos</b> normalizam Limine, Multiboot2 e snapshots UEFI.</li>
             <li><b>SDK C, host tools e Rust <code>no_std</code></b> são empacotados de forma reproduzível.</li>
-            <li><b>Release supply chain</b> ganhou manifests, SPDX no nível dos artefatos, Sigstore, tag assinada e gates isolados.</li>
-            <li><b>BBP v2 Draft</b> prova cápsula contígua, offsets relativos, digest canônico e bridge v1.1.</li>
+            <li><b>Quatro ports</b> rodam gates host atuais; registros externos mantêm proveniência histórica separada.</li>
+            <li><b>Release supply chain</b> ganhou draft retomável, allowlist exata, reconciliação remota e permissões isoladas.</li>
+            <li><b>BBP v2 Draft</b> chega aos pacotes C, Rust e host sem ganhar promessa de estabilidade.</li>
           </ul>
           <p class="era-note">A mudança central não é “mais features”. É uma geometria de confiança melhor: cada afirmação relevante ganhou um gate, um artefato ou um limite explícito.</p>
         </article>
@@ -226,7 +228,7 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
     <div class="wrap">
       <div class="section-head">
         <div class="section-no">03 / ÚLTIMAS WAVES</div>
-        <div><h2>O caminho que percorremos.</h2><p class="section-copy">A sequência parte do baseline histórico <code>6006356</code> e termina no corte SDK 1.3.0. Os nomes de wave registram entregas, não maturidade automática.</p></div>
+        <div><h2>O caminho que percorremos.</h2><p class="section-copy">A sequência preserva a campanha anterior e fecha as Waves 16–25 no candidato SDK 1.4.0. Os nomes registram entregas, não maturidade automática.</p></div>
       </div>
       <div class="timeline">
         <article class="step"><div class="step-id">01 / 7a8fab7</div><h3>Bounded handoff</h3><p>Endurecimento do core, inicialização fail-closed e framing canônico de evidência.</p></article>
@@ -244,6 +246,16 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
         <article class="step exp"><div class="step-id">WAVE 13 / RELEASE 1.3</div><h3>Profile 0</h3><p>Semântica nativa separada, vetores Python/C, fuzz estruturado e compilação x86_64, AArch64 e RV64.</p></article>
         <article class="step exp"><div class="step-id">WAVE 14 / RELEASE 1.3</div><h3>TPM2 measurement</h3><p>O digest canônico v2 é estendido no PCR 16 de um swtpm real e a equação do PCR é verificada.</p></article>
         <article class="step exp"><div class="step-id">WAVE 15 / RELEASE 1.3</div><h3>Authenticated envelope</h3><p>HMAC-SHA256 host-only rejeita adulteração, replay e rollback sem alegar assinatura pública ou Secure Boot.</p></article>
+        <article class="step"><div class="step-id">WAVE 16 / SDK 1.4 RC</div><h3>Request pointer físico</h3><p>O stamper traduz símbolos higher-half pelo <code>PT_LOAD</code> e falha sem alterar ELF em endereços não carregáveis.</p></article>
+        <article class="step"><div class="step-id">WAVE 17 / SDK 1.4 RC</div><h3>Loader OVMF restrito</h3><p><code>make qemu-uefi-loader</code> prova ELF64, HEADER, mapa final/EBS, paginação, HHDM, três tags e RDI no kernel x86_64.</p></article>
+        <article class="step"><div class="step-id">WAVE 18 / SDK 1.4 RC</div><h3>TCG2 + SECURITY</h3><p><code>make qemu-uefi-tcg2</code> usa o protocolo OVMF, estende PCR16 no <code>swtpm</code> e verifica log, CRC e PCR persistente.</p></article>
+        <article class="step exp"><div class="step-id">WAVE 19 / SDK 1.4 RC</div><h3>Public-key P-256</h3><p>ECDSA P-256/SHA-256, manifest assinado pela raiz e lifecycle de chaves são provados no host, não em firmware ou Secure Boot.</p></article>
+        <article class="step exp"><div class="step-id">WAVE 20 / SDK 1.4 RC</div><h3>Rollback A/B durável</h3><p>Journal alternado, fsync/replace, CAS, concorrência e recuperação obedecem a um floor monotônico injetado, não a TPM NV física.</p></article>
+        <article class="step"><div class="step-id">WAVE 21 / SDK 1.4 RC</div><h3>Quatro gates hosted</h3><p>TinaLinux, Linux 0.01, Josh-Bear e MINIX rodam a mesma interface host; logs externos continuam registros históricos separados.</p></article>
+        <article class="step"><div class="step-id">WAVE 22 / SDK 1.4 RC</div><h3>Execution evidence v1</h3><p>Schema fechado separa hosted, emulador e físico, liga serial raw e artefatos a hashes, status, timeout e marcador exato.</p></article>
+        <article class="step"><div class="step-id">WAVE 23 / SDK 1.4 RC</div><h3>Contrato de runner físico</h3><p>Identidade completa da placa e captura serial byte-exata são obrigatórias; fixtures não viram prova e nenhum PASS físico existe aqui.</p></article>
+        <article class="step exp"><div class="step-id">WAVE 24 / SDK 1.4 RC</div><h3>v2 nos SDKs</h3><p>C, Rust <code>no_std</code> e host compartilham vetor e exemplos v2/Profile 0/HMAC, todos experimentais, offline e fora do wire congelado.</p></article>
+        <article class="step"><div class="step-id">WAVE 25 / SDK 1.4 RC</div><h3>Release retomável</h3><p>Draft com ownership, allowlist de 15 assets, Sigstore, digests remotos e retomada do mesmo run precede qualquer publicação.</p></article>
       </div>
     </div>
   </section>
@@ -255,15 +267,16 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
         <div><h2>O que é real hoje.</h2><p class="section-copy">Verde significa prova reproduzível no repositório. Âmbar significa host-tested ou registro externo. Rosa continua sendo lacuna, sem marketing para escondê-la.</p></div>
       </div>
       <div class="status-grid">
-        <article class="status"><header><h3>WIRE v1.1</h3><span class="pill">LIVE</span></header><p>ABI congelada, CRC por estrutura, parser bounded, builder e evidência canônica. É a linha compatível do SDK 1.3.0.</p></article>
-        <article class="status"><header><h3>SDK 1.3.0</h3><span class="pill">RELEASE CUT</span></header><p>Pacotes C, host e Rust compartilham a versão, metadata e gates reproduzíveis.</p></article>
-        <article class="status"><header><h3>x86 / UEFI</h3><span class="pill">LIVE</span></header><p><code>make qemu</code> e <code>make qemu-uefi</code> exercitam round-trips reais sob TCG. O segundo não transforma o loader-esqueleto em loader completo.</p></article>
+        <article class="status"><header><h3>WIRE v1.1</h3><span class="pill">LIVE</span></header><p>ABI congelada, CRC por estrutura, parser bounded, builder e evidência canônica. É a linha compatível do SDK 1.4.0.</p></article>
+        <article class="status"><header><h3>SDK 1.4.0</h3><span class="pill host">RELEASE CANDIDATE</span></header><p>Pacotes C, host e Rust compartilham a versão e os gates; tag e release continuam pendentes do workflow.</p></article>
+        <article class="status"><header><h3>x86 / UEFI LOADER</h3><span class="pill">MACHINE PROOF</span></header><p><code>make qemu-uefi-loader</code> prova o contrato restrito completo sob OVMF/TCG; não é loader genérico nem firmware de produção.</p></article>
+        <article class="status"><header><h3>UEFI / TCG2</h3><span class="pill">MACHINE PROOF</span></header><p>PCR16 e SECURITY são provados com OVMF + <code>swtpm</code>; não significam Secure Boot, identidade de firmware ou TPM física.</p></article>
         <article class="status"><header><h3>QUATRO PORTS</h3><span class="pill host">MIXED PROOF</span></header><p>TinaLinux e MINIX têm registros de boot; Josh-Bear combina registro real e gate host; Linux 0.01 tem harness host e apenas um relato separado do boot in-kernel.</p></article>
         <article class="status"><header><h3>V2 CAPSULE</h3><span class="pill host">HOST-TESTED</span></header><p>Parser, builder, digest e bridge passam em <code>make v2-test</code>. O Draft é experimental, offline e fora da ABI v1.1.</p></article>
-        <article class="status"><header><h3>ARQUITETURAS</h3><span class="pill host">MULTI-ISA / SDK 1.3</span></header><p>AArch64/X0 e RV64/A0 têm provas de máquina, parser bounded e Device Trees gerados pelo QEMU. LoongArch continua roadmap.</p></article>
-        <article class="status"><header><h3>MEDIÇÃO</h3><span class="pill host">MACHINE PROOF</span></header><p><code>make tpm2-measure-test</code> estende o digest em um TPM2 emulado; ainda não existe produtor de firmware distribuído.</p></article>
-        <article class="status"><header><h3>AUTENTICIDADE</h3><span class="pill host">HOST PROOF</span></header><p>Envelope HMAC host-only liga um identificador de chave compartilhada a um índice monotônico global; não prova identidade pública, timestamp ou challenge-response.</p></article>
-        <article class="status"><header><h3>LOADER UEFI</h3><span class="pill gap">SKELETON</span></header><p>Coleta final, ELF load, paging, <code>ExitBootServices</code> e transferência do produtor de referência ainda são incompletos.</p></article>
+        <article class="status"><header><h3>ARQUITETURAS</h3><span class="pill host">MULTI-ISA</span></header><p>AArch64/X0 e RV64/A0 mantêm provas de máquina, parser bounded e Device Trees gerados pelo QEMU. LoongArch continua roadmap.</p></article>
+        <article class="status"><header><h3>P-256 + ROLLBACK</h3><span class="pill host">HOST PROOF</span></header><p>Autenticidade pública e journal A/B com floor injetado passam no host; não há verificador firmware nem TPM NV física.</p></article>
+        <article class="status"><header><h3>EVIDÊNCIA FÍSICA</h3><span class="pill gap">CONTRATO / SEM PROVA</span></header><p>O runner exige placa identificada e serial raw. O repositório não contém fixture PASS física nem execução física comprovada.</p></article>
+        <article class="status"><header><h3>RELEASE POLICY</h3><span class="pill host">HOST-TESTED</span></header><p>Draft retomável, ownership, assets exatos, Sigstore e digest remoto são testados; nenhuma publicação ocorreu neste corte.</p></article>
       </div>
     </div>
   </section>
@@ -272,25 +285,25 @@ footer{padding:2rem 0 3rem;border-top:1px solid var(--line);color:var(--muted);f
     <div class="wrap">
       <div class="section-head">
         <div class="section-no">05 / PRÓXIMA WAVE</div>
-        <div><h2>O corte 1.3 está pronto.</h2><p class="section-copy">As Waves 11–15 ampliaram as provas sem alterar a ABI. O próximo ciclo continua isolando experimentos v2 da linha estável.</p></div>
+        <div><h2>O candidato 1.4 está preparado.</h2><p class="section-copy">As Waves 16–25 fecharam provas e políticas sem alterar a ABI. Preparação local não equivale a tag ou release publicado.</p></div>
       </div>
       <div class="checkpoint">
         <strong>Release checkpoint</strong>
-        <p>SDK 1.3.0 publica as provas multi-ISA e os experimentos host-only, mantendo BBP wire v1.1 congelado e o Draft v2 explicitamente fora da ABI estável.</p>
+        <p>SDK 1.4.0 está pronto para o workflow de corte: BBP wire v1.1 permanece congelado, v2/auth permanece experimental, e publicação só ocorre após validação, assinatura, reconciliação do draft e promoção final.</p>
       </div>
       <div class="next">
-        <div class="kicker">Próximo ciclo / firmware trust</div>
-        <h3>Do host proof ao produtor real.</h3>
-        <p class="next-intro">Levar medição e autenticação a um produtor de firmware sem promover prematuramente a cápsula v2. A cápsula continua Draft e offline.</p>
+        <div class="kicker">Próximo passo / release workflow</div>
+        <h3>Validar, assinar, reconciliar.</h3>
+        <p class="next-intro">O candidato só vira release quando o tag assinado e o workflow isolado concluírem todos os gates. O Draft v2 continua offline durante esse processo.</p>
         <div class="deliverables">
-          <article><span>01</span><b>Firmware producer</b><p>Preencher SECURITY e measurement log a partir de extensões TPM reais.</p></article>
-          <article><span>02</span><b>Public-key policy</b><p>Definir assinatura, provisionamento e rotação sem depender de segredo HMAC compartilhado.</p></article>
-          <article><span>03</span><b>Hardware rollback</b><p>Ligar o índice monotônico a armazenamento resistente a reset e recuperação.</p></article>
-          <article><span>04</span><b>Malformed TPM</b><p>Testar respostas truncadas, oversized, timeout e códigos de erro do transporte.</p></article>
-          <article><span>05</span><b>Concurrency</b><p>Definir locking e recuperação do estado para múltiplos verificadores.</p></article>
-          <article><span>06</span><b>Freeze criteria</b><p>Registrar o que falta antes de qualquer promessa de wire v2 estável.</p></article>
+          <article><span>01</span><b>Tag assinado</b><p>Criar somente no commit de release, alcançável pela branch padrão.</p></article>
+          <article><span>02</span><b>Gates completos</b><p>Reexecutar host, Rust, ports e provas QEMU/OVMF no tag imutável.</p></article>
+          <article><span>03</span><b>Bytes reproduzíveis</b><p>Construir pacotes duas vezes e validar metadata, SPDX e SHA-256.</p></article>
+          <article><span>04</span><b>Assinatura isolada</b><p>Gerar bundles Sigstore sem entregar permissão de release ao código do tag.</p></article>
+          <article><span>05</span><b>Draft próprio</b><p>Criar ou retomar apenas o draft do mesmo tag, SHA e run ID.</p></article>
+          <article><span>06</span><b>Publicação final</b><p>Promover somente após nomes, tamanhos e digests remotos coincidirem.</p></article>
         </div>
-        <p class="after"><b>Regra:</b> o Draft v2 não será promovido apenas porque os testes estruturais e host proofs passam.</p>
+        <p class="after"><b>Regra:</b> nem SDK 1.4.0 nem o Draft v2 são publicados por declaração; o workflow precisa produzir a evidência.</p>
       </div>
     </div>
   </section>

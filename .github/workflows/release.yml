@@ -21,6 +21,8 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.package.outputs.version }}
+      tag_commit: ${{ steps.provenance.outputs.tag_commit }}
+      tag_object: ${{ steps.provenance.outputs.tag_object }}
     steps:
       - name: Validate release tag shape
         env:
@@ -40,12 +42,13 @@ jobs:
           persist-credentials: false
 
       - name: Verify tag identity and provenance
+        id: provenance
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           EVENT_SHA: ${{ github.sha }}
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
@@ -55,14 +58,19 @@ jobs:
           test "$(git rev-parse HEAD)" = "$tag_commit"
           test "$event_commit" = "$tag_commit"
           git merge-base --is-ancestor "$tag_commit" "refs/remotes/origin/$DEFAULT_BRANCH"
+          git -c gpg.ssh.allowedSignersFile=.github/release-signers \
+            -c gpg.minTrustLevel=fully \
+            verify-tag "refs/tags/$RELEASE_TAG"
 
-          if [[ "$(gh api "repos/$REPOSITORY/git/tags/$tag_object" \
+          if [[ "$(gh api "repos/$GH_REPO/git/tags/$tag_object" \
             --jq '.verification.verified')" != true ]]; then
-            reason="$(gh api "repos/$REPOSITORY/git/tags/$tag_object" \
+            reason="$(gh api "repos/$GH_REPO/git/tags/$tag_object" \
               --jq '.verification.reason')"
             echo "GitHub did not verify the annotated tag signature: $reason" >&2
             exit 1
           fi
+          printf 'tag_commit=%s\ntag_object=%s\n' \
+            "$tag_commit" "$tag_object" >> "$GITHUB_OUTPUT"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Install C, QEMU, and OVMF gates
@@ -71,7 +79,7 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             binutils-aarch64-linux-gnu binutils-riscv64-linux-gnu \
             build-essential clang gcc-aarch64-linux-gnu \
-            gcc-riscv64-linux-gnu jq lld ovmf \
+            gcc-riscv64-linux-gnu jq lld openssl ovmf \
             qemu-system-arm qemu-system-misc qemu-system-x86 swtpm
 
       - name: Install Rust stable and MSRV 1.77
@@ -109,10 +117,10 @@ jobs:
           make qemu-aarch64
           make qemu-riscv64
           make qemu-uefi
+          make qemu-uefi-loader
+          make qemu-uefi-tcg2
           make ports-check CROSS=
-          make -C ports/tinalinux test
-          make -C ports/linux01 test
-          make -C ports/josh test
+          make ports-hosted-check
 
       - name: Build and compare release assets twice
         id: package
@@ -182,6 +190,7 @@ jobs:
           name: release-input-${{ github.sha }}
           path: build/release/*
           if-no-files-found: error
+          overwrite: true
           compression-level: 0
           retention-days: 1
 
@@ -264,6 +273,7 @@ jobs:
           name: release-${{ github.ref_name }}
           path: release/*
           if-no-files-found: error
+          overwrite: true
           compression-level: 0
           retention-days: 30
 
@@ -286,6 +296,41 @@ jobs:
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
+          assets=(
+            "release/bearboot-c-sdk-$VERSION.tar.gz"
+            "release/bearboot-host-tools-$VERSION.tar.gz"
+            "release/bbp-wire-$VERSION.crate"
+            "release/SUPPORT-MATRIX.json"
+            "release/bearboot-sdk-$VERSION.spdx.json"
+            "release/SHA256SUMS"
+            "release/bearboot-c-sdk-$VERSION.tar.gz.sigstore.json"
+            "release/bearboot-host-tools-$VERSION.tar.gz.sigstore.json"
+            "release/bbp-wire-$VERSION.crate.sigstore.json"
+            "release/SUPPORT-MATRIX.json.sigstore.json"
+            "release/bearboot-sdk-$VERSION.spdx.json.sigstore.json"
+            "release/SHA256SUMS.sigstore.json"
+            "release/bearboot-c-sdk-$VERSION.tar.gz.sbom.sigstore.json"
+            "release/bearboot-host-tools-$VERSION.tar.gz.sbom.sigstore.json"
+            "release/bbp-wire-$VERSION.crate.sbom.sigstore.json"
+          )
+          shopt -s nullglob
+          actual=(release/*)
+          test "${#actual[@]}" -eq "${#assets[@]}"
+          for file in "${assets[@]}"; do test -f "$file"; done
+          (cd release && sha256sum --check SHA256SUMS)
+
+      - name: Install Cosign for publication checks
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.3
+
+      - name: Reverify Sigstore bundles
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          issuer="https://token.actions.githubusercontent.com"
+          identity="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/.github/workflows/release.yml@$GITHUB_REF"
           payloads=(
             "release/bearboot-c-sdk-$VERSION.tar.gz"
             "release/bearboot-host-tools-$VERSION.tar.gz"
@@ -294,37 +339,223 @@ jobs:
             "release/bearboot-sdk-$VERSION.spdx.json"
             "release/SHA256SUMS"
           )
-          expected=("${payloads[@]}")
           for file in "${payloads[@]}"; do
-            expected+=("$file.sigstore.json")
+            cosign verify-blob \
+              --bundle "$file.sigstore.json" \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer "$issuer" \
+              "$file"
           done
           for file in "${payloads[@]:0:3}"; do
-            expected+=("$file.sbom.sigstore.json")
+            cosign verify-blob-attestation --type spdxjson \
+              --bundle "$file.sbom.sigstore.json" \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer "$issuer" \
+              "$file"
           done
-          shopt -s nullglob
-          actual=(release/*)
-          test "${#actual[@]}" -eq "${#expected[@]}"
-          for file in "${expected[@]}"; do test -f "$file"; done
-          (cd release && sha256sum --check SHA256SUMS)
 
-      - name: Create GitHub release
+      - name: Create or resume owned draft
+        id: draft
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
+          TAG_COMMIT: ${{ needs.validate.outputs.tag_commit }}
+          TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "release $RELEASE_TAG already exists; refusing to replace it" >&2
-            exit 1
-          fi
+          assert_remote_tag() {
+            ref="$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG")"
+            test "$(jq -r '.object.type' <<<"$ref")" = tag
+            test "$(jq -r '.object.sha' <<<"$ref")" = "$TAG_OBJECT"
+            test "$(gh api "repos/$GH_REPO/git/tags/$TAG_OBJECT" \
+              --jq '.object.sha')" = "$TAG_COMMIT"
+          }
+          assert_remote_tag
+          marker="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$GITHUB_SHA run_id=$GITHUB_RUN_ID -->"
           notes="$RUNNER_TEMP/release-notes.md"
-          printf '%s\n\n%s\n%s\n' \
+          printf '%s\n\n%s\n\n%s\n%s\n' \
+            "$marker" \
             "Reproducible C SDK, host tools, and no_std Rust crate for BBP wire 1.1." \
             "Verify SHA256SUMS and the accompanying Sigstore bundles before use." \
             "The crate is not automatically published to crates.io." > "$notes"
-          gh release create "$RELEASE_TAG" release/* \
-            --verify-tag \
-            --title "BearBoot SDK $VERSION (BBP wire 1.1)" \
-            --notes-file "$notes"
+
+          release_stream="$(gh api --paginate \
+            "repos/$GH_REPO/releases?per_page=100" --jq '.[]')"
+          matches="$(jq -s -c --arg tag "$RELEASE_TAG" \
+            '[.[] | select(.tag_name == $tag)]' <<<"$release_stream")"
+          count="$(jq 'length' <<<"$matches")"
+          if [[ "$count" -eq 0 ]]; then
+            gh release create "$RELEASE_TAG" \
+              --draft \
+              --verify-tag \
+              --title "BearBoot SDK $VERSION (BBP wire 1.1)" \
+              --notes-file "$notes"
+            release_stream="$(gh api --paginate \
+              "repos/$GH_REPO/releases?per_page=100" --jq '.[]')"
+            matches="$(jq -s -c --arg tag "$RELEASE_TAG" \
+              '[.[] | select(.tag_name == $tag)]' <<<"$release_stream")"
+            count="$(jq 'length' <<<"$matches")"
+          fi
+          if [[ "$count" -ne 1 ]]; then
+            echo "refusing release tag with an ambiguous GitHub release" >&2
+            exit 1
+          fi
+          assert_remote_tag
+          release="$(jq -c '.[0]' <<<"$matches")"
+          if ! jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --arg marker "$marker" \
+            '.draft == true and .published_at == null and
+             .tag_name == $tag and
+             ((.body // "") | startswith($marker + "\n"))' \
+            <<<"$release" >/dev/null; then
+            echo "refusing to replace a published or unrelated release" >&2
+            exit 1
+          fi
+          printf 'release_id=%s\n' "$(jq -r '.id' <<<"$release")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload exact assets to owned draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          marker="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$GITHUB_SHA run_id=$GITHUB_RUN_ID -->"
+          assets=(
+            "release/bearboot-c-sdk-$VERSION.tar.gz"
+            "release/bearboot-host-tools-$VERSION.tar.gz"
+            "release/bbp-wire-$VERSION.crate"
+            "release/SUPPORT-MATRIX.json"
+            "release/bearboot-sdk-$VERSION.spdx.json"
+            "release/SHA256SUMS"
+            "release/bearboot-c-sdk-$VERSION.tar.gz.sigstore.json"
+            "release/bearboot-host-tools-$VERSION.tar.gz.sigstore.json"
+            "release/bbp-wire-$VERSION.crate.sigstore.json"
+            "release/SUPPORT-MATRIX.json.sigstore.json"
+            "release/bearboot-sdk-$VERSION.spdx.json.sigstore.json"
+            "release/SHA256SUMS.sigstore.json"
+            "release/bearboot-c-sdk-$VERSION.tar.gz.sbom.sigstore.json"
+            "release/bearboot-host-tools-$VERSION.tar.gz.sbom.sigstore.json"
+            "release/bbp-wire-$VERSION.crate.sbom.sigstore.json"
+          )
+
+          assert_owned_draft() {
+            gh api "repos/$GH_REPO/releases/$RELEASE_ID" | jq -e \
+              --argjson id "$RELEASE_ID" \
+              --arg tag "$RELEASE_TAG" \
+              --arg marker "$marker" \
+              '.id == $id and .draft == true and .published_at == null and
+               .tag_name == $tag and
+               ((.body // "") | startswith($marker + "\n"))' >/dev/null
+          }
+          assert_owned_draft
+
+          expected_names="$RUNNER_TEMP/expected-release-assets"
+          remote_names="$RUNNER_TEMP/existing-release-assets"
+          for file in "${assets[@]}"; do basename "$file"; done | sort > "$expected_names"
+          gh api --paginate "repos/$GH_REPO/releases/$RELEASE_ID/assets?per_page=100" \
+            --jq '.[].name' | sort > "$remote_names"
+          if [[ -n "$(comm -23 "$remote_names" "$expected_names")" ]]; then
+            echo "refusing to clobber a draft containing an unexpected asset" >&2
+            exit 1
+          fi
+
+          remote_stream="$(gh api --paginate \
+            "repos/$GH_REPO/releases/$RELEASE_ID/assets?per_page=100" --jq '.[]')"
+          remote="$(jq -s -c '.' <<<"$remote_stream")"
+          for file in "${assets[@]}"; do
+            name="$(basename "$file")"
+            while read -r asset_id; do
+              [[ -z "$asset_id" ]] || gh api --method DELETE \
+                "repos/$GH_REPO/releases/assets/$asset_id" --silent
+            done < <(jq -r --arg name "$name" \
+              '.[] | select(.name == $name) | .id' <<<"$remote")
+            assert_owned_draft
+            gh api --method POST \
+              "https://uploads.github.com/repos/$GH_REPO/releases/$RELEASE_ID/assets?name=$name" \
+              --header "Content-Type: application/octet-stream" \
+              --input "$file" --silent
+          done
+          assert_owned_draft
+
+      - name: Verify remote assets and publish owned draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          TAG_COMMIT: ${{ needs.validate.outputs.tag_commit }}
+          TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          assets=(
+            "release/bearboot-c-sdk-$VERSION.tar.gz"
+            "release/bearboot-host-tools-$VERSION.tar.gz"
+            "release/bbp-wire-$VERSION.crate"
+            "release/SUPPORT-MATRIX.json"
+            "release/bearboot-sdk-$VERSION.spdx.json"
+            "release/SHA256SUMS"
+            "release/bearboot-c-sdk-$VERSION.tar.gz.sigstore.json"
+            "release/bearboot-host-tools-$VERSION.tar.gz.sigstore.json"
+            "release/bbp-wire-$VERSION.crate.sigstore.json"
+            "release/SUPPORT-MATRIX.json.sigstore.json"
+            "release/bearboot-sdk-$VERSION.spdx.json.sigstore.json"
+            "release/SHA256SUMS.sigstore.json"
+            "release/bearboot-c-sdk-$VERSION.tar.gz.sbom.sigstore.json"
+            "release/bearboot-host-tools-$VERSION.tar.gz.sbom.sigstore.json"
+            "release/bbp-wire-$VERSION.crate.sbom.sigstore.json"
+          )
+          assert_remote_tag() {
+            ref="$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG")"
+            test "$(jq -r '.object.type' <<<"$ref")" = tag
+            test "$(jq -r '.object.sha' <<<"$ref")" = "$TAG_OBJECT"
+            test "$(gh api "repos/$GH_REPO/git/tags/$TAG_OBJECT" \
+              --jq '.object.sha')" = "$TAG_COMMIT"
+          }
+          assert_remote_assets() {
+            remote_stream="$(gh api --paginate \
+              "repos/$GH_REPO/releases/$RELEASE_ID/assets?per_page=100" --jq '.[]')"
+            remote="$(jq -s -c '.' <<<"$remote_stream")"
+            test "$(jq 'length' <<<"$remote")" -eq "${#assets[@]}"
+            for file in "${assets[@]}"; do
+              name="$(basename "$file")"
+              size="$(stat -c '%s' "$file")"
+              digest="sha256:$(sha256sum "$file" | cut -d ' ' -f 1)"
+              jq -e \
+                --arg name "$name" \
+                --argjson size "$size" \
+                --arg digest "$digest" \
+                '[.[] | select(.name == $name and .size == $size and
+                  .digest == $digest)] | length == 1' \
+                <<<"$remote" >/dev/null
+            done
+          }
+          assert_remote_tag
+          assert_remote_assets
+
+          # Keep reconciliation and publication in one step so no workflow
+          # boundary exists between the final digest check and promotion.
+          marker="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$GITHUB_SHA run_id=$GITHUB_RUN_ID -->"
+          release="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID")"
+          jq -e \
+            --argjson id "$RELEASE_ID" \
+            --arg tag "$RELEASE_TAG" \
+            --arg marker "$marker" \
+            '.id == $id and .draft == true and .published_at == null and
+             .tag_name == $tag and
+             ((.body // "") | startswith($marker + "\n"))' \
+            <<<"$release" >/dev/null
+          assert_remote_tag
+          assert_remote_assets
+          gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
+            -F draft=false --silent
+          assert_remote_tag
+          assert_remote_assets
+          gh api "repos/$GH_REPO/releases/$RELEASE_ID" --jq \
+            'select(.draft == false and .published_at != null)' >/dev/null

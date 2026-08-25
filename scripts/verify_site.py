@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ABI = (ROOT / "include/bbp/bbp.h").read_text(encoding="utf-8")
 SDK_VERSION = (ROOT / "sdk/VERSION").read_text(encoding="ascii").strip()
+SDK_SERIES = SDK_VERSION.rsplit(".", 1)[0]
 SITE = ROOT / "website/index.html"
 STATE_PAGE = ROOT / "website/estado.html"
 PAGES_ENTRY = ROOT / "index.html"
@@ -51,10 +52,15 @@ def main():
         "make importers-test",
         "make bbpctl-test",
         "make sdk-check release-metadata-test",
-        "make tpm2-measure-test",
-        "global rollback floor",
-        "signed-tag release workflow emits and verifies",
-        "requires serial PASS",
+        "make qemu-uefi-loader",
+        "make qemu-uefi-tcg2",
+        "make auth2-test rollback-test",
+        "make ports-hosted-check evidence-check",
+        "injected monotonic floor",
+        "exact serial PASS",
+        "release candidate",
+        "cut pending workflow",
+        "no physical PASS proof",
         "hero-proof-geometry.svg",
     ):
         require(token in page, f"site contract missing: {token}")
@@ -65,10 +71,15 @@ def main():
     require("<script src=" not in page, "site must not depend on remote scripts")
     require('href="estado.html"' in page, "site does not link the current-state page")
     for token in (
-        "SDK 1.3.0 / wire 1.1",
+        f"SDK {SDK_VERSION} / wire {major}.{minor}",
         "BBP v2 Draft / offline",
         "AArch64 boot proof",
         "Release checkpoint",
+        f"WAVE 16 / SDK {SDK_SERIES} RC",
+        f"WAVE 25 / SDK {SDK_SERIES} RC",
+        "TCG2 + SECURITY",
+        "release candidate",
+        "nenhum PASS físico",
         "INTEGRAÇÕES OSIF",
         "Linux 0.01 tem harness host",
         "integridade com confiança",
@@ -95,6 +106,13 @@ def main():
             "current-state page carries stale worktree claim")
     require("PROVAS DE SO" not in state_page,
             "current-state page conflates OSIF integrations with boot proofs")
+    presented_versions = set(re.findall(
+        r"SDK (\d+\.\d+\.\d+)", page + state_page
+    ))
+    require(presented_versions == {SDK_VERSION},
+            f"site SDK versions drifted from {SDK_VERSION}: {presented_versions}")
+    require(f"releases/tag/sdk-v{SDK_VERSION}" not in page,
+            f"site claims SDK {SDK_VERSION} before workflow publication")
     for document, name in ((page, "site"), (state_page, "current-state page")):
         ids = set(re.findall(r'\bid="([^"]+)"', document))
         fragments = set(re.findall(r'href="#([^"]+)"', document))
@@ -108,7 +126,8 @@ def main():
         require(stale not in page, f"site carries stale or overstated claim: {stale}")
     require((ROOT / "readme/hero-proof-geometry.svg").exists(), "desktop geometry missing")
     require((ROOT / "readme/hero-proof-geometry-mobile.svg").exists(), "mobile geometry missing")
-    print(f"BearBoot site: PASS (ABI {major}.{minor}, {len(tags)} tags, 4 integration records)")
+    print(f"BearBoot site: PASS (SDK {SDK_VERSION} RC, ABI {major}.{minor}, "
+          f"{len(tags)} tags, 4 integration records)")
     return 0
 
 

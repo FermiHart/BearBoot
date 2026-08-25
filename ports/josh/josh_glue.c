@@ -119,23 +119,24 @@ static uint64_t rdtsc64(void)
     return ((uint64_t)hi << 32) | lo;
 }
 
-/* Fill buf with the best available entropy. Returns the source name for logging
- * ("rdseed"/"rdrand"/"tsc"). Mixes a TSC sample into every word so even the
- * hardware paths carry some timing jitter. */
-static const char *gather_boot_entropy(uint8_t *buf, uint32_t len)
+/* Fill buf only from a hardware RNG. Timing is mixed as auxiliary input but is
+ * never accepted as a fallback entropy source. */
+static int gather_boot_entropy(uint8_t *buf, uint32_t len, const char **source)
 {
     int seed = have_rdseed();
     int rand = have_rdrand();
     const char *src = seed ? "rdseed" : (rand ? "rdrand" : "tsc");
+    if (!seed && !rand) return 0;
     for (uint32_t i = 0; i < len; i += 8) {
         uint64_t w = 0;
-        if (!(seed && rdseed64(&w)) && !(rand && rdrand64(&w)))
-            w = rdtsc64() * 0x9E3779B97F4A7C15ull;   /* weak fallback */
-        w ^= rdtsc64();                               /* always mix timing */
+        if ((seed && !rdseed64(&w)) || (!seed && !rdrand64(&w)))
+            return 0;
+        w ^= rdtsc64();
         for (uint32_t j = 0; j < 8 && (i + j) < len; j++)
             buf[i + j] = (uint8_t)(w >> (8 * j));
     }
-    return src;
+    *source = src;
+    return 1;
 }
 
 /* Map a Limine framebuffer bpp to a BBP pixel format (best-effort: most Limine
@@ -186,12 +187,19 @@ int bbp_josh_init(void)
     struct limine_framebuffer_response *fbr = limine_get_framebuffer();
     if (fbr && fbr->framebuffer_count > 0 && fbr->framebuffers[0]) {
         struct limine_framebuffer *fb = fbr->framebuffers[0];
-        bi.fb_address      = (uint64_t)(uintptr_t)fb->address; /* HHDM-virt; see note */
-        bi.fb_pitch        = (uint32_t)fb->pitch;
-        bi.fb_width        = (uint16_t)fb->width;
-        bi.fb_height       = (uint16_t)fb->height;
-        bi.fb_bpp          = (uint16_t)fb->bpp;
-        bi.fb_pixel_format = fb_format_for_bpp((uint16_t)fb->bpp);
+        uint64_t virtual_address = (uint64_t)(uintptr_t)fb->address;
+        /* Limine exposes the framebuffer through its HHDM alias; BBP carries
+         * the underlying physical address in the FRAMEBUFFER tag. */
+        if (virtual_address < bi.hhdm_offset) {
+            kserial_puts("[BBP] WARN: framebuffer is outside the HHDM\r\n");
+        } else {
+            bi.fb_address      = virtual_address - bi.hhdm_offset;
+            bi.fb_pitch        = (uint32_t)fb->pitch;
+            bi.fb_width        = (uint16_t)fb->width;
+            bi.fb_height       = (uint16_t)fb->height;
+            bi.fb_bpp          = (uint16_t)fb->bpp;
+            bi.fb_pixel_format = fb_format_for_bpp((uint16_t)fb->bpp);
+        }
     }
 
     /* SMP — Josh is multicore (the minix port never emitted this tag). */
@@ -215,11 +223,15 @@ int bbp_josh_init(void)
      * Limine. (When one is added, point bi.cmdline at it; the adapter seals
      * its string_crc and the consumer must bbp_verify_blob() it.) */
 
-    /* Boot entropy → BBP SECURITY tag (root-of-trust seed for the CSPRNG). */
+    /* Boot entropy -> BBP SECURITY tag only when the hardware RNG succeeds. */
     static uint8_t seedbuf[JOSH_ENTROPY_BYTES];
-    const char *esrc = gather_boot_entropy(seedbuf, sizeof(seedbuf));
-    bi.entropy     = seedbuf;
-    bi.entropy_len = sizeof(seedbuf);
+    const char *esrc = NULL;
+    if (gather_boot_entropy(seedbuf, sizeof(seedbuf), &esrc)) {
+        bi.entropy = seedbuf;
+        bi.entropy_len = sizeof(seedbuf);
+    } else {
+        kserial_puts("[BBP] WARN: hardware RNG unavailable; no entropy tag\r\n");
+    }
 
     bbp_status_t st = bbp_josh_adapter(&g_josh_kctx, &bi);
     if (st != BBP_OK) {
@@ -240,7 +252,7 @@ int bbp_josh_init(void)
     kserial_puts(" (CRC-sealed, parser-validated)\r\n");
 
     /* CONSUME the SECURITY tag: verify the entropy blob's CRC (ADR-0006) BEFORE
-     * trusting it, then publish it as the boot root-of-trust seed (the Rust
+     * trusting it, then publish it as a hardware-backed boot seed (the Rust
      * CSPRNG draws from josh_bbp_entropy()). This is BBP in the READ path, not
      * just synthesized: a corrupt seed is rejected rather than silently used. */
     const struct bbp_tag_security *se =
@@ -260,7 +272,7 @@ int bbp_josh_init(void)
             kserial_puthex(n);
             kserial_puts(" bytes via ");
             kserial_puts(esrc);
-            kserial_puts(", CRC ok (root-of-trust seed)\r\n");
+            kserial_puts(", CRC ok (hardware-backed seed)\r\n");
         } else {
             kserial_puts("[BBP] boot entropy CRC FAILED — discarded\r\n");
         }

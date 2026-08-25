@@ -14,10 +14,14 @@ IMPORT_SOURCES := $(ROOT)/bootloader/bbp_import.c \
 	$(ROOT)/bootloader/bbp_import_multiboot2.c \
 	$(ROOT)/bootloader/bbp_import_uefi.c
 IMPORT_OBJECTS := $(patsubst $(ROOT)/bootloader/%.c,$(BUILD)/%.o,$(IMPORT_SOURCES))
+V2_SOURCES := $(ROOT)/v2/bbp_v2.c $(ROOT)/v2/bbp_v2_profile.c \
+	$(ROOT)/v2/bbp_v2_auth.c
+V2_OBJECTS := $(patsubst $(ROOT)/v2/%.c,$(BUILD)/%.o,$(V2_SOURCES))
 CONFORMANCE := $(BUILD)/bbp_sdk_conformance
+V2_PROFILE := $(BUILD)/v2_profile_roundtrip
 REPORT := $(BUILD)/conformance.json
 
-.PHONY: all onboarding compile-sdk conformance report clean
+.PHONY: all onboarding compile-sdk conformance v2-profile-roundtrip report clean
 
 all: compile-sdk
 
@@ -26,10 +30,13 @@ onboarding: compile-sdk report
 	@echo "BBP SDK onboarding: PASS"
 	@echo "Deterministic report: $(REPORT)"
 
-compile-sdk: $(CONFORMANCE) $(IMPORT_OBJECTS)
+compile-sdk: $(CONFORMANCE) $(IMPORT_OBJECTS) $(V2_OBJECTS)
 
 conformance: $(CONFORMANCE)
 	@$(CONFORMANCE) --json
+
+v2-profile-roundtrip: $(V2_PROFILE)
+	@$(V2_PROFILE)
 
 report: $(CONFORMANCE)
 	@mkdir -p $(BUILD)
@@ -48,6 +55,20 @@ $(IMPORT_OBJECTS): $(BUILD)/%.o: $(ROOT)/bootloader/%.c \
 		$(ROOT)/include/bbp/bbp.h $(ROOT)/include/bbp/bbp_crc64.h
 	@mkdir -p $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(V2_OBJECTS): $(BUILD)/%.o: $(ROOT)/v2/%.c \
+		$(ROOT)/include/bbp/bbp_v2.h $(ROOT)/include/bbp/bbp_v2_profile.h \
+		$(ROOT)/include/bbp/bbp_v2_auth.h $(ROOT)/include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(V2_PROFILE): $(ROOT)/examples/v2_profile_roundtrip.c \
+		$(ROOT)/v2/bbp_v2.c $(ROOT)/v2/bbp_v2_profile.c \
+		$(ROOT)/include/bbp/bbp_v2.h $(ROOT)/include/bbp/bbp_v2_profile.h \
+		$(ROOT)/include/bbp/bbp_crc64.h
+	@mkdir -p $(BUILD)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ROOT)/examples/v2_profile_roundtrip.c \
+		$(ROOT)/v2/bbp_v2.c $(ROOT)/v2/bbp_v2_profile.c -o $@
 
 clean:
 	rm -rf $(BUILD)
