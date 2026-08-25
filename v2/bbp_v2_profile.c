@@ -61,11 +61,15 @@ bbp_v2_status_t bbp_v2_p0_validate(const struct bbp_v2_view *capsule,
             if (entry.size < sizeof(struct bbp_v2_p0_memory_header))
                 return BBP_V2_ERR_FORMAT;
             count = get32(entry.data);
-            if (count == 0 || count > 4096 || get32(entry.data + 4) != 32
-                || (uint64_t)count * 32u != entry.size - 8u)
+            if (count == 0 || count > 4096
+                || get32(entry.data + 4) != BBP_V2_P0_MEMORY_ENTRY_SIZE
+                || (uint64_t)count * BBP_V2_P0_MEMORY_ENTRY_SIZE !=
+                   entry.size - sizeof(struct bbp_v2_p0_memory_header))
                 return BBP_V2_ERR_FORMAT;
             for (j = 0; j < count; j++) {
-                const uint8_t *memory = entry.data + 8u + (size_t)j * 32u;
+                const uint8_t *memory = entry.data +
+                    sizeof(struct bbp_v2_p0_memory_header) +
+                    (size_t)j * BBP_V2_P0_MEMORY_ENTRY_SIZE;
                 uint64_t base = get64(memory);
                 uint64_t length = get64(memory + 8);
                 if (length == 0 || base > UINT64_MAX - length

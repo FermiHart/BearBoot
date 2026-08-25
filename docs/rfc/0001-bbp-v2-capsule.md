@@ -3,7 +3,7 @@
 - Status: **Draft**
 - Deployment: **Offline only**
 - Wire version: 2.0
-- Updated: 2026-08-22
+- Updated: 2026-08-25
 
 This RFC defines an experimental, contiguous Bear Boot Protocol capsule. It
 does not alter, extend, or negotiate the frozen BBP v1.1 ABI. A v2 producer and
@@ -207,3 +207,21 @@ transport, which is why deployment is offline only.
 Native experimental semantics are defined separately by Profile 0 in
 `docs/rfc/0002-bbp-v2-profile-0.md`; the generic capsule parser remains
 registry-independent.
+
+## Shared Draft corpus
+
+`tests/vectors/bbp-v2-corpus-v1.txt` is the authoritative generated corpus for
+current Draft framing and Profile 0 behavior. Its 46 bounded positive and
+negative cases are consumed byte-for-byte by C, dependency-free Rust, and an
+independent Python validator. It includes compact and padded construction,
+physical relocation, semantic digest expectations, generic malformed inputs,
+and every current Profile 0 rule family.
+
+`python3 tools/generate_v2_corpus.py --check` proves deterministic repository
+generation. `make v2-vectors-test` checks normalized accept/reject outcomes,
+exact C generic rejection classes, output atomicity, decoded Profile 0 values,
+and semantic SHA-256 digests. The same repository corpus is consumed by Rust's
+host tests but remains outside the SDK 1.4.0 package allowlists. Native status
+taxonomies remain implementation-specific. Corpus agreement records the current
+Draft baseline; it does not freeze the wire, assign registries, or authorize
+online deployment.

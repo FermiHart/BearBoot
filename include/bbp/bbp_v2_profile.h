@@ -47,22 +47,46 @@ struct bbp_v2_p0_devicetree_header {
 _Static_assert(sizeof(struct bbp_v2_p0_identity) == 16, "p0 identity ABI");
 _Static_assert(offsetof(struct bbp_v2_p0_identity, architecture) == 0,
                "p0 identity architecture ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_identity, reserved0) == 2,
+               "p0 identity reserved0 ABI");
 _Static_assert(offsetof(struct bbp_v2_p0_identity, cpu_count) == 4,
                "p0 identity cpu_count ABI");
 _Static_assert(offsetof(struct bbp_v2_p0_identity, flags) == 8,
                "p0 identity flags ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_identity, reserved1) == 12,
+               "p0 identity reserved1 ABI");
 _Static_assert(sizeof(struct bbp_v2_p0_memory_header) == 8,
                "p0 memory header ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_memory_header, entry_count) == 0,
+               "p0 memory header count ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_memory_header, entry_size) == 4,
+               "p0 memory header stride ABI");
 _Static_assert(sizeof(struct bbp_v2_p0_memory_entry) == 32,
                "p0 memory entry ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_memory_entry, base) == 0,
+               "p0 memory entry base ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_memory_entry, length) == 8,
+               "p0 memory entry length ABI");
 _Static_assert(offsetof(struct bbp_v2_p0_memory_entry, type) == 16,
                "p0 memory entry type ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_memory_entry, attributes) == 20,
+               "p0 memory entry attributes ABI");
 _Static_assert(offsetof(struct bbp_v2_p0_memory_entry, numa_node) == 24,
                "p0 memory entry numa ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_memory_entry, reserved) == 28,
+               "p0 memory entry reserved ABI");
 _Static_assert(sizeof(struct bbp_v2_p0_kernel_address) == 16,
                "p0 kernel ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_kernel_address, physical_base) == 0,
+               "p0 kernel physical ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_kernel_address, virtual_base) == 8,
+               "p0 kernel virtual ABI");
 _Static_assert(sizeof(struct bbp_v2_p0_devicetree_header) == 8,
                "p0 Device Tree header ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_devicetree_header, flags) == 0,
+               "p0 Device Tree flags ABI");
+_Static_assert(offsetof(struct bbp_v2_p0_devicetree_header, dtb_size) == 4,
+               "p0 Device Tree size ABI");
 
 struct bbp_v2_p0_view {
     uint16_t architecture;
@@ -74,7 +98,8 @@ struct bbp_v2_p0_view {
     uint32_t dtb_size;
 };
 
-/* Revalidates the complete borrowed capsule before applying Profile 0. */
+/* Revalidates the complete borrowed capsule before applying Profile 0. Failure
+ * leaves out unchanged. A successful out->dtb borrows the capsule extent. */
 bbp_v2_status_t bbp_v2_p0_validate(const struct bbp_v2_view *capsule,
                                     struct bbp_v2_p0_view *out);
 

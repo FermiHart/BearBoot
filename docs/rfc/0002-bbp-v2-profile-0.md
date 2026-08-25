@@ -120,8 +120,10 @@ Profile 0 cannot be promoted until the project defines:
 
 - `make v2-profile-test` covers required, duplicate, unknown, malformed, and
   stale-view behavior.
-- `make v2-vectors-test` uses an independent Python encoder and the C parser
-  across canonical and physically relocated capsule layouts.
+- `make v2-vectors-test` consumes the generated 46-case corpus in C and an
+  independent Python validator, including every current field-rule family,
+  output atomicity, canonical digests, and physically relocated layouts. The
+  same repository corpus is consumed directly by Rust under `make sdk-check`.
 - `make v2-fuzz` combines arbitrary framing with checksum-valid capsules whose
   Profile 0 payloads are mutated, so the semantic validator is reached.
 - `make v2-portability` cross-compiles the freestanding implementation for

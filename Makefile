@@ -61,7 +61,8 @@ V2_HEADERS := include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h bridge/bbp_bridg
 	site-preview sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test \
 	sdk-check sdk-package release-metadata-test v2-test
 
-.PHONY: v2-portability v2-profile-test v2-vectors-test v2-fuzz v2-auth-test \
+.PHONY: v2-portability v2-profile-test v2-corpus-check v2-vectors-test \
+	v2-fuzz v2-auth-test \
 	bbp-stamp-test uefi-ebs-test uefi-elf-test uefi-loader-contract-test \
 	security-collector-test tpm2-response-test tpm2-measure-test \
 	auth-envelope-test auth2-test \
@@ -490,7 +491,10 @@ $(BUILD)/v2_profile_selftest: tests/v2_profile_selftest.c v2/bbp_v2.c v2/bbp_v2_
 	@mkdir -p $(BUILD)
 	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/v2_profile_selftest.c v2/bbp_v2.c v2/bbp_v2_profile.c -o $@
 
-v2-vectors-test: $(BUILD)/libbbp_v2_vectors.so
+v2-corpus-check:
+	$(PYTHON) tools/generate_v2_corpus.py --check
+
+v2-vectors-test: v2-corpus-check $(BUILD)/libbbp_v2_vectors.so
 	$(PYTHON) tests/test_v2_vectors.py $(BUILD)/libbbp_v2_vectors.so
 $(BUILD)/libbbp_v2_vectors.so: v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
 	@mkdir -p $(BUILD)

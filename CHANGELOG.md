@@ -6,6 +6,19 @@ independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
 ## Unreleased
 
+### BBP v2 shared Draft corpus (Wave 27)
+- A deterministic 46-case corpus now covers accepted physical layouts, generic
+  framing failures, and every current Profile 0 rule family in C, Rust, and
+  independent Python validators.
+- `make v2-vectors-test` checks generated corpus freshness, C failure atomicity,
+  semantic digests, Profile 0 values, and byte identity with the existing
+  authenticated vector; the corpus remains outside SDK 1.4.0 allowlists.
+- Profile 0 now guards every normative packed-field offset and uses its existing
+  stride constant without claiming a frozen registry or wire ABI.
+- Capsule and Profile 0 remain offline Drafts; profile identity, critical-entry
+  behavior, registries, memory policy, Device Tree policy, and compatibility are
+  still explicit blockers.
+
 ### BBP v2 freeze preparation (Wave 26)
 - The one-shot builder rejects descriptor, payload, output, and result-pointer
   aliasing before modification, closing a failure-atomicity gap in the Draft API.

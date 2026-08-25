@@ -128,7 +128,7 @@ make importers-test # host-test bounded boot-source translation and failures
 make bbpctl-test   # verify host capture parsing, evidence, and corrupt fixtures
 make v2-test       # adversarial v2 capsule, digest, and v1.1 bridge proof
 make v2-profile-test # validate experimental native Profile 0 semantics
-make v2-vectors-test # independent Python encoder consumed by the C parser
+make v2-vectors-test # shared 46-case C/Python Draft corpus gate
 make v2-fuzz       # bounded malformed capsule + Profile 0 campaign
 make tpm2-measure-test # extend the canonical v2 measurement into an emulated TPM2 PCR
 make auth-envelope-test # host-only HMAC authentication and anti-rollback policy
@@ -185,8 +185,10 @@ The separate BBP v2 contiguous capsule is an offline-only Draft. It does not
 change or negotiate the frozen v1.1 ABI. `make v2-test` proves its bounded
 parser, deterministic builder, layout-independent digest stream, and explicit
 v1.1 bridge. Experimental Profile 0 adds a separate semantic validator without
-coupling the generic parser to a registry; see `docs/rfc/0001-bbp-v2-capsule.md`
-and `docs/rfc/0002-bbp-v2-profile-0.md`.
+coupling the generic parser to a registry. A generated positive/negative corpus
+pins the current Draft behavior across C, Rust, and an independent Python
+validator without freezing the wire; see `docs/rfc/0001-bbp-v2-capsule.md` and
+`docs/rfc/0002-bbp-v2-profile-0.md`.
 
 The importer suite translates bounded Limine snapshots, raw Multiboot2 bytes,
 and normalized final UEFI snapshots into the same BBP builder. It proves
@@ -199,8 +201,8 @@ The C SDK, host tools, and Rust crate share release version `1.4.0`.
 The compatible boot wire remains frozen BBP v1.1. The C, host, and Rust package
 allowlists now include experimental offline v2/Profile 0/HMAC surfaces and a
 shared canonical vector; those APIs remain Draft, are not negotiated from v1.1,
-and carry no v2 stability or registry-publication claim. Build the archives, then
-exercise the same flow an extracted C consumer runs:
+and carry no v2 stability or registry-publication claim. Build the archives,
+then exercise the same flow an extracted C consumer runs:
 
 ```sh
 make sdk-package
