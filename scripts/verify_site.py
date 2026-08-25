@@ -102,6 +102,8 @@ def main():
     require("does not yet launch QEMU" not in page, "site carries stale QEMU claim")
     require("MULTI-ISA LIVE / UNRELEASED" not in page,
             "site carries stale architecture release claim")
+    require(re.search(r"\bRC\b", page + state_page) is None,
+            "site carries a stale release-candidate label")
     require("+ WORKTREE" not in state_page,
             "current-state page carries stale worktree claim")
     require("PROVAS DE SO" not in state_page,
