@@ -4,6 +4,19 @@ All notable changes. BBP wire compatibility uses `MAJOR.MINOR`: MAJOR bumps on
 an ABI break and MINOR on backward-compatible wire additions. SDK packages use
 independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
+## Unreleased
+
+### BBP v2 freeze preparation (Wave 26)
+- The one-shot builder rejects descriptor, payload, output, and result-pointer
+  aliasing before modification, closing a failure-atomicity gap in the Draft API.
+- Profile 0 reparses its borrowed capsule before semantic validation so a
+  mutation that invalidates framing, padding, or CRC does not publish output.
+- ADR 0020 defines executable capsule, profile, authentication, deployment, and
+  freeze stages; Profile 0 remains Draft pending profile identity, critical
+  entries, registries, Device Tree semantics, and compatibility policy.
+- RFCs now state exact borrowed-view, aliasing, current Profile 0 field, and
+  cooperating-writer lock behavior without broadening any v1.1 claim.
+
 ## BearBoot SDK 1.4.0 (BBP wire 1.1) - 2026-08-25
 
 Published from signed tag

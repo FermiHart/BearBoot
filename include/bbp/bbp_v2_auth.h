@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
+/* Experimental host-oriented v2 HMAC framing. Not a deployment key policy. */
 #ifndef BBP_V2_AUTH_H
 #define BBP_V2_AUTH_H
 

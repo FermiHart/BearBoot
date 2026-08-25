@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
+/* Experimental BBP v2 capsule framing. Not a frozen or deployed boot ABI. */
 #ifndef BBP_V2_H
 #define BBP_V2_H
 
@@ -145,18 +146,23 @@ struct bbp_v2_build_entry {
 };
 
 typedef void (*bbp_v2_digest_update_fn)(void *state, const void *data,
-                                        size_t size);
+                                         size_t size);
 
+/* Successful views borrow capsule storage. The complete supplied extent must
+ * remain readable and immutable while a view or derived entry is in use. */
 bbp_v2_status_t bbp_v2_parse(const void *capsule, size_t extent,
-                             struct bbp_v2_view *out);
+                              struct bbp_v2_view *out);
 bbp_v2_status_t bbp_v2_get_entry(const struct bbp_v2_view *view,
                                  uint32_t index,
                                  struct bbp_v2_entry_view *out);
+/* Aliases involving written and errors that prevent proving its disjointness
+ * leave written unchanged; other failures set it to zero. */
 bbp_v2_status_t bbp_v2_build(void *output, size_t capacity,
-                             const struct bbp_v2_build_entry *entries,
-                             uint32_t entry_count, size_t *written);
+                              const struct bbp_v2_build_entry *entries,
+                              uint32_t entry_count, size_t *written);
+/* The update callback must not mutate the borrowed capsule extent. */
 bbp_v2_status_t bbp_v2_digest(const struct bbp_v2_view *view,
-                              bbp_v2_digest_update_fn update, void *state);
+                               bbp_v2_digest_update_fn update, void *state);
 const char *bbp_v2_strstatus(bbp_v2_status_t status);
 
 #endif

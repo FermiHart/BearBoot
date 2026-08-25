@@ -149,8 +149,8 @@ static void test_truncation_overflow_and_caps(void)
     memset(forged, 0xa5, sizeof(forged));
     huge = (struct bbp_v2_build_entry){1, 0, 1, 8, capsule, SIZE_MAX};
     CHECK(bbp_v2_build(forged, sizeof(forged), &huge, 1, &rejected_size) ==
-          BBP_V2_ERR_OVERFLOW && rejected_size == 0,
-          "builder rejects arithmetic overflow");
+          BBP_V2_ERR_OVERFLOW && rejected_size == 123,
+          "builder rejects a wrapping source without touching written");
     for (i = 0; i < sizeof(forged); i++) {
         if (forged[i] != 0xa5) {
             CHECK(0, "builder failure leaves destination unchanged");
@@ -208,6 +208,107 @@ static void test_overlap_alignment_crc_and_padding(void)
         }
     }
     CHECK(second > first, "builder emits non-overlapping payload offsets");
+}
+
+static void test_builder_control_aliases(void)
+{
+    static const uint8_t payload[] = {1, 2, 3, 4};
+    union {
+        max_align_t alignment;
+        struct bbp_v2_build_entry entry;
+        uint8_t bytes[512];
+    } storage;
+    union {
+        max_align_t alignment;
+        uint8_t bytes[16];
+    } source;
+    struct bbp_v2_build_entry *entries;
+    uint8_t before[sizeof(storage.bytes)];
+    uint8_t source_before[sizeof(source.bytes)];
+    size_t written = 123;
+
+    memset(storage.bytes, 0xa5, sizeof(storage.bytes));
+    entries = &storage.entry;
+    *entries = (struct bbp_v2_build_entry){
+        UINT64_C(0x1234), 0, 1, 8, payload, sizeof(payload)
+    };
+    memcpy(before, storage.bytes, sizeof(before));
+    CHECK(bbp_v2_build(storage.bytes, sizeof(storage.bytes), entries, 1,
+                       &written) == BBP_V2_ERR_SOURCE,
+          "builder rejects descriptor metadata inside its output extent");
+    CHECK(written == 0 && memcmp(storage.bytes, before, sizeof(before)) == 0,
+          "descriptor alias rejection leaves destination unchanged");
+
+    memset(storage.bytes, 0xa5, sizeof(storage.bytes));
+    memcpy(before, storage.bytes, sizeof(before));
+    {
+        const struct bbp_v2_build_entry external = {
+            UINT64_C(0x1234), 0, 1, 8, payload, sizeof(payload)
+        };
+        CHECK(bbp_v2_build(storage.bytes, sizeof(storage.bytes), &external, 1,
+                           (size_t *)(void *)storage.bytes) ==
+              BBP_V2_ERR_SOURCE,
+              "builder rejects written metadata inside its output buffer");
+    }
+    CHECK(memcmp(storage.bytes, before, sizeof(before)) == 0,
+          "written alias rejection leaves destination unchanged");
+
+    memset(storage.bytes, 0xa5, sizeof(storage.bytes));
+    storage.entry = (struct bbp_v2_build_entry){
+        UINT64_C(0x1234), 0, 1, 8, payload, sizeof(payload)
+    };
+    memcpy(before, storage.bytes, sizeof(before));
+    CHECK(bbp_v2_build(before, sizeof(before), &storage.entry, 1,
+                       (size_t *)(void *)&storage.entry) ==
+          BBP_V2_ERR_SOURCE,
+          "builder rejects written metadata inside its descriptor array");
+    CHECK(memcmp(storage.bytes, before, sizeof(before)) == 0,
+          "descriptor metadata remains unchanged on written alias rejection");
+
+    memset(source.bytes, 0x5a, sizeof(source.bytes));
+    memcpy(source_before, source.bytes, sizeof(source_before));
+    entries = &(struct bbp_v2_build_entry){
+        UINT64_C(0x1234), 0, 1, 8, source.bytes, sizeof(source.bytes)
+    };
+    CHECK(bbp_v2_build(storage.bytes, sizeof(storage.bytes), entries, 1,
+                       (size_t *)(void *)source.bytes) ==
+          BBP_V2_ERR_SOURCE,
+          "builder rejects written metadata inside a payload source");
+    CHECK(memcmp(source.bytes, source_before, sizeof(source_before)) == 0,
+          "payload remains unchanged on written alias rejection");
+
+    CHECK(bbp_v2_build(NULL, sizeof(storage.bytes), entries, 1,
+                       (size_t *)(void *)source.bytes) ==
+          BBP_V2_ERR_SOURCE,
+          "NULL output does not hide a written-payload alias");
+    CHECK(memcmp(source.bytes, source_before, sizeof(source_before)) == 0,
+          "early output failure leaves aliased payload metadata unchanged");
+
+    CHECK(bbp_v2_build(before, sizeof(before), &storage.entry,
+                       BBP_V2_MAX_ENTRIES + 1u,
+                       (size_t *)(void *)&storage.entry) ==
+          BBP_V2_ERR_COUNT,
+          "unbounded descriptor count is rejected without inspecting sources");
+    CHECK(memcmp(storage.bytes, before, sizeof(before)) == 0,
+          "count rejection leaves potentially aliased written unchanged");
+
+    entries = &(struct bbp_v2_build_entry){
+        UINT64_C(0x1234), 0, 1, 8, source.bytes, SIZE_MAX
+    };
+    CHECK(bbp_v2_build(storage.bytes, sizeof(storage.bytes), entries, 1,
+                       (size_t *)(void *)source.bytes) ==
+          BBP_V2_ERR_OVERFLOW,
+          "wrapping payload source is rejected before clearing written");
+    CHECK(memcmp(source.bytes, source_before, sizeof(source_before)) == 0,
+          "wrapping payload rejection leaves source metadata unchanged");
+
+    entries = &(struct bbp_v2_build_entry){
+        UINT64_C(0x1234), 0, 1, 8, source.bytes, sizeof(source.bytes)
+    };
+    written = 123;
+    CHECK(bbp_v2_build(NULL, sizeof(storage.bytes), entries, 1, &written) ==
+          BBP_V2_ERR_NULL && written == 0,
+          "ordinary early failure clears a non-aliased written result");
 }
 
 static void fnv_update(void *state, const void *data, size_t size)
@@ -388,6 +489,7 @@ int main(void)
     test_layout_and_roundtrip();
     test_truncation_overflow_and_caps();
     test_overlap_alignment_crc_and_padding();
+    test_builder_control_aliases();
     test_relayout_digest();
     test_bridge_roundtrip_and_policy();
     printf("BBP v2 selftest: %s (%d failures)\n",

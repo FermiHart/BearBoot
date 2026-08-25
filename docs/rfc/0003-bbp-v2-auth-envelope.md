@@ -68,9 +68,9 @@ verifier; cryptographic HMAC correctness is pinned by Python's standard library.
 
 ## Limitations
 
-Rollback state is deliberately **single-writer only**. There is no file lock,
-compare-and-swap, concurrent-writer recovery, hardware monotonic counter, or
-transaction spanning capsule use and state replacement. Callers must serialize
-all acceptance attempts for a state path. This draft also does not specify
-public-key signatures, confidentiality, firmware key provisioning, key
-revocation, or rollback-state recovery.
+Rollback state is serialized for cooperating local writers with an advisory
+POSIX `flock` on a sidecar lock file. There is no compare-and-swap sequence,
+noncooperating-writer protection, concurrent-writer recovery, hardware monotonic
+counter, or transaction spanning capsule use and state replacement. This draft
+also does not specify public-key signatures, confidentiality, firmware key
+provisioning, key revocation, or rollback-state recovery.

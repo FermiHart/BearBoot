@@ -26,3 +26,4 @@ Format: Status / Context / Decision / Consequences.
 | 0017 | Firmware-independent SECURITY measurement collector | Accepted |
 | 0018 | Durable generation and recovery policy              | Accepted |
 | 0019 | Experimental v2 SDK surfaces                        | Accepted |
+| 0020 | BBP v2 freeze requires executable gates             | Accepted |

@@ -39,7 +39,7 @@ Legend:
 | Constrained x86_64 UEFI loader | 🟢 MACHINE PROOF | `make qemu-uefi-loader` executes bounded higher-half ELF64 loading, physical request resolution, final map/EBS, four-level identity+HHDM paging, three required v1.1 tags, and RDI kernel transfer under OVMF/TCG; complete for this constrained contract, not a general-purpose or production loader |
 | AArch64 X0 + Device Tree proof | 🟢 LIVE | `make qemu-aarch64` boots a raw Image on QEMU `virt`, constructs memory-map/kernel-address tags, carries a CRC-sealed copy of QEMU's X0 DTB, re-enters the consumer with INFO in X0, and rejects payload/tag tamper; not an OS port |
 | RV64 A0 + Device Tree proof | 🟢 LIVE | `make qemu-riscv64` boots through OpenSBI on QEMU `virt`, constructs memory-map/kernel-address tags, carries a CRC-sealed copy of QEMU's A1 DTB, re-enters the consumer with INFO in A0, and rejects payload/tag tamper; not an OS port |
-| BBP v2 contiguous capsule Draft | 🟢 HOST-TESTED / MULTI-ISA COMPILED | offline-only parser, deterministic builder, canonical digest, v1.1 bridge, independent vectors, fuzzing, native Profile 0, and C/Rust/host package surfaces; layout, auth, and profile remain experimental, not frozen, deployed, or negotiated from v1.1 |
+| BBP v2 contiguous capsule Draft | 🟢 HOST-TESTED / MULTI-ISA COMPILED | offline-only parser, failure-atomic deterministic builder, canonical digest, v1.1 bridge, independent vectors, fuzzing, native Profile 0, and C/Rust/host package surfaces; Wave 26 closes control-alias and CRC-stale-view gaps, while profile identity, critical entries, registries, auth, deployment, and freeze remain unresolved |
 
 ## OS integrations (the OSIF seam)
 

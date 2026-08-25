@@ -39,10 +39,11 @@ The complete capsule is:
 3. one nonempty payload span per directory entry; and
 4. zero-filled bytes everywhere not occupied by those spans.
 
-Header, directory, and payload spans may be physically re-laid out subject to
-their alignment and non-overlap rules. All references to objects inside the
-capsule are offsets from byte zero. Absolute addresses are never capsule
-references.
+The header is fixed at byte zero. Directory and payload spans may be physically
+re-laid out subject to their alignment and non-overlap rules. All references to
+objects inside the capsule are offsets from byte zero. Absolute addresses are
+never capsule references. Zero trailing padding is accepted; the deterministic
+builder emits no padding after its final payload.
 
 ## Header Layout
 
@@ -117,6 +118,17 @@ lowest offset satisfying each requested alignment, zeroes every gap, computes
 payload CRCs, and computes the capsule CRC last. Identical calls produce
 byte-identical extents. Any error leaves destination bytes unchanged.
 
+The descriptor array must not overlap the output extent, payload sources must
+not overlap their resulting output extent, and `written` must not point into the
+output buffer, descriptor array, or a payload source. These conditions are
+rejected before output or source bytes are modified. Descriptor and payload
+bytes must remain immutable for the complete call.
+
+On success, `written` receives the complete extent. Ordinary failures set it to
+zero after `written` has been proven disjoint from input and output ranges. An
+alias involving `written`, excessive entry count, or wrapping source extent
+leaves `written` unchanged because safe disjointness cannot be established.
+
 ## Canonical Digest Stream
 
 `bbp_v2_digest` has no cryptographic dependency. A caller supplies an
@@ -134,6 +146,11 @@ following bytes are fed in order:
 Offsets, alignments, CRC values, and padding are omitted. Consequently a
 physical re-layout with unchanged semantic order and payloads yields the same
 digest stream. Reordering entries changes the stream.
+
+Parsed views and entry views borrow the caller's capsule storage. That complete
+extent must remain readable and immutable until all derived views are discarded.
+Digest callbacks must not mutate it while the stream is emitted. This is a
+caller-enforced lifetime rule; CRC validation is not a lock or a copy.
 
 ## v1.1 Bridge
 
