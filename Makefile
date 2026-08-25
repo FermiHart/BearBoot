@@ -28,6 +28,10 @@ CC        := $(CROSS)gcc
 LD        := $(CROSS)ld
 HOSTCC   ?= cc
 PYTHON   ?= python3
+HOST_NM       ?= nm
+HOST_OBJCOPY  ?= objcopy
+HOST_OBJDUMP  ?= objdump
+HOST_READELF  ?= readelf
 
 INCLUDE   := -Iinclude
 
@@ -53,6 +57,43 @@ IMPORT_OBJECTS := $(patsubst bootloader/%.c,$(BUILD)/%.o,$(IMPORT_SOURCES))
 BBP_HEADERS := include/bbp/bbp.h include/bbp/bbp_crc64.h \
 	bootloader/bbp_build.h bootloader/bbp_import.h kernel/bbp_kernel.h
 V2_HEADERS := include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h bridge/bbp_bridge.h
+AUTH2_BEARSSL_ROOT := third_party/bearssl
+AUTH2_BEARSSL_SOURCES := \
+	$(AUTH2_BEARSSL_ROOT)/src/codec/ccopy.c \
+	$(AUTH2_BEARSSL_ROOT)/src/codec/dec32be.c \
+	$(AUTH2_BEARSSL_ROOT)/src/codec/enc32be.c \
+	$(AUTH2_BEARSSL_ROOT)/src/ec/ec_p256_m15.c \
+	$(AUTH2_BEARSSL_ROOT)/src/ec/ec_secp256r1.c \
+	$(AUTH2_BEARSSL_ROOT)/src/ec/ec_secp384r1.c \
+	$(AUTH2_BEARSSL_ROOT)/src/ec/ec_secp521r1.c \
+	$(AUTH2_BEARSSL_ROOT)/src/ec/ecdsa_i15_bits.c \
+	$(AUTH2_BEARSSL_ROOT)/src/ec/ecdsa_i15_vrfy_raw.c \
+	$(AUTH2_BEARSSL_ROOT)/src/hash/sha2small.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_add.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_bitlen.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_decode.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_decmod.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_encode.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_fmont.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_iszero.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_modpow.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_montmul.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_muladd.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_ninv15.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_rshift.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_sub.c \
+	$(AUTH2_BEARSSL_ROOT)/src/int/i15_tmont.c
+AUTH2_BEARSSL_OBJECTS := $(patsubst $(AUTH2_BEARSSL_ROOT)/%.c,\
+	$(BUILD)/auth2-bearssl/%.o,$(AUTH2_BEARSSL_SOURCES))
+AUTH2_BEARSSL_FLAGS := -ffreestanding -fno-builtin -fno-stack-protector \
+	-fno-tree-loop-distribute-patterns \
+	-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
+	-Dmemcpy=bbp_auth2_memcpy -Dmemmove=bbp_auth2_memmove \
+	-Dmemset=bbp_auth2_memset -I$(AUTH2_BEARSSL_ROOT)/inc \
+	-I$(AUTH2_BEARSSL_ROOT)
+AUTH2_BEARSSL_HEADERS := $(AUTH2_BEARSSL_ROOT)/inner.h \
+	$(AUTH2_BEARSSL_ROOT)/config.h \
+	$(wildcard $(AUTH2_BEARSSL_ROOT)/inc/*.h)
 
 .PHONY: all test abi freestanding kernel fuzz check clean qemu qemu-aarch64 \
 	qemu-riscv64 \
@@ -65,7 +106,8 @@ V2_HEADERS := include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h bridge/bbp_bridg
 	v2-fuzz v2-auth-test \
 	bbp-stamp-test uefi-ebs-test uefi-elf-test uefi-loader-contract-test \
 	security-collector-test tpm2-response-test tpm2-measure-test \
-	auth-envelope-test auth2-test \
+	auth-envelope-test auth2-test auth2-freestanding-test auth2-portability \
+	auth2-sanitize-test auth2-vendor-check auth2-c-vectors \
 	rollback-test evidence-check port-inventory-test ports-hosted-check
 
 .PHONY: release-policy-test
@@ -230,6 +272,7 @@ $(BUILD)/roundtrip.elf: tests/boot32.S tests/qemu_roundtrip.c \
 # ---- AArch64 raw Image: QEMU FDT in X0 -> BBP INFO in X0 ------------------
 AARCH64_CC       ?= aarch64-linux-gnu-gcc
 AARCH64_OBJCOPY  ?= aarch64-linux-gnu-objcopy
+AARCH64_NM       ?= aarch64-linux-gnu-nm
 QEMU_AARCH64     ?= qemu-system-aarch64
 AARCH64_SERIAL   ?= $(BUILD)/qemu-aarch64-serial.log
 AARCH64_ELF      := $(BUILD)/roundtrip-aarch64.elf
@@ -294,6 +337,8 @@ $(AARCH64_IMAGE): $(AARCH64_ELF)
 
 # ---- RV64 OpenSBI payload: QEMU FDT in A1 -> BBP INFO in A0 ---------------
 RISCV64_CC      ?= riscv64-linux-gnu-gcc
+RISCV64_OBJCOPY ?= riscv64-linux-gnu-objcopy
+RISCV64_NM      ?= riscv64-linux-gnu-nm
 QEMU_RISCV64    ?= qemu-system-riscv64
 RISCV64_SERIAL  ?= $(BUILD)/qemu-riscv64-serial.log
 RISCV64_ELF     := $(BUILD)/roundtrip-riscv64.elf
@@ -582,6 +627,91 @@ auth-envelope-test: v2-auth-test
 auth2-test:
 	$(PYTHON) -m unittest tests.test_auth2
 
+auth2-vendor-check:
+	sha256sum -c $(AUTH2_BEARSSL_ROOT)/SHA256SUMS
+
+auth2-freestanding-test: auth2-c-vectors $(BUILD)/auth2_freestanding_selftest
+	$(BUILD)/auth2_freestanding_selftest
+
+auth2-c-vectors: $(BUILD)/auth2-vectors/.stamp
+
+$(BUILD)/auth2-vectors/.stamp: tests/generate_auth2_c_vectors.py \
+		tests/vectors/auth2/manifest.auth2 \
+		tests/vectors/auth2/root.test-only.private.pem \
+		tests/vectors/auth2/release.public.pem experimental/auth2/auth2.py
+	@mkdir -p $(BUILD)/auth2-vectors
+	$(PYTHON) tests/generate_auth2_c_vectors.py $(BUILD)/auth2-vectors
+	@touch $@
+
+$(BUILD)/auth2_freestanding_selftest: tests/auth2_freestanding_selftest.c \
+		v2/bbp_auth2.c v2/bbp_auth2_crypto.c v2/bbp_auth2_crypto.h \
+		include/bbp/bbp_auth2.h $(AUTH2_BEARSSL_OBJECTS)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) -I$(AUTH2_BEARSSL_ROOT)/inc \
+		-DBBP_AUTH2_TEST_VECTOR_DIR='"$(BUILD)/auth2-vectors"' \
+		tests/auth2_freestanding_selftest.c v2/bbp_auth2.c \
+		v2/bbp_auth2_crypto.c $(AUTH2_BEARSSL_OBJECTS) -o $@
+
+$(BUILD)/auth2-bearssl/%.o: $(AUTH2_BEARSSL_ROOT)/%.c \
+		$(AUTH2_BEARSSL_HEADERS)
+	@mkdir -p $(dir $@)
+	$(HOSTCC) $(HOSTFLAGS) $(AUTH2_BEARSSL_FLAGS) -c $< -o $@
+
+AUTH2_PORTABLE_FLAGS := $(V2_PORTABLE_FLAGS) $(AUTH2_BEARSSL_FLAGS) \
+	-r -nostdlib -Wl,--defsym,memcpy=bbp_auth2_memcpy \
+	-Wl,--defsym,memmove=bbp_auth2_memmove \
+	-Wl,--defsym,memset=bbp_auth2_memset -Wframe-larger-than=2048
+AUTH2_PUBLIC_SYMBOL_FLAGS := \
+	-G bbp_auth2_verify_manifest -G bbp_auth2_verify_envelope \
+	-G bbp_auth2_status_string
+
+auth2-portability:
+	@mkdir -p $(BUILD)/auth2-portability
+	$(V2_X86_64_CC) $(AUTH2_PORTABLE_FLAGS) -mno-sse -mno-mmx v2/bbp_auth2.c \
+		v2/bbp_auth2_crypto.c $(AUTH2_BEARSSL_SOURCES) \
+		-o $(BUILD)/auth2-portability/auth2-x86_64.o
+	$(HOST_OBJCOPY) $(AUTH2_PUBLIC_SYMBOL_FLAGS) \
+		$(BUILD)/auth2-portability/auth2-x86_64.o
+	$(AARCH64_CC) $(AUTH2_PORTABLE_FLAGS) -mgeneral-regs-only \
+		v2/bbp_auth2.c v2/bbp_auth2_crypto.c $(AUTH2_BEARSSL_SOURCES) \
+		-o $(BUILD)/auth2-portability/auth2-aarch64.o
+	$(AARCH64_OBJCOPY) $(AUTH2_PUBLIC_SYMBOL_FLAGS) \
+		$(BUILD)/auth2-portability/auth2-aarch64.o
+	$(RISCV64_CC) $(AUTH2_PORTABLE_FLAGS) -march=rv64imac_zicsr -mabi=lp64 \
+		v2/bbp_auth2.c v2/bbp_auth2_crypto.c $(AUTH2_BEARSSL_SOURCES) \
+		-o $(BUILD)/auth2-portability/auth2-riscv64.o
+	$(RISCV64_OBJCOPY) $(AUTH2_PUBLIC_SYMBOL_FLAGS) \
+		$(BUILD)/auth2-portability/auth2-riscv64.o
+	@for pair in "$(HOST_NM) $(BUILD)/auth2-portability/auth2-x86_64.o" \
+		"$(AARCH64_NM) $(BUILD)/auth2-portability/auth2-aarch64.o" \
+		"$(RISCV64_NM) $(BUILD)/auth2-portability/auth2-riscv64.o"; do \
+		set -- $$pair; tool=$$1; object=$$2; \
+		undefined="$$("$$tool" -u "$$object")" || exit 1; \
+		test -z "$$undefined" || { printf '%s\n' "$$undefined"; exit 1; }; \
+		exports="$$("$$tool" -g --defined-only -j "$$object")" || exit 1; \
+		manifest_export=0; envelope_export=0; status_export=0; \
+		for symbol in $$exports; do case $$symbol in bbp_auth2_verify_manifest) manifest_export=1;; bbp_auth2_verify_envelope) envelope_export=1;; bbp_auth2_status_string) status_export=1;; *) printf 'unexpected export %s in %s\n' "$$symbol" "$$object"; exit 1;; esac; done; \
+		test $$manifest_export -eq 1 && test $$envelope_export -eq 1 && test $$status_export -eq 1 || { printf 'missing required auth2 export in %s\n' "$$object"; exit 1; }; \
+	done
+	$(HOST_READELF) -h $(BUILD)/auth2-portability/auth2-x86_64.o > $(BUILD)/auth2-portability/x86_64.elf-header
+	$(HOST_READELF) -h $(BUILD)/auth2-portability/auth2-aarch64.o > $(BUILD)/auth2-portability/aarch64.elf-header
+	$(HOST_READELF) -h $(BUILD)/auth2-portability/auth2-riscv64.o > $(BUILD)/auth2-portability/riscv64.elf-header
+	grep -Eq 'Machine:.*X86-64' $(BUILD)/auth2-portability/x86_64.elf-header
+	grep -Eq 'Machine:.*AArch64' $(BUILD)/auth2-portability/aarch64.elf-header
+	grep -Eq 'Machine:.*RISC-V' $(BUILD)/auth2-portability/riscv64.elf-header
+	$(HOST_OBJDUMP) -d $(BUILD)/auth2-portability/auth2-x86_64.o > $(BUILD)/auth2-portability/x86_64.disassembly
+	@if grep -Eiq '\b([xyz]mm[0-9]+|mm[0-7]|vzeroupper|vzeroall)\b' $(BUILD)/auth2-portability/x86_64.disassembly; then printf '%s\n' "unexpected x86 SIMD instruction in auth2 verifier"; exit 1; fi
+	@echo "BBP auth2 portability: PASS (x86_64, AArch64, RV64; closed symbols, no x86 SIMD)"
+
+auth2-sanitize-test: auth2-c-vectors
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) -O1 -fno-omit-frame-pointer \
+		-fsanitize=address,undefined $(INCLUDE) $(AUTH2_BEARSSL_FLAGS) \
+		-DBBP_AUTH2_TEST_VECTOR_DIR='"$(BUILD)/auth2-vectors"' \
+		tests/auth2_freestanding_selftest.c v2/bbp_auth2.c \
+		v2/bbp_auth2_crypto.c $(AUTH2_BEARSSL_SOURCES) \
+		-o $(BUILD)/auth2_freestanding_selftest.san
+	ASAN_OPTIONS=detect_leaks=1 $(BUILD)/auth2_freestanding_selftest.san
+
 rollback-test: $(BUILD)/rollback_model_selftest
 	$(BUILD)/rollback_model_selftest
 	$(PYTHON) -m unittest tests.test_rollback_state
@@ -616,7 +746,7 @@ site-preview: verify-site
 # ---- everything that runs without a cross toolchain ------------------------
 check: abi test v2-test v2-profile-test v2-vectors-test auth-envelope-test \
 	uefi-loader-contract-test security-collector-test tpm2-response-test \
-	auth2-test rollback-test evidence-check \
+	auth2-test auth2-vendor-check auth2-freestanding-test rollback-test evidence-check \
 	port-inventory-test fuzz importers-test bbpctl-test sdk-check \
 	release-metadata-test release-policy-test verify-site
 	@echo "ALL HOST CHECKS PASSED"

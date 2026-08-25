@@ -35,7 +35,7 @@ jobs:
       - name: make check (core + importers + SDK + fuzz + docs)
         run: make check
       - name: v2 Draft freestanding portability
-        run: make v2-portability v2-fuzz
+        run: make v2-portability v2-fuzz auth2-portability auth2-sanitize-test
       - name: TPM2 canonical measurement proof
         run: make tpm2-measure-test
       - name: bare-metal QEMU proof (TCG)

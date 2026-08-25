@@ -132,7 +132,11 @@ make v2-vectors-test # shared 46-case C/Python Draft corpus gate
 make v2-fuzz       # bounded malformed capsule + Profile 0 campaign
 make tpm2-measure-test # extend the canonical v2 measurement into an emulated TPM2 PCR
 make auth-envelope-test # host-only HMAC authentication and anti-rollback policy
-make auth2-test     # host-only ECDSA P-256 public-key policy proof
+make auth2-test     # independent OpenSSL ECDSA P-256 policy proof
+make auth2-freestanding-test # C verifier against the checked-in auth2 vectors
+make auth2-portability # link auth2 freestanding for x86_64, AArch64, and RV64
+make auth2-sanitize-test # run the C verifier/provider under ASan and UBSan
+make auth2-vendor-check # verify every pinned BearSSL source/header checksum
 make rollback-test # persistent A/B journal policy with an injected floor
 make ports-hosted-check # run all four current-checkout hosted adapter gates
 make evidence-check # hosted/emulator/physical evidence-contract tests
@@ -217,10 +221,14 @@ never dereferences physical addresses. See `docs/adr/0012-sdk-packaging.md` and
 `docs/adr/0019-experimental-v2-sdk-surfaces.md`.
 
 The experimental trust proofs remain outside the stable boot ABI. RFC 0004 and
-`make auth2-test` prove ECDSA P-256/SHA-256 exact-extent verification and key
-policy on the host, not in firmware or Secure Boot. `make rollback-test` proves
-an fsync/replace A/B journal and recovery policy bounded by a caller-injected
-monotonic floor; its in-tree provider is not persistent TPM NV. The physical
+the auth2 gates prove ECDSA P-256/SHA-256 exact-extent verification and key
+policy through independent OpenSSL and freestanding C backends. The C artifact
+is closed and cross-compiled for three ISAs, but it has no firmware caller,
+provisioning, monotonic provider, or Secure Boot integration. Its zero-copy
+views require caller-owned immutable input and DMA exclusion.
+`make rollback-test` proves an fsync/replace A/B journal and recovery policy
+bounded by a caller-injected monotonic floor; its in-tree provider is not
+persistent TPM NV. The physical
 runner contract in `docs/physical-hardware-runner.md` defines how board identity
 and raw serial must be captured, but this repository contains no physical PASS
 proof.

@@ -7,4 +7,6 @@ are deterministic checked-in interoperability fixtures.
 
 The vector policy has security generation 7. The release and recovery keys are
 active for generations 1 through 20 inclusive. `manifest.auth2` is signed by
-the root key and `release.auth2` signs the exact bytes of `payload.dat`.
+the root key; `release.auth2` and `recovery.auth2` sign the exact bytes of
+`payload.dat`. The recovery envelope SHA-256 is
+`fd9c044d7472a18654c2bbda78d6034687f2571938dfa62558e5565ac972f4fe`.

@@ -6,6 +6,21 @@ independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
 ## Unreleased
 
+### Freestanding P-256 public authentication (Wave 29)
+- RFC 0004 now has a zero-allocation C verifier for exact root-signed manifests
+  and release/recovery envelopes using a pinned, unmodified BearSSL subset.
+- Checked-in release and recovery vectors pass the independent OpenSSL host
+  verifier and the C backend, including low-S malleability, point, scalar,
+  lifecycle, generation, exact-extent, policy, alias, and truncation failures.
+- The same closed relocatable object links without unresolved symbols for
+  x86_64, AArch64, and RV64, exports only the three public auth2 functions, and
+  rejects x86 SIMD generation; ASan/UBSan and a 2048-byte frame warning gate
+  cover the current offline proof.
+- The API is zero-copy: callers must provide stable, immutable, caller-owned
+  input storage and snapshot or isolate DMA-visible bytes. No firmware path,
+  key provisioning, monotonic provider, downgrade selection, Secure Boot, or
+  production deployment is claimed.
+
 ### BBP v2 explicit bridge ownership (Wave 28)
 - Every v2 payload remains inline; the bridge marker now exactly identifies
   inline v1.1 payloads containing physical references outside the capsule.

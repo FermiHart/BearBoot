@@ -45,9 +45,12 @@ treated as a complete image of boot state or as BBP wire input.
 SDK 1.4.0 keeps BBP wire 1.1 frozen. Its v2 capsule, Profile 0, HMAC envelope,
 and public-key policy are experimental offline surfaces, not a deployed boot
 protocol. The C, Rust, and host packages expose only the v2/Profile 0/HMAC
-surfaces described by RFCs 0001 through 0003. RFC 0004's ECDSA P-256/SHA-256
-proof remains host tooling; it is not a firmware verifier, Secure Boot
-implementation, production key store, or hardware root of trust.
+surfaces described by RFCs 0001 through 0003. RFC 0004 now has an unpackaged
+freestanding C verification proof, but no firmware caller, key provisioning,
+monotonic provider, downgrade selection, or hardware root of trust. Its
+zero-copy inputs must remain in immutable caller-owned storage through use of
+the returned view; DMA-visible or shared input requires a protected snapshot or
+equivalent exclusion. It is not a Secure Boot implementation.
 
 The UEFI/TCG2 machine gate proves that OVMF can extend an exact digest into PCR
 16 of `swtpm` and publish a CRC-sealed v1.1 SECURITY measurement log. It does not

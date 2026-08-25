@@ -1,14 +1,14 @@
 # RFC 0004: Experimental BBP v2 public-key authentication
 
-- Status: **Draft host proof**
-- Deployment: **Offline host tooling only**
+- Status: **Draft host and freestanding C proof**
+- Deployment: **Offline verification only; no firmware caller**
 - Wire version: 1
 - Updated: 2026-08-25
 
 ## Scope
 
-This RFC defines an isolated Wave 19 proof for authenticating an exact bounded
-payload with ECDSA P-256 and SHA-256. It does not modify the BBP v1.1 ABI, the
+This RFC defines an isolated proof for authenticating an exact bounded payload
+with ECDSA P-256 and SHA-256. It does not modify the BBP v1.1 ABI, the
 BBP v2 capsule, or the HMAC envelope in RFC 0003. It is not a firmware verifier,
 a Secure Boot implementation, a provisioning system, or a claim about hardware
 root-of-trust behavior.
@@ -104,7 +104,15 @@ Verification performs these checks:
 8. Verify ECDSA P-256/SHA-256 over the exact zero-signature envelope extent.
 9. Release payload bytes only after every check succeeds.
 
-The generation floor is caller-owned monotonic state; this host proof does not
+The freestanding API is zero-copy and returns borrowed views. The caller must
+hold the complete root-key, manifest, and envelope extents in readable,
+caller-owned storage that cannot change from the start of verification until
+all returned views have been discarded. DMA-visible or otherwise shared input
+must first be snapshotted into protected storage, or concurrent mutation must
+be excluded by an equivalent platform mechanism. The verifier does not claim
+to establish memory ownership or DMA isolation itself.
+
+The generation floor is caller-owned monotonic state; this offline proof does not
 persist or provision such state. Recovery authorization is also an explicit
 caller policy and is never inferred from possession of a recovery key.
 
@@ -122,3 +130,20 @@ Python implements wire and policy handling with the standard library. The
 installed `openssl` CLI is the actual ECDSA/SHA-256 provider. Checked-in test
 vectors use conspicuously labeled test-only private scalars and do not contain
 production keys.
+
+## Freestanding C Proof
+
+`include/bbp/bbp_auth2.h` and `v2/bbp_auth2.c` implement the same wire and policy
+checks without allocation or libc. A private wrapper uses an exact unmodified
+subset of BearSSL pinned to commit
+`7bea48e5e850ab4cafbe68d3765cdaba13a86d6f`; provenance and update policy are
+recorded in `third_party/bearssl/README.bearboot`.
+
+`make auth2-freestanding-test` runs checked-in release and recovery vectors plus
+hostile framing, scalar, point, policy, alias, and truncation cases.
+`make auth2-portability` produces closed relocatable objects for x86_64,
+AArch64, and RV64, rejects unresolved or unexpected exported symbols, verifies
+the ELF machine, rejects x86 SIMD instructions, and warns on any individual
+stack frame larger than 2048 bytes. `make auth2-sanitize-test` exercises the C
+backend under ASan and UBSan. These are offline implementation proofs, not a
+producer-to-consumer firmware execution path.
