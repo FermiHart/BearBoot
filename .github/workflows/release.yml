@@ -6,11 +6,17 @@ on:
   push:
     tags:
       - "sdk-v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing signed sdk-vMAJOR.MINOR.PATCH tag to resume
+        required: true
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.release_tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -26,7 +32,7 @@ jobs:
     steps:
       - name: Validate release tag shape
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
           if [[ ! "$RELEASE_TAG" =~ ^sdk-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
@@ -37,7 +43,7 @@ jobs:
       - name: Check out the exact tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: refs/tags/${{ github.ref_name }}
+          ref: refs/tags/${{ inputs.release_tag || github.ref_name }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -45,18 +51,20 @@ jobs:
         id: provenance
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          EVENT_SHA: ${{ github.sha }}
+          EVENT_SHA: ${{ github.event_name == 'push' && github.sha || '' }}
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
           test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
           tag_object="$(git rev-parse "refs/tags/$RELEASE_TAG")"
           tag_commit="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
-          event_commit="$(git rev-parse "$EVENT_SHA^{commit}")"
           test "$(git rev-parse HEAD)" = "$tag_commit"
-          test "$event_commit" = "$tag_commit"
+          if [[ -n "$EVENT_SHA" ]]; then
+            event_commit="$(git rev-parse "$EVENT_SHA^{commit}")"
+            test "$event_commit" = "$tag_commit"
+          fi
           git merge-base --is-ancestor "$tag_commit" "refs/remotes/origin/$DEFAULT_BRANCH"
           git -c gpg.ssh.allowedSignersFile=.github/release-signers \
             -c gpg.minTrustLevel=fully \
@@ -94,7 +102,7 @@ jobs:
 
       - name: Validate release versions
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#sdk-v}"
@@ -125,7 +133,7 @@ jobs:
       - name: Build and compare release assets twice
         id: package
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           set -euo pipefail
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -270,7 +278,7 @@ jobs:
       - name: Upload signed release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-${{ github.ref_name }}
+          name: release-${{ inputs.release_tag || github.ref_name }}
           path: release/*
           if-no-files-found: error
           overwrite: true
@@ -288,7 +296,7 @@ jobs:
       - name: Download signed release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-${{ github.ref_name }}
+          name: release-${{ inputs.release_tag || github.ref_name }}
           path: release
 
       - name: Validate signed release bundle
@@ -359,7 +367,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           TAG_COMMIT: ${{ needs.validate.outputs.tag_commit }}
           TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
           VERSION: ${{ needs.validate.outputs.version }}
@@ -373,7 +381,8 @@ jobs:
               --jq '.object.sha')" = "$TAG_COMMIT"
           }
           assert_remote_tag
-          marker="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$GITHUB_SHA run_id=$GITHUB_RUN_ID -->"
+          owner="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$TAG_COMMIT "
+          marker="${owner}run_id=$GITHUB_RUN_ID -->"
           notes="$RUNNER_TEMP/release-notes.md"
           printf '%s\n\n%s\n\n%s\n%s\n' \
             "$marker" \
@@ -381,22 +390,25 @@ jobs:
             "Verify SHA256SUMS and the accompanying Sigstore bundles before use." \
             "The crate is not automatically published to crates.io." > "$notes"
 
-          release_stream="$(gh api --paginate \
-            "repos/$GH_REPO/releases?per_page=100" --jq '.[]')"
-          matches="$(jq -s -c --arg tag "$RELEASE_TAG" \
-            '[.[] | select(.tag_name == $tag)]' <<<"$release_stream")"
-          count="$(jq 'length' <<<"$matches")"
+          load_matches() {
+            release_stream="$(gh api --paginate \
+              "repos/$GH_REPO/releases?per_page=100" --jq '.[]')"
+            matches="$(jq -s -c --arg tag "$RELEASE_TAG" \
+              '[.[] | select(.tag_name == $tag)]' <<<"$release_stream")"
+            count="$(jq 'length' <<<"$matches")"
+          }
+          load_matches
           if [[ "$count" -eq 0 ]]; then
             gh release create "$RELEASE_TAG" \
               --draft \
               --verify-tag \
               --title "BearBoot SDK $VERSION (BBP wire 1.1)" \
               --notes-file "$notes"
-            release_stream="$(gh api --paginate \
-              "repos/$GH_REPO/releases?per_page=100" --jq '.[]')"
-            matches="$(jq -s -c --arg tag "$RELEASE_TAG" \
-              '[.[] | select(.tag_name == $tag)]' <<<"$release_stream")"
-            count="$(jq 'length' <<<"$matches")"
+            for attempt in {1..10}; do
+              load_matches
+              [[ "$count" -ne 0 ]] && break
+              sleep 1
+            done
           fi
           if [[ "$count" -ne 1 ]]; then
             echo "refusing release tag with an ambiguous GitHub release" >&2
@@ -406,10 +418,10 @@ jobs:
           release="$(jq -c '.[0]' <<<"$matches")"
           if ! jq -e \
             --arg tag "$RELEASE_TAG" \
-            --arg marker "$marker" \
+            --arg owner "$owner" \
             '.draft == true and .published_at == null and
              .tag_name == $tag and
-             ((.body // "") | startswith($marker + "\n"))' \
+             ((.body // "") | startswith($owner))' \
             <<<"$release" >/dev/null; then
             echo "refusing to replace a published or unrelated release" >&2
             exit 1
@@ -421,11 +433,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_ID: ${{ steps.draft.outputs.release_id }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+          TAG_COMMIT: ${{ needs.validate.outputs.tag_commit }}
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
-          marker="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$GITHUB_SHA run_id=$GITHUB_RUN_ID -->"
+          owner="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$TAG_COMMIT "
           assets=(
             "release/bearboot-c-sdk-$VERSION.tar.gz"
             "release/bearboot-host-tools-$VERSION.tar.gz"
@@ -448,10 +461,10 @@ jobs:
             gh api "repos/$GH_REPO/releases/$RELEASE_ID" | jq -e \
               --argjson id "$RELEASE_ID" \
               --arg tag "$RELEASE_TAG" \
-              --arg marker "$marker" \
+              --arg owner "$owner" \
               '.id == $id and .draft == true and .published_at == null and
                .tag_name == $tag and
-               ((.body // "") | startswith($marker + "\n"))' >/dev/null
+               ((.body // "") | startswith($owner))' >/dev/null
           }
           assert_owned_draft
 
@@ -488,7 +501,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_ID: ${{ steps.draft.outputs.release_id }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
           TAG_COMMIT: ${{ needs.validate.outputs.tag_commit }}
           TAG_OBJECT: ${{ needs.validate.outputs.tag_object }}
           VERSION: ${{ needs.validate.outputs.version }}
@@ -541,15 +554,15 @@ jobs:
 
           # Keep reconciliation and publication in one step so no workflow
           # boundary exists between the final digest check and promotion.
-          marker="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$GITHUB_SHA run_id=$GITHUB_RUN_ID -->"
+          owner="<!-- bearboot-release-owner:v1 tag=$RELEASE_TAG sha=$TAG_COMMIT "
           release="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID")"
           jq -e \
             --argjson id "$RELEASE_ID" \
             --arg tag "$RELEASE_TAG" \
-            --arg marker "$marker" \
+            --arg owner "$owner" \
             '.id == $id and .draft == true and .published_at == null and
              .tag_name == $tag and
-             ((.body // "") | startswith($marker + "\n"))' \
+             ((.body // "") | startswith($owner))' \
             <<<"$release" >/dev/null
           assert_remote_tag
           assert_remote_assets
