@@ -31,11 +31,18 @@ C_SDK_FILES = {
     "SPEC.md": "SPEC.md",
     "VERSION": "sdk/VERSION",
     "docs/bbp-conformance-report-v1.schema.json": "docs/schemas/bbp-conformance-report-v1.schema.json",
+    "docs/adr/0019-experimental-v2-sdk-surfaces.md": "docs/adr/0019-experimental-v2-sdk-surfaces.md",
+    "docs/rfc/0001-bbp-v2-capsule.md": "docs/rfc/0001-bbp-v2-capsule.md",
+    "docs/rfc/0002-bbp-v2-profile-0.md": "docs/rfc/0002-bbp-v2-profile-0.md",
+    "docs/rfc/0003-bbp-v2-auth-envelope.md": "docs/rfc/0003-bbp-v2-auth-envelope.md",
     "Makefile": "sdk/c/Makefile",
     "include/bbp/bbp.h": "include/bbp/bbp.h",
     "include/bbp/bbp_crc64.h": "include/bbp/bbp_crc64.h",
     "include/bbp/bbp_osif.h": "include/bbp/bbp_osif.h",
     "include/bbp/bbp_sdk.h": "sdk/c/include/bbp/bbp_sdk.h",
+    "include/bbp/bbp_v2.h": "include/bbp/bbp_v2.h",
+    "include/bbp/bbp_v2_auth.h": "include/bbp/bbp_v2_auth.h",
+    "include/bbp/bbp_v2_profile.h": "include/bbp/bbp_v2_profile.h",
     "kernel/bbp_kernel.c": "kernel/bbp_kernel.c",
     "kernel/bbp_kernel.h": "kernel/bbp_kernel.h",
     "bootloader/bbp_build.c": "bootloader/bbp_build.c",
@@ -46,6 +53,11 @@ C_SDK_FILES = {
     "bootloader/bbp_import_multiboot2.c": "bootloader/bbp_import_multiboot2.c",
     "bootloader/bbp_import_uefi.c": "bootloader/bbp_import_uefi.c",
     "examples/sdk_roundtrip.c": "examples/sdk_roundtrip.c",
+    "examples/v2_profile_roundtrip.c": "examples/v2_profile_roundtrip.c",
+    "tests/vectors/bbp-v2-profile0-auth-v1.json": "tests/vectors/bbp-v2-profile0-auth-v1.json",
+    "v2/bbp_v2.c": "v2/bbp_v2.c",
+    "v2/bbp_v2_auth.c": "v2/bbp_v2_auth.c",
+    "v2/bbp_v2_profile.c": "v2/bbp_v2_profile.c",
 }
 
 HOST_FILES = {
@@ -53,7 +65,14 @@ HOST_FILES = {
     "README.md": "sdk/host/README.md",
     "VERSION": "sdk/VERSION",
     "bin/bbpctl.py": "tools/bbpctl.py",
+    "lib/bbp_v2_envelope.py": "tools/bbp_v2_envelope.py",
+    "examples/host_v2_roundtrip.py": "examples/host_v2_roundtrip.py",
     "docs/bbpc-v1.md": "docs/bbpc-v1.md",
+    "docs/adr/0019-experimental-v2-sdk-surfaces.md": "docs/adr/0019-experimental-v2-sdk-surfaces.md",
+    "docs/rfc/0001-bbp-v2-capsule.md": "docs/rfc/0001-bbp-v2-capsule.md",
+    "docs/rfc/0002-bbp-v2-profile-0.md": "docs/rfc/0002-bbp-v2-profile-0.md",
+    "docs/rfc/0003-bbp-v2-auth-envelope.md": "docs/rfc/0003-bbp-v2-auth-envelope.md",
+    "tests/vectors/bbp-v2-profile0-auth-v1.json": "tests/vectors/bbp-v2-profile0-auth-v1.json",
 }
 
 

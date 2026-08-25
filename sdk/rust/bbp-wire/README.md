@@ -4,8 +4,10 @@
 Protocol v1.1 envelope. The library is unconditionally `#![no_std]`, uses no
 allocator, contains no unsafe code, and has no build script.
 
-The crate follows the BearBoot SDK release version (`1.3.0` here). That
+The crate follows the BearBoot SDK release version (`1.4.0` here). That
 package version is independent from the compatible BBP wire version (`1.1`).
+The manifest sets `publish = false`; this source package makes no registry
+availability claim.
 
 ## Scope
 
@@ -21,6 +23,10 @@ package version is independent from the compatible BBP wire version (`1.1`).
   validated tag extent.
 - Out-of-line blob CRC checking with an explicit `BlobPolicy`. Allowing a zero
   checksum returns `BlobVerification::Unchecked`, never `Verified`.
+- Experimental, offline-only BBP v2 capsule and Profile 0 validation over
+  caller-owned slices.
+- Experimental v2 HMAC-envelope framing that exposes exact MAC input parts but
+  deliberately does not implement or claim authentication.
 
 Unknown tag IDs are valid framing and remain available through `TagRef`; tag
 semantics belong to higher-level code. Minor versions are accepted as the BBP
@@ -47,6 +53,18 @@ fn inspect(info_bytes: &[u8], tag_bytes: &[u8]) {
 
 The caller must first obtain slices through platform-specific mapping code. This
 crate intentionally does not provide that code.
+
+The packaged examples consume the shared canonical v2 vector:
+
+```text
+cargo run --example v2_profile
+cargo run --example auth_envelope
+```
+
+The v2 APIs remain experimental draft surfaces governed by RFCs 0001 through
+0003; SDK 1.4.0 does not freeze or deploy them. A parsed
+authentication envelope has validated framing and capsule CRCs only; callers
+must verify HMAC-SHA256 and enforce rollback/profile policy before acceptance.
 
 ## Threat Model And Limits
 

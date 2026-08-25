@@ -24,6 +24,18 @@ make -s conformance
 
 The report schema is `docs/bbp-conformance-report-v1.schema.json`.
 
+The package also carries the explicitly experimental, offline-only BBP v2
+capsule, Profile 0, and injected-verifier authentication framing. Build and run
+the fixed-buffer Profile 0 example with:
+
+```sh
+make -s v2-profile-roundtrip
+```
+
+Start v2 evaluation with `examples/v2_profile_roundtrip.c`, the RFCs under
+`docs/rfc/`, and the shared vector under `tests/vectors/`. These draft surfaces
+do not change the frozen v1.1 ABI and are not covered by a v2 stability promise.
+
 Start with `examples/sdk_roundtrip.c`. A real kernel should call
 `bbp_init_bounded()` with a mapped, immutable physical span for the tag arena.
 Every trailing count must pass through `bbp_tag_array()`, and every out-of-line
