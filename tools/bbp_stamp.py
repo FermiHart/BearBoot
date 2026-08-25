@@ -6,7 +6,7 @@
 #
 # Patches a linked ELF kernel's ".bbp_hdr" section in place:
 #   - entry_point  <- ELF e_entry (unless already non-zero or --entry given)
-#   - requests     <- physical/virtual addr of the request array (--requests / symbol)
+#   - requests     <- physical addr of the request array (--requests / symbol)
 #   - checksum     <- CRC-64/XZ over the 160-byte header with checksum=0
 #
 # Dependency-free: parses ELF64 section/symbol tables directly. Mirrors the
@@ -34,6 +34,7 @@ def crc64_xz(data: bytes) -> int:
 # ---- BBP header layout (must match struct bbp_header in bbp.h) -------------
 HDR_SIZE          = 160
 MAGIC             = b"BEAR_BOOT"          # 16-byte field, NUL-padded
+MAGIC_FIELD       = MAGIC.ljust(16, b"\0")
 OFF_MAGIC         = 0      # [16]
 OFF_VERSION_MAJOR = 16     # u16
 OFF_VERSION_MINOR = 18     # u16
@@ -50,32 +51,61 @@ class Elf64:
     """Minimal ELF64 reader/writer: sections + symbols, little-endian."""
     def __init__(self, raw: bytearray):
         self.raw = raw
+        if len(raw) < 64:          raise ElfError("truncated ELF header")
         if raw[:4] != b"\x7fELF": raise ElfError("not an ELF")
         if raw[4] != 2:           raise ElfError("not ELF64")
         if raw[5] != 1:           raise ElfError("not little-endian")
         (self.e_entry,) = struct.unpack_from("<Q", raw, 24)
+        self.e_phoff,  = struct.unpack_from("<Q", raw, 32)
         self.e_shoff,  = struct.unpack_from("<Q", raw, 40)
+        self.e_phentsize, self.e_phnum = struct.unpack_from("<HH", raw, 54)
         self.e_shentsize, self.e_shnum, self.e_shstrndx = \
             struct.unpack_from("<HHH", raw, 58)
+        self._read_load_segments()
         self._read_sections()
+
+    def _read_load_segments(self):
+        self.load_segments = []
+        if self.e_phnum and self.e_phentsize < 56:
+            raise ElfError(f"ELF program header too small: {self.e_phentsize} < 56")
+        for i in range(self.e_phnum):
+            off = self.e_phoff + i * self.e_phentsize
+            if off + 56 > len(self.raw):
+                raise ElfError("ELF program header outside file")
+            p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align = \
+                struct.unpack_from("<IIQQQQQQ", self.raw, off)
+            if p_type == 1:  # PT_LOAD
+                self.load_segments.append((p_vaddr, p_paddr, p_memsz))
 
     def _read_sections(self):
         self.sections = []
+        if self.e_shnum and self.e_shentsize < 64:
+            raise ElfError(f"ELF section header too small: {self.e_shentsize} < 64")
         for i in range(self.e_shnum):
             off = self.e_shoff + i * self.e_shentsize
+            if off + 64 > len(self.raw):
+                raise ElfError("ELF section header outside file")
             name, stype, flags, addr, offset, size, link, info, align, entsz = \
                 struct.unpack_from("<IIQQQQIIQQ", self.raw, off)
             self.sections.append(dict(name_off=name, type=stype, addr=addr,
                                       offset=offset, size=size, link=link,
                                       info=info, entsize=entsz))
+        if self.e_shstrndx >= len(self.sections):
+            raise ElfError("ELF section-name table index is invalid")
         shstr = self.sections[self.e_shstrndx]
+        if shstr["offset"] + shstr["size"] > len(self.raw):
+            raise ElfError("ELF section-name table outside file")
         self._shstr = self.raw[shstr["offset"]:shstr["offset"]+shstr["size"]]
         for s in self.sections:
             s["name"] = self._cstr(self._shstr, s["name_off"])
 
     @staticmethod
     def _cstr(buf, off):
+        if off >= len(buf):
+            raise ElfError("ELF string offset outside table")
         end = buf.find(b"\0", off)
+        if end < 0:
+            raise ElfError("unterminated ELF string")
         return buf[off:end].decode("utf-8", "replace")
 
     def section(self, name):
@@ -86,7 +116,15 @@ class Elf64:
     def symbol_addr(self, want):
         symtab = self.section(".symtab")
         if not symtab: raise ElfError("no .symtab (stripped?) — pass --requests")
+        if symtab["link"] >= len(self.sections):
+            raise ElfError("ELF symbol string-table index is invalid")
+        if symtab["size"] % 24:
+            raise ElfError("ELF symbol table has a partial entry")
+        if symtab["offset"] + symtab["size"] > len(self.raw):
+            raise ElfError("ELF symbol table outside file")
         strtab = self.sections[symtab["link"]]
+        if strtab["offset"] + strtab["size"] > len(self.raw):
+            raise ElfError("ELF symbol string table outside file")
         sbuf = self.raw[strtab["offset"]:strtab["offset"]+strtab["size"]]
         n = symtab["size"] // 24
         for i in range(n):
@@ -96,6 +134,12 @@ class Elf64:
             if self._cstr(sbuf, st_name) == want:
                 return st_value
         return None
+
+    def load_phys_addr(self, vma):
+        for p_vaddr, p_paddr, p_memsz in self.load_segments:
+            if p_vaddr <= vma < p_vaddr + p_memsz:
+                return p_paddr + (vma - p_vaddr)
+        raise ElfError(f"symbol address 0x{vma:x} is outside PT_LOAD segments")
 
 def stamp(path, *, requests=None, requests_symbol=None, entry=None,
           check_only=False, verbose=True):
@@ -120,9 +164,11 @@ def stamp(path, *, requests=None, requests_symbol=None, entry=None,
         base = sec["offset"]
         if sec["size"] < HDR_SIZE:
             raise ElfError(f".bbp_hdr too small: {sec['size']} < {HDR_SIZE}")
+    if base + HDR_SIZE > len(raw):
+        raise ElfError(".bbp_hdr extends outside file")
 
     # Validate the header we are about to stamp.
-    if raw[base:base+len(MAGIC)] != MAGIC:
+    if raw[base:base+16] != MAGIC_FIELD:
         raise ElfError("bad magic in .bbp_hdr")
     vmaj, = struct.unpack_from("<H", raw, base + OFF_VERSION_MAJOR)
     if vmaj != VERSION_MAJOR:
@@ -147,7 +193,7 @@ def stamp(path, *, requests=None, requests_symbol=None, entry=None,
     elif requests_symbol:
         a = elf.symbol_addr(requests_symbol)
         if a is None: raise ElfError(f"symbol '{requests_symbol}' not found")
-        new_req = a
+        new_req = elf.load_phys_addr(a)
     else:
         new_req = cur_req                # leave as-is (may legitimately be 0)
 
@@ -184,7 +230,7 @@ def main(argv):
     ap.add_argument("--entry", type=lambda x: int(x, 0), default=None,
                     help="override entry_point (default: ELF e_entry)")
     ap.add_argument("--requests", type=lambda x: int(x, 0), default=None,
-                    help="physical/virtual addr of the request array")
+                    help="physical address of the request array")
     ap.add_argument("--requests-symbol", default=None,
                     help="resolve the request array addr from a symbol name")
     ap.add_argument("--check", action="store_true",
@@ -193,7 +239,7 @@ def main(argv):
     try:
         return stamp(a.elf, requests=a.requests, requests_symbol=a.requests_symbol,
                      entry=a.entry, check_only=a.check)
-    except (ElfError, OSError) as e:
+    except (ElfError, OSError, IndexError, struct.error) as e:
         print(f"bbp_stamp: error: {e}", file=sys.stderr)
         return 2
 
