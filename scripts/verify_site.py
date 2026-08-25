@@ -12,6 +12,8 @@ ABI = (ROOT / "include/bbp/bbp.h").read_text(encoding="utf-8")
 SDK_VERSION = (ROOT / "sdk/VERSION").read_text(encoding="ascii").strip()
 SITE = ROOT / "website/index.html"
 STATE_PAGE = ROOT / "website/estado.html"
+PAGES_ENTRY = ROOT / "index.html"
+NOJEKYLL = ROOT / ".nojekyll"
 
 
 def require(condition, message):
@@ -22,8 +24,11 @@ def require(condition, message):
 def main():
     require(SITE.exists(), "website/index.html is missing")
     require(STATE_PAGE.exists(), "website/estado.html is missing")
+    require(PAGES_ENTRY.exists(), "GitHub Pages root entry is missing")
+    require(NOJEKYLL.exists(), "GitHub Pages must preserve static repository paths")
     page = SITE.read_text(encoding="utf-8")
     state_page = STATE_PAGE.read_text(encoding="utf-8")
+    pages_entry = PAGES_ENTRY.read_text(encoding="utf-8")
     major = re.search(r"#define BBP_VERSION_MAJOR\s+(\d+)", ABI).group(1)
     minor = re.search(r"#define BBP_VERSION_MINOR\s+(\d+)", ABI).group(1)
     tags = re.findall(r"#define\s+BBP_TAG_\w+\s+BBP_TAG_ID\(", ABI)
@@ -71,6 +76,12 @@ def main():
         require(token in state_page, f"current-state page missing: {token}")
     require("http://" not in state_page, "current-state page contains an insecure URL")
     require("<script src=" not in state_page, "current-state page must be standalone")
+    for token in (
+        'content="0; url=website/"',
+        'href="website/"',
+        'href="https://fermihart.github.io/BearBoot/"',
+    ):
+        require(token in pages_entry, f"GitHub Pages root entry missing: {token}")
     require(page.count('class="tag-node"') == len(tags), "site tag constellation drifted from ABI")
     require(page.count('class="port-card"') == 4, "site integration inventory must list four ports")
     require(page.count('class="product-row"') == 4, "site must list four distributable/host surfaces")
