@@ -6,8 +6,10 @@ independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
 ## BearBoot SDK 1.4.0 (BBP wire 1.1) - 2026-08-25
 
-Release candidate prepared in-tree. The signed tag, release assets, and public
-release remain pending the release workflow.
+Published from signed tag
+[`sdk-v1.4.0`](https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.4.0)
+after reproducing the packages, passing the complete release gate, verifying
+Sigstore bundles, and reconciling the exact 15 remote assets.
 
 ### Added / proven (Waves 16-24)
 - Higher-half request-array symbols are stamped as physical addresses through

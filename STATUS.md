@@ -94,7 +94,7 @@ inside those external OS trees.
 | Execution-evidence v1 contract | 🟢 HOST-TESTED | `make evidence-check` validates scoped identities, exact artifact size/SHA-256, raw serial, and verdict policy; fixtures and unauthenticated physical claims are rejected as proof by default |
 | Physical hardware runner contract | 🟡 CONTRACT / NO PROOF | `docs/physical-hardware-runner.md` requires identified board metadata and byte-exact serial but explicitly provides no authenticity; no physical PASS evidence is checked in |
 | Four current hosted port gates | 🟢 HOST-TESTED | `make ports-hosted-check` runs the common target for TinaLinux, Linux 0.01, Josh-Bear, and MINIX; historical external records retain separate provenance and are not current OS boots |
-| SDK 1.4.0 publication policy | 🟢 HOST-TESTED / CUT PENDING | `tests.test_release_policy` checks exact assets, draft ownership, resumable upload, remote digest reconciliation, Sigstore re-verification, permission isolation and no registry credentials; the candidate is not a published release or tag |
+| SDK 1.4.0 publication policy | 🟢 PUBLISHED | `tests.test_release_policy` checks exact assets, draft ownership, resumable upload, remote digest reconciliation, Sigstore re-verification, permission isolation and no registry credentials; signed tag `sdk-v1.4.0` was published with the exact 15-asset allowlist |
 
 ---
 
@@ -106,5 +106,5 @@ retain machine handoff proofs, and historical external OS records are labeled
 separately.** Root CI does not reproduce any archived external OS boot,
 Linux01's reported in-kernel run has no raw artifact, and no physical run,
 physical TPM NV, firmware P-256 verifier, or Secure Boot chain is claimed. SDK
-1.4.0 and all v2/auth package surfaces remain a cut-pending candidate and
-experimental respectively. If a claim exceeds its proof, please open an issue.
+1.4.0 is published; all v2/auth package surfaces remain experimental. If a claim
+exceeds its proof, please open an issue.
