@@ -30,8 +30,8 @@ FREEFLAGS := -nostdinc -ffreestanding -fno-stack-protector \
 HOST_CC   ?= cc
 HOSTFLAGS := -Wall -Wextra -std=gnu11 -O2 -g
 
-.PHONY: all scaffold-check test clean
-all: scaffold-check test
+.PHONY: all scaffold-check test test-hosted clean
+all: scaffold-check test-hosted
 
 # Link the port glue + the core parser + the core builder into one relocatable
 # object — proves every symbol the port uses exists in the frozen core ABI, and
@@ -47,7 +47,9 @@ $(BUILD)/port.o: osif.c adapter.c $(ROOT)/kernel/bbp_kernel.c $(ROOT)/bootloader
 # Hosted verification rig. Compiles the SHIPPED osif.c + adapter.c with the
 # frozen core and the harness (which supplies strong hosted OSIF hooks), runs
 # it, and asserts PASS. tina_bbp.c is NOT included (it is the kernel glue).
-test: $(BUILD)/harness
+test: test-hosted
+
+test-hosted: $(BUILD)/harness
 	@echo "running hosted adapter verification..."
 	@$(BUILD)/harness
 

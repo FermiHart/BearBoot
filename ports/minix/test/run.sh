@@ -5,7 +5,7 @@
 #
 # Builds a standalone higher-half Limine kernel that feeds REAL Limine boot
 # data to the SHIPPED port code (osif.c + adapter.c) and prints the parser's
-# verdict over serial. Proves SPEC §10.1(b) on genuine hardware data.
+# verdict over serial. Proves SPEC §10.1(b) on QEMU-provided Limine data.
 #
 # Reuses the Limine BIOS-CD assets already vendored in the MINIX tree; nothing
 # outside ports/minix/ is written. Output: test/serial.log (the deliverable).

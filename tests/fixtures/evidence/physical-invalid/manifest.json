@@ -1,0 +1,32 @@
+{
+  "artifacts": [
+    {
+      "media_type": "application/octet-stream",
+      "path": "artifacts/serial.raw",
+      "role": "raw-serial",
+      "sha256": "4758268bf5d193b1eaa94d573863a86d709f12d0fbefe29a5bac257be5b70b46",
+      "size": 16
+    }
+  ],
+  "execution": {
+    "command": [
+      "lab-runner",
+      "bearboot"
+    ],
+    "exit_code": 1,
+    "pass_marker": "BBP-BOARD: PASS",
+    "timed_out": false,
+    "verdict": "FAIL"
+  },
+  "identity": {
+    "board": {
+      "architecture": "x86_64",
+      "manufacturer": "fixture-vendor",
+      "model": "fixture-board",
+      "revision": "fixture-revision"
+    }
+  },
+  "provenance": "fixture",
+  "schema": "bbp-execution-evidence-v1",
+  "scope": "physical"
+}

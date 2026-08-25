@@ -31,22 +31,35 @@ FREEFLAGS := -ffreestanding -fno-stack-protector -fno-stack-clash-protection \
 
 BUILD := build
 TESTBIN := $(BUILD)/josh_bbp_test
+FBTEST := $(BUILD)/framebuffer_domain_test
 
-.PHONY: all test scaffold-check clean
+.PHONY: all test test-hosted scaffold-check clean
 
 # Default = run the hosted harness against the shipped port + frozen core.
-all: test
+all: test-hosted
 
 # Compile the standalone harness with the host cc and run it; the port passes
 # when the parser validates all 5 synthesized tags ("RESULT: PASS").
-test: $(TESTBIN)
+test: test-hosted
+
+test-hosted: $(TESTBIN) $(FBTEST)
 	@echo "== running Josh-Bear BBP hosted harness =="
 	@$(TESTBIN)
+	@$(FBTEST)
 
 $(TESTBIN): test/harness.c osif.c adapter.c \
             $(ROOT)/kernel/bbp_kernel.c $(ROOT)/bootloader/bbp_build.c
 	@mkdir -p $(BUILD)
 	$(HOSTCC) $(HOSTFLAGS) $^ -o $@
+	@echo "built: $@"
+
+$(FBTEST): test/framebuffer_domain.c test/include/kernel/boot/limine.h \
+           josh_glue.c osif.c adapter.c $(ROOT)/kernel/bbp_kernel.c \
+           $(ROOT)/bootloader/bbp_build.c
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) -Itest/include test/framebuffer_domain.c \
+		josh_glue.c osif.c adapter.c $(ROOT)/kernel/bbp_kernel.c \
+		$(ROOT)/bootloader/bbp_build.c -o $@
 	@echo "built: $@"
 
 # Link the port glue + the core parser + the core builder into one relocatable

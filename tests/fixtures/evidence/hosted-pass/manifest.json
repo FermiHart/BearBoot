@@ -1,0 +1,30 @@
+{
+  "artifacts": [
+    {
+      "media_type": "application/octet-stream",
+      "path": "artifacts/serial.raw",
+      "role": "raw-serial",
+      "sha256": "19866a5a2f1de5484d6fca78e53da3fbed9646e135cf52c4ea99cdbea8657725",
+      "size": 35
+    }
+  ],
+  "execution": {
+    "command": [
+      "make",
+      "test-hosted"
+    ],
+    "exit_code": 0,
+    "pass_marker": "BBP-HOSTED: PASS",
+    "timed_out": false,
+    "verdict": "PASS"
+  },
+  "identity": {
+    "host": {
+      "architecture": "x86_64",
+      "operating_system": "linux"
+    }
+  },
+  "provenance": "fixture",
+  "schema": "bbp-execution-evidence-v1",
+  "scope": "hosted"
+}

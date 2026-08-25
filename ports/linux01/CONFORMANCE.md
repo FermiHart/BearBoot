@@ -3,7 +3,10 @@
 ## Identity
 - OS / branch:            linux-0.01-modern (Linus' 1991 kernel, Limine-booted)
 - Port version:           1.0.0
-- BBP core commit pinned:  9257abe (include/bbp + kernel/bbp_kernel.c + bootloader/bbp_build.c)
+- Historical evidence core revision: 9257abe (include/bbp +
+                          kernel/bbp_kernel.c + bootloader/bbp_build.c).
+- Current hosted/scaffold revision: the BearBoot checkout at gate execution;
+                          release metadata records that exact source revision.
 - BBP protocol version:   1.1
 - Toolchain:              x86_64-elf-gcc 16.1.0 (-m32 elf32-i386); host cc for the harness
 - Date / author:          2026-06-03 — F E R M I ∞ H A R T <contact@fermihart.com>
@@ -40,25 +43,34 @@ kernel's fixed RAM model + identity map can truthfully describe.
 
 ## Validation evidence
 - [x] `make scaffold-check CROSS=x86_64-elf-` passes — compiles + links the port
-      against the frozen core in elf32-i386 (confirmed via objdump: "file format
+      against the current checkout core in elf32-i386 (confirmed via objdump: "file format
       elf32-i386, architecture: i386"). Proves zero ABI drift in the 32-bit world.
-- [x] Core self-test still green against pinned commit 9257abe:
+- [x] Historical core self-test was green at revision 9257abe:
       `make test` in root -> PASSED (0 failures), 45 checks incl. adversarial suite.
-- [x] Hosted real-data proof in test/serial.log: the SHIPPED adapter (osif.c +
-      adapter.c) run on the linux-0.01 fixed RAM model through the frozen parser:
+- [x] Hosted fixed-model proof in `test/serial.log`: the shipped adapter (osif.c +
+      adapter.c) run on the linux-0.01 fixed RAM model through the parser:
         bbp: linux-0.01 adapter ok, 3 tags, hhdm=0x0
         RESULT: PASS - native adapter validated on the linux-0.01 RAM model
 - [x] bbp_init returned BBP_OK on the synthesized info (identity-mapped handoff).
 - [x] Adversarial in-situ test: corrupting the MEMORY_MAP tag's entry_count makes
       the parser reject it (CRC mismatch) — "corrupt-tag rejection . ok".
 - [x] MEMORY_MAP total verified: 640 KiB + (8 MiB − 1 MiB) = 7808 KiB usable.
-- [x] In-kernel QEMU boot log — DONE. The call site `bbp_linux01_init()` is
-      wired into init/main.c (after hd_init()) in the linux-0.01-modern tree, and
-      the kernel boots headless under QEMU to the interactive shell with:
+- [ ] In-kernel QEMU boot is reported but unarchived. The report says the call
+      site `bbp_linux01_init()` was wired into init/main.c (after hd_init()) in
+      the external linux-0.01-modern tree and reached the interactive shell with:
         [bbp] linux-0.01 adapter: ok, 3 tags, hhdm=0x0
         Partition table ok. / ... / linux 0.01 — interactive shell
       The adapter is additive and non-fatal: the kernel reaches userspace
-      normally with BBP validation running inside it.
+      normally with BBP validation running inside it. No raw serial artifact is
+      checked into this repository, so this is not independently replayable or
+      release evidence.
+
+### Evidence scope / substrate / replay
+| artifact / command | proof scope | substrate | replay | core revision |
+|--------------------|-------------|-----------|--------|---------------|
+| `make test` | hosted adapter, fixed RAM model (3 tags) | host process; no QEMU | reproducible from current checkout | current checkout |
+| `test/serial.log` | archived hosted adapter output (3 tags) | host process; no QEMU | recorded hosted output; current command is separately replayable | 9257abe report provenance |
+| no artifact | reported full Linux 0.01 OS boot | QEMU + external linux-0.01-modern tree | unarchived, not replayable from this repository | reported at 9257abe |
 
 ## Notes from the in-kernel bring-up
 - A latent pre-existing bug surfaced during wiring (NOT a BBP defect): the 1991
@@ -76,9 +88,10 @@ kernel's fixed RAM model + identity map can truthfully describe.
 - bbp_verify_blob is NOT exercised: the port produces no out-of-line payloads
   (no CMDLINE/SECURITY/EDID), so there is nothing to verify. This is correct,
   not a gap — the 3 tags are fully self-contained.
-- The in-kernel integration is COMPLETE and booted (see evidence above). The
-  hosted rig and the real kernel boot agree: same adapter code, same RAM-model
-  field shape, same `adapter ok` verdict.
+- The in-kernel integration is reported complete and booted, but the raw run is
+  not archived here. Only the hosted rig is a checked and reproducible artifact;
+  the reported agreement with the external kernel run is not independently
+  auditable from this repository.
 - now_ns / arena are documented tech debt (see integration.md §6), not defects:
   honest approximations with a clear upgrade path and the binding seam in place.
 

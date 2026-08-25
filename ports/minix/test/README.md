@@ -2,7 +2,7 @@
 
 This directory is the VERIFICATION RIG for the Limine->BBP adapter. It is not
 part of the shipped port objects (`../osif.c` + `../adapter.c`); it exists only
-to PROVE those objects work on real higher-half Limine boot data, per the port
+to prove those objects work on QEMU-provided higher-half Limine boot data, per the port
 README rule "no green claims without a serial log" and SPEC §10.1.
 
 ## What it does
@@ -12,7 +12,7 @@ port targets (limine protocol, 64-bit, paging on, higher-half, HHDM provided).
 It:
 
 1. Publishes the same Limine requests MINIX does (memmap, hhdm,
-   kernel-address, rsdp, framebuffer) and receives REAL hardware data.
+   kernel-address, rsdp, framebuffer) and receives emulator-provided data.
 2. Performs the EXACT field copy the MINIX integration does
    (Limine response -> `struct bbp_minix_bootinfo`).
 3. Calls the REAL shipped `bbp_minix_adapter()` (compiled from `../adapter.c`
@@ -21,7 +21,7 @@ It:
    `bbp_verify_blob()` on the out-of-line cmdline (ADR-0006).
 5. Exits via QEMU `isa-debug-exit`: code 33 == PASS, anything else == FAIL.
 
-If `bbp_init_ex` returns `BBP_OK` here, the adapter is proven against genuine
+If `bbp_init_ex` returns `BBP_OK` here, the adapter is proven against QEMU
 higher-half Limine boot data — the MINIX integration is then just the wiring
 in `../integration.md` (identical field copy + call).
 
@@ -47,4 +47,4 @@ Reuses the Limine BIOS-CD assets already vendored at
 Success line in `serial.log`:
 
     bbp: minix adapter ok, N tags, hhdm=0x...
-    RESULT: PASS — adapter validated on real Limine data
+    RESULT: PASS — adapter validated on QEMU Limine data

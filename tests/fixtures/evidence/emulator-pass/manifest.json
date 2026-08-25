@@ -1,0 +1,32 @@
+{
+  "artifacts": [
+    {
+      "media_type": "application/octet-stream",
+      "path": "artifacts/serial.raw",
+      "role": "raw-serial",
+      "sha256": "88308325c17155cca2ca2abb1e330c481c941fc674a67fbab97b27b2c629c11e",
+      "size": 30
+    }
+  ],
+  "execution": {
+    "command": [
+      "make",
+      "qemu"
+    ],
+    "exit_code": 0,
+    "pass_marker": "BBP-QEMU: PASS",
+    "timed_out": false,
+    "verdict": "PASS"
+  },
+  "identity": {
+    "emulator": {
+      "architecture": "x86_64",
+      "machine": "pc",
+      "name": "qemu-system-x86_64",
+      "version": "fixture-version"
+    }
+  },
+  "provenance": "fixture",
+  "schema": "bbp-execution-evidence-v1",
+  "scope": "emulator"
+}

@@ -4,11 +4,13 @@
 - OS / branch:            TinaLinux (Linux 6.12 "Baby Opossum Posse" derivative),
                           tree /home/alf/OS/TinaLinux, kernel build #122.
 - Port version:           1.0.0
-- BBP core commit pinned: BBP v1.1 (hardened/audited). The vendored core files
-                          arch/x86/bbp/{include/bbp/*, bbp_kernel.c, bbp_build.c}
-                          are BYTE-IDENTICAL to the canonical BearBoot core
-                          (ABI-frozen — verified by diff against
-                          BearBoot/{include,kernel,bootloader}).
+- Historical external-OS core revision: BBP v1.1 snapshot; the exact BearBoot
+                          commit was not recorded. At capture time the report
+                          stated that the TinaLinux-vendored files were compared
+                          byte-for-byte with that then-current BearBoot checkout.
+                          This is not a current-revision identity claim.
+- Current hosted/scaffold revision: the BearBoot checkout at gate execution;
+                          release metadata records that exact source revision.
 - BBP protocol version:   1.1
 - Toolchain:              host gcc (kernel build, -nostdinc -ffreestanding for
                           the freestanding BBP TUs via compat shim);
@@ -18,8 +20,8 @@
 ## What makes this a NATIVE port (NOT a Limine adapter)
 The MINIX port is a Limine->BBP adapter: it translates Limine response structs.
 TinaLinux is NOT booted by Limine — it is booted by the native Linux x86_64 path
-(EFI stub / BIOS -> boot_params). So this port sources its boot data from the
-REAL Linux globals, and was written from scratch as a genuine OSIF:
+(EFI stub / BIOS -> boot_params). So this port sources its boot data from native
+Linux globals inside the guest, and was written from scratch as a genuine OSIF:
 
 | OSIF concern  | Linux-native source                                  |
 |---------------|------------------------------------------------------|
@@ -81,25 +83,26 @@ HHDM hazard is structurally absent. (osif.c + adapter.c dual-alias notes.)
 | CMDLINE          | yes (if cmdline) | yes | string_crc — SET via bbp_crc64 over arena copy |
 
 Boot log: "tinalinux adapter ok, 5 tags" => HHDM + MEMORY_MAP + KERNEL_ADDRESS +
-ACPI + CMDLINE, each CRC-64/XZ validated by the frozen parser.
+ACPI + CMDLINE, each CRC-64/XZ validated by the historical parser snapshot.
 
 ## Validation evidence
-- [x] `make scaffold-check` passes — port compiles+links against the FROZEN core
+- [x] `make scaffold-check` passes — port compiles+links against the core in the
+      current checkout
       under -nostdinc -ffreestanding (kernel-like flags) via the compat shim:
       "TinaLinux port scaffold compiles + links against frozen BBP core."
 - [x] `make test` (hosted rig) PASS — the SHIPPED osif.c + adapter.c, driven by
-      representative native e820 data through the frozen parser:
+      representative native e820 data through the current checkout parser:
       "bbp: tinalinux adapter ok, 5 tags … RESULT: PASS". Includes a
       bbp_verify_blob() of the out-of-line cmdline (ADR-0006).
-- [x] Core self-test (root `make test`) still green: "PASSED (0 failures)" — the
-      ABI-frozen core was NOT modified by this port.
+- [x] Historical root core self-test was reported green: "PASSED (0 failures)."
 - [x] In-tree kernel compile of all 5 BBP objects: zero warnings, zero errors
       (CC bbp_kernel/bbp_build/osif/adapter/tina_bbp, AR built-in.a).
 - [x] vmlinux links with the BBP objects; System.map carries bbp_tina_adapter /
       bbp_init_ex / bbp_tina_osif / bbp_find_tag / bbp_tina_get_rsdp and the
       registered late_initcall.
-- [x] REAL boot evidence in test/serial.log (headless QEMU+KVM, embedded
-      initramfs, kernel #122). Captured lines:
+- [x] Historical full-OS evidence in `test/serial.log` (headless QEMU with KVM
+      acceleration, embedded initramfs, kernel #122). This is emulator evidence,
+      not a physical-hardware run. Captured lines:
         bbp: native Linux -> BBP adapter: ok
         |   B E A R   B O O T   P R O T O C O L   v1.1           |
         [*] native Linux -> BBP adapter .... ACTIVE
@@ -109,10 +112,19 @@ ACPI + CMDLINE, each CRC-64/XZ validated by the frozen parser.
       The firmware tables that fed it are in the same log (BIOS-e820: …, ACPI:
       RSDP 0x...F5290). The kernel then continued to the interactive jash prompt
       (fermi@fermihart:/ $) — the adapter is ADDITIVE and NON-FATAL.
-- [x] bbp_init_ex returned BBP_OK on real boot data (the "adapter: ok" line is
+- [x] bbp_init_ex returned BBP_OK on the archived guest boot data (the "adapter: ok" line is
       bbp_strstatus(st) with st==BBP_OK; 5 tags CRC-validated by the parser).
-- [x] hhdm in the live log is a real KASLR'd page_offset_base (0xffff91e1…),
-      proving phys_to_virt is the kernel's actual direct map, not identity.
+- [x] hhdm in the archived log is the guest's runtime KASLR'd page_offset_base
+      (0xffff91e1…), proving phys_to_virt used that guest direct map, not identity.
+
+### Evidence scope / substrate / replay
+| artifact / command | proof scope | substrate | replay | core revision |
+|--------------------|-------------|-----------|--------|---------------|
+| `make test` | hosted adapter (5 tags) | host process, representative native-Linux data | reproducible from current checkout | current checkout |
+| `test/serial.log` | full TinaLinux OS boot (5 tags) | QEMU emulator with KVM acceleration | recorded only; external TinaLinux tree/build is not archived here | historical BBP v1.1 snapshot; exact commit unrecorded |
+
+No physical TinaLinux boot is claimed. The archived emulator record does not
+prove a TinaLinux boot at the current BearBoot source revision.
 
 ## Build wiring (how to reproduce)
 - Vendored at kernel/arch/x86/bbp/ (flat layout): core + port + glue + Kbuild +
@@ -135,4 +147,5 @@ ACPI + CMDLINE, each CRC-64/XZ validated by the frozen parser.
 4. The port is ADDITIVE: it does not (yet) replace TinaLinux's native e820/ACPI
    consumers — it provides a parallel CRC-sealed view via bbp_find_tag(). A
    follow-up can route the ACPI subsystem through bbp_tina_get_rsdp() (a
-   CRC-verified RSDP) — the accessor is shipped and ready.
+   CRC-verified pointer; the RSDP still needs normal ACPI validation) — the
+   accessor is shipped and ready.

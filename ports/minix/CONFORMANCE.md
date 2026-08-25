@@ -3,10 +3,13 @@
 ## Identity
 - OS / branch:            MINIX x86_64, branch `limine-boot` (/Users/admin/OS/minix)
 - Port version:           0.1.0
-- BBP core commit pinned: b2ea55e ("BBP v1.1 — hardened, audited, publishable")
-                          working tree at 742906a (ports scaffold); core files
-                          include/bbp/*, kernel/bbp_kernel.c, bootloader/bbp_build.c
-                          are UNMODIFIED vs b2ea55e (ABI-frozen).
+- Historical evidence core revision: b2ea55e ("BBP v1.1 — hardened, audited,
+                          publishable"), recorded from a working tree then at
+                          742906a. This describes the archived machine/OS logs,
+                          not the current BearBoot core implementation.
+- Current hosted/scaffold revision: the BearBoot checkout at gate execution;
+                          release metadata records that exact source revision.
+                          The wire ABI remains v1.1.
 - BBP protocol version:   1.1
 - Toolchain:              x86_64-elf-gcc 16.1.0, x86_64-elf-ld; xorriso 1.5.8;
                           limine (deploy); qemu-system-x86_64 11.0.0
@@ -51,11 +54,15 @@ the port keeps them distinct (see osif.c alias note + adapter.c).
 | CMDLINE          | yes (if cmdline) | yes | string_crc — SET via bbp_crc64 over arena copy |
 
 ## Validation evidence
-- [x] `make scaffold-check` passes (compiles+links against frozen core)
+- [x] `make scaffold-check` passes (compiles+links against the core in the
+      current checkout)
       => "MINIX port scaffold compiles + links against frozen BBP core."
-- [x] Core self-test still green against the pinned commit (`make test` in root)
+- [x] `make test-hosted` is the current reproducible host-process gate. It uses a
+      synthetic nonzero-HHDM snapshot, validates seven tags and cmdline tamper
+      rejection, and explicitly makes no MINIX boot claim.
+- [x] Historical core self-test was green at the recorded revision (`make test`)
       => "PASSED (0 failures)"
-- [x] Harness builds into a REAL bootable higher-half Limine ISO with the
+- [x] Adapter machine harness built into a bootable higher-half Limine ISO with the
       shipped osif.c + adapter.c objects:
         - x86_64-elf cross-compile of boot.S/harness.c/osif.c/adapter.c +
           core bbp_kernel.c/bbp_build.c: all OK, zero warnings (-Wall -Wextra).
@@ -63,9 +70,9 @@ the port keeps them distinct (see osif.c alias note + adapter.c).
           present, ZERO undefined symbols; bbp_minix_adapter / bbp_minix_osif /
           bbp_init_ex / bbp_verify_blob all linked.
         - Limine BIOS-CD ISO built + `limine bios-install` OK (3.8M harness.iso).
-- [x] Real MINIX serial log in test/serial.log showing the parser validated on
-      REAL Limine boot data (not the standalone harness — the actual MINIX
-      kernel boot via `make iso` + QEMU). Captured lines:
+- [x] Historical full MINIX OS record in `test/serial-all6-consumers.log`
+      showing the parser validated on Limine boot data in the external MINIX
+      kernel under QEMU. Captured lines:
         [limine] BBP adapter: ok
         |   B E A R   B O O T   P R O T O C O L   v1.1           |
         [*] Limine -> BBP adapter ......... ACTIVE
@@ -74,7 +81,7 @@ the port keeps them distinct (see osif.c alias note + adapter.c).
         [*] tags validated ................ 6
         MINIX x86_64 now sees hardware through BBP.
       The kernel then continues to the interactive JASH shell.
-- [x] bbp_init_ex returned BBP_OK on real boot data (the "BBP adapter: ok" line
+- [x] bbp_init_ex returned BBP_OK on the historical external OS boot data (the "BBP adapter: ok" line
       is bbp_strstatus(st) with st==BBP_OK; 6 tags CRC-validated by the parser:
       HHDM, MEMORY_MAP, KERNEL_ADDRESS, SMP, ACPI, CMDLINE. The SMP tag carries
       the Limine MP topology (cpu_count/bsp/LAPIC ids); a uniprocessor boot still
@@ -84,7 +91,17 @@ the port keeps them distinct (see osif.c alias note + adapter.c).
       standalone test/harness.c path; the MINIX glue passes cmdline through and
       a consumer verifies it per ../integration.md §4).
 
-### Integration path (how the real-boot evidence was produced)
+### Evidence scope / substrate / replay
+| artifact / command | proof scope | substrate | replay | core revision |
+|--------------------|-------------|-----------|--------|---------------|
+| `make test-hosted` | hosted adapter | host process, synthetic snapshot | reproducible from current checkout | current checkout |
+| `test/serial.log` | adapter machine harness (7 tags; loads `harness.elf`) | QEMU + Limine machine harness | recorded only; not replayed by hosted gate | b2ea55e report provenance |
+| `test/serial-all6-consumers.log` | full MINIX OS boot (6 tags; loads `kernel.elf` and MINIX modules) | QEMU + Limine + external MINIX tree | recorded only; external tree not archived here | b2ea55e report provenance |
+
+Neither checked machine log proves an external MINIX boot at the current
+BearBoot source revision. `test/serial.log` must not be cited as the full OS log.
+
+### Integration path (how the recorded QEMU boot evidence was produced)
 The adapter is wired into the MINIX boot via a thin glue TU that keeps all
 bbp/* includes out of the -nostdinc MINIX translation units:
   - BearBoot/ports/minix/minix_glue.c — owns the BBP includes, exposes
@@ -94,13 +111,13 @@ bbp/* includes out of the -nostdinc MINIX translation units:
   - minix/kernel/scripts/build_limine_full.sh — -I<BearBoot>/include + the 5
     BBP objects added to LIBSRCS.
 Verified: kernel.elf links bbp_minix_boot_glue / bbp_minix_adapter /
-bbp_init_ex / bbp_minix_osif; all BBP sources compile under the real kernel
+bbp_init_ex / bbp_minix_osif; all BBP sources compiled under the external kernel
 CFLAGS (-Werror -nostdinc + -idirafter destdir).
 
 ## Deviations / known gaps (honest accounting)
-1. **Resolved.** Runtime boot evidence IS captured — test/serial.log from a real
-   MINIX kernel boot shows bbp_init_ex==BBP_OK with 6 CRC-validated tags and the
-   BBP banner. (Earlier in the session this was the one open item; it is closed.)
+1. Historical full-OS evidence is `test/serial-all6-consumers.log`, with six
+   CRC-validated tags and the BBP banner. `test/serial.log` is a distinct
+   seven-tag adapter machine harness. Neither external run is currently replayed.
 2. now_ns uses a nominal 1 GHz TSC assumption (relative metrics only).
 3. ACPI tag carries rsdp_address only (no RSDP/RSDT parse).
 4. Framebuffer EDID not forwarded (edid_crc=0); width/height/pitch/format are.
