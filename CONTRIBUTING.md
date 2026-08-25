@@ -25,10 +25,15 @@ You MAY NOT reorder, resize, or retype an existing field without a major bump.
   `osif.{c,h}`, an adapter, a glue/call-site, a `Makefile` with
   `scaffold-check` + a hosted test, and a `CONFORMANCE.md`. See
   `ports/tinalinux/` (native) and `ports/minix/` (Limine adapter).
-- **A real producer** (firmware/bootloader side) → build on `bbp_build.c`. The
-  UEFI `efi_main.c` is a skeleton to start from.
+- **A producer** (firmware/bootloader side) → build on `bbp_build.c`. The x86_64
+  UEFI `efi_main.c` is machine-proven for its deliberately constrained three-tag,
+  four-level-paging contract; expanding it requires new fail-closed tests and a
+  machine proof, not an assumption that it is a general-purpose loader.
 - **Parser hardening** → `kernel/bbp_kernel.c`, with a matching adversarial case
   in `tests/abi_selftest.c` and, where relevant, the fuzzer corpus.
+- **Experimental v2/auth work** → keep it isolated from the frozen v1.1 ABI,
+  update the governing RFC, and preserve explicit package allowlists and shared
+  vectors. Package availability does not make an experimental format stable.
 
 ## Definition of done
 
@@ -37,11 +42,24 @@ Every change must keep these green:
 ```sh
 make check                       # core + fuzz + importers + tools + SDK + docs
 cd ports/<os> && make scaffold-check && make test   # if you touched a port
+make qemu-uefi-loader qemu-uefi-tcg2  # if loader/TCG2 behavior changed
 ```
 
 A new capability claim must come with a proof: a `make` target or a checked-in
 log. Update `STATUS.md` honestly — if something is structure-only, label it
 🟡; do not mark it 🟢 without a reproducible proof. **Trust is the product.**
+
+Execution claims must preserve their provenance. Hosted, emulator, and physical
+evidence are distinct scopes under the execution-evidence v1 contract. Never
+relabel a fixture, hosted transcript, or QEMU log as physical evidence; physical
+claims require identified board metadata and raw serial as documented in
+`docs/physical-hardware-runner.md`. The bundle format does not authenticate
+these claims, and the physical override is integrity-only, not proof.
+
+Release preparation is not publication. Documentation for a version candidate
+must say that the cut is pending until the signed tag and hardened release
+workflow have completed; do not claim a tag, registry package, or GitHub release
+from an in-tree version bump alone.
 
 ## Style
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wave 9 deterministic release metadata regression tests."""
+"""Deterministic release metadata and evidence-honesty regression tests."""
 
 import hashlib
 import json
@@ -89,7 +89,7 @@ class ReleaseMetadataTests(unittest.TestCase):
 
             support = json.loads((directory / "support.json").read_text())
             self.assertEqual(support["format"], "bearboot-support-matrix-v1")
-            self.assertEqual(support["package_version"], "1.3.0")
+            self.assertEqual(support["package_version"], "1.4.0")
             self.assertEqual(support["wire_version"], "1.1")
             self.assertEqual(support["source_revision"], REVISION)
             self.assertEqual(support["generated_at"], "1973-11-29T21:33:09Z")
@@ -112,9 +112,58 @@ class ReleaseMetadataTests(unittest.TestCase):
             self.assertEqual(architectures["loongarch"]["lifecycle"], "suspended")
             ports = {item["port"]: item for item in support["ports"]}
             self.assertEqual(set(ports), {"tinalinux", "minix", "linux01", "josh"})
-            self.assertEqual(ports["tinalinux"]["status"], "live")
-            self.assertEqual(ports["minix"]["status"], "recorded")
+            self.assertEqual(ports["tinalinux"]["status"], "host-tested")
+            self.assertEqual(ports["minix"]["status"], "host-tested")
+            self.assertEqual(ports["linux01"]["status"], "host-tested")
+            self.assertEqual(ports["josh"]["status"], "host-tested")
             self.assertTrue(all(port["proof_commands"] for port in ports.values()))
+            self.assertIn("Historical port records", support["source_revision_scope"])
+
+            proofs = {
+                port: {proof.get("path", proof.get("proof_command")): proof
+                       for proof in item["proofs"]}
+                for port, item in ports.items()
+            }
+            for item in ports.values():
+                for proof in item["proofs"]:
+                    self.assertIn("core_revision", proof)
+                    self.assertIn("proof_scope", proof)
+                    self.assertIn("substrate", proof)
+                    self.assertIn("replay", proof)
+                    if "path" in proof:
+                        self.assertTrue((ROOT / proof["path"]).is_file(), proof["path"])
+
+            minix = proofs["minix"]
+            self.assertEqual(
+                minix["ports/minix/test/serial.log"]["proof_scope"],
+                "adapter-machine-harness",
+            )
+            self.assertEqual(
+                minix["ports/minix/test/serial-all6-consumers.log"]["proof_scope"],
+                "full-os-boot",
+            )
+            linux_os = next(
+                proof for proof in ports["linux01"]["proofs"]
+                if proof["proof_scope"] == "reported-full-os-boot"
+            )
+            self.assertNotIn("path", linux_os)
+            self.assertEqual(linux_os["replay"], "unarchived-not-replayable")
+            self.assertEqual(
+                proofs["josh"]["ports/josh/test/run.log"]["proof_scope"],
+                "hosted-adapter",
+            )
+            self.assertEqual(
+                proofs["josh"]["ports/josh/test/serial.log"]["proof_scope"],
+                "full-os-boot",
+            )
+            self.assertEqual(
+                proofs["tinalinux"]["ports/tinalinux/test/serial.log"]["substrate"],
+                "qemu-kvm-emulator",
+            )
+            self.assertNotIn(
+                "physical",
+                proofs["tinalinux"]["ports/tinalinux/test/serial.log"]["substrate"],
+            )
 
             sbom = json.loads((directory / "sbom.spdx.json").read_text())
             self.assertEqual(sbom["spdxVersion"], "SPDX-2.3")
@@ -129,7 +178,7 @@ class ReleaseMetadataTests(unittest.TestCase):
             self.assertEqual(set(packages), {name for name, _ in artifacts})
             for name, path in artifacts:
                 package = packages[name]
-                self.assertEqual(package["versionInfo"], "1.3.0")
+                self.assertEqual(package["versionInfo"], "1.4.0")
                 self.assertEqual(package["packageFileName"], name)
                 self.assertFalse(package["filesAnalyzed"])
                 self.assertEqual(package["builtDate"], "1973-11-29T21:33:09Z")
@@ -143,6 +192,24 @@ class ReleaseMetadataTests(unittest.TestCase):
                 }
                 self.assertEqual(references["bearboot-source-revision"], REVISION)
                 self.assertEqual(references["bearboot-wire-version"], "1.1")
+
+    def test_checked_evidence_is_classified_honestly_in_docs(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        status = (ROOT / "STATUS.md").read_text(encoding="utf-8")
+        minix = (ROOT / "ports/minix/CONFORMANCE.md").read_text(encoding="utf-8")
+        linux01 = (ROOT / "ports/linux01/CONFORMANCE.md").read_text(encoding="utf-8")
+        josh = (ROOT / "ports/josh/CONFORMANCE.md").read_text(encoding="utf-8")
+        tina = (ROOT / "ports/tinalinux/CONFORMANCE.md").read_text(encoding="utf-8")
+
+        self.assertIn("`serial.log` is a 7-tag adapter machine harness", readme)
+        self.assertIn("`test/serial.log` | adapter machine harness", minix)
+        self.assertIn("`test/serial-all6-consumers.log` | full MINIX OS boot", minix)
+        self.assertIn("In-kernel QEMU boot is reported but unarchived", linux01)
+        self.assertIn("no raw in-kernel serial artifact is checked in", status)
+        self.assertIn("`test/run.log` | archived hosted adapter output (6 tags)", josh)
+        self.assertIn("`test/serial.log` | full Josh OS boot (5 tags)", josh)
+        self.assertIn("QEMU emulator with KVM acceleration", tina)
+        self.assertIn("No physical TinaLinux boot is claimed", tina)
 
     def test_check_detects_drift_without_rewriting(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -178,10 +245,10 @@ class ReleaseMetadataTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             support = json.loads((output / "SUPPORT-MATRIX.json").read_text())
             self.assertEqual(
-                support["title"], "BearBoot SDK 1.3.0 (BBP wire 1.1)"
+                support["title"], "BearBoot SDK 1.4.0 (BBP wire 1.1)"
             )
             sbom = json.loads(
-                (output / "bearboot-sdk-1.3.0.spdx.json").read_text()
+                (output / "bearboot-sdk-1.4.0.spdx.json").read_text()
             )
             self.assertEqual(sbom["packages"][0]["name"], artifact.name)
 

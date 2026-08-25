@@ -40,6 +40,33 @@ and payload ranges before reconstructing links, but the whole-file CRC still
 provides no authenticity. BBPC v1 omits out-of-line blobs and must not be
 treated as a complete image of boot state or as BBP wire input.
 
+## Experimental trust proofs
+
+SDK 1.4.0 keeps BBP wire 1.1 frozen. Its v2 capsule, Profile 0, HMAC envelope,
+and public-key policy are experimental offline surfaces, not a deployed boot
+protocol. The C, Rust, and host packages expose only the v2/Profile 0/HMAC
+surfaces described by RFCs 0001 through 0003. RFC 0004's ECDSA P-256/SHA-256
+proof remains host tooling; it is not a firmware verifier, Secure Boot
+implementation, production key store, or hardware root of trust.
+
+The UEFI/TCG2 machine gate proves that OVMF can extend an exact digest into PCR
+16 of `swtpm` and publish a CRC-sealed v1.1 SECURITY measurement log. It does not
+authenticate the firmware, report Secure Boot state, provision keys, establish
+freshness, or prove a physical TPM. PCR 16 is deliberately a debug PCR in these
+proofs.
+
+The durable rollback model stores operational state in an alternating A/B
+journal and refuses to lower a caller-injected monotonic floor. Its in-tree
+`MemoryFloorProvider` is a hosted test double. Journal SHA-256 is corruption
+detection, not authentication, and no physical TPM NV or firmware monotonic
+counter is implemented or claimed.
+
+Execution-evidence bundles provide integrity, not operator identity or truthful
+provenance. The format cannot prevent hosted or emulator output from being
+deliberately relabeled. Physical claims are therefore rejected as proof by
+default; an explicit unauthenticated override only checks their internal
+integrity. This repository ships no physical PASS proof.
+
 ## Reporting a vulnerability
 
 Email **contact@fermihart.com** with:
@@ -65,3 +92,7 @@ an entry in `CHANGELOG.md` and, where relevant, a new ADR.
   explicit nonzero HHDM hint as trusted consumer state.
 - Quiesce the producer/DMA writer or copy validated tags before using returned
   pointers; otherwise a post-validation mutation creates a TOCTOU race.
+- Treat every v2/auth API as experimental and keep it outside a stable online
+  boot path until its RFC and deployment policy are explicitly frozen.
+- Back rollback policy with a real monotonic provider before deployment; an A/B
+  journal or unkeyed digest cannot replace hardware or firmware authority.

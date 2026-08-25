@@ -25,9 +25,9 @@ jobs:
     name: core (v1.1 + v2 draft + importers + fuzz + multi-arch qemu)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install toolchain
-        run: sudo apt-get update && sudo apt-get install -y build-essential clang lld gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu ovmf qemu-system-arm qemu-system-misc qemu-system-x86 swtpm
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang lld openssl gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu ovmf qemu-system-arm qemu-system-misc qemu-system-x86 swtpm
       - name: Install Rust SDK gates
         run: |
           rustup component add rustfmt clippy
@@ -46,33 +46,34 @@ jobs:
         run: make qemu-riscv64
       - name: UEFI/OVMF builder-parser proof (TCG)
         run: make qemu-uefi
+      - name: Complete UEFI loader proof (ELF, EBS, paging, RDI)
+        run: make qemu-uefi-loader
+      - name: UEFI TCG2 SECURITY measurement proof
+        run: make qemu-uefi-tcg2
 
   ports:
     name: ports (scaffold-check + hosted test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install toolchain
         run: sudo apt-get update && sudo apt-get install -y build-essential
-      - name: tinalinux — freestanding scaffold + hosted adapter test
-        run: |
-          cd ports/tinalinux
-          make scaffold-check CROSS=
-          make test
-      - name: minix — freestanding scaffold-check
-        run: |
-          cd ports/minix
-          make scaffold-check CROSS=
+      - name: Validate the four-port inventory
+        run: make port-inventory-test
+      - name: Compile every port against the frozen core
+        run: make ports-check CROSS=
+      - name: Run every hosted adapter proof
+        run: make ports-hosted-check
 
   abi-guard:
     name: frozen-core guard (PRs must not touch the ABI)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Warn if a PR modifies the ABI-frozen core
+      - name: Reject changes to the ABI-frozen core
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
@@ -82,9 +83,10 @@ jobs:
           changed="$(git diff --name-only "$base" "$head")"
           hits="$(echo "$changed" | grep -E "$frozen" || true)"
           if [ -n "$hits" ]; then
-            echo "::warning title=Frozen core touched::This PR modifies the ABI-frozen core:"
+            echo "::error title=Frozen core touched::This PR modifies the ABI-frozen core:"
             echo "$hits" | sed 's/^/  /'
-            echo "Review the _Static_assert layout guarantees and bump BBP_VERSION_MAJOR if a struct changed. This is allowed but must be intentional."
+            echo "The BBP v1.1 contract is frozen. Use a separately approved ABI process for any change."
+            exit 1
           else
             echo "OK: PR does not touch the ABI-frozen core."
           fi

@@ -22,3 +22,7 @@ Format: Status / Context / Decision / Consequences.
 | 0013 | Keep v2 profiles separate and experimental         | Accepted |
 | 0014 | Separate measurement proof from authentication      | Accepted |
 | 0015 | Host-only authenticated envelope and rollback state | Accepted |
+| 0016 | UEFI loader physical request-pointer contract       | Accepted |
+| 0017 | Firmware-independent SECURITY measurement collector | Accepted |
+| 0018 | Durable generation and recovery policy              | Accepted |
+| 0019 | Experimental v2 SDK surfaces                        | Accepted |

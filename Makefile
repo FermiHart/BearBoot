@@ -56,12 +56,18 @@ V2_HEADERS := include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h bridge/bbp_bridg
 
 .PHONY: all test abi freestanding kernel fuzz check clean qemu qemu-aarch64 \
 	qemu-riscv64 \
-	uefi qemu-uefi \
+	uefi qemu-uefi qemu-uefi-loader qemu-uefi-tcg2 \
 	importers-test bbpctl-test ports-check readme-art verify-readme verify-site \
 	site-preview sdk-c-test sdk-package-test sdk-rust-test sdk-rust-msrv-test \
 	sdk-check sdk-package release-metadata-test v2-test
 
-.PHONY: v2-portability v2-profile-test v2-vectors-test v2-fuzz tpm2-measure-test auth-envelope-test
+.PHONY: v2-portability v2-profile-test v2-vectors-test v2-fuzz v2-auth-test \
+	bbp-stamp-test uefi-ebs-test uefi-elf-test uefi-loader-contract-test \
+	security-collector-test tpm2-response-test tpm2-measure-test \
+	auth-envelope-test auth2-test \
+	rollback-test evidence-check port-inventory-test ports-hosted-check
+
+.PHONY: release-policy-test
 
 all: test freestanding
 
@@ -447,6 +453,9 @@ sdk-package:
 release-metadata-test:
 	$(PYTHON) -m unittest tests.test_release_metadata
 
+release-policy-test:
+	$(PYTHON) -m unittest tests.test_release_policy
+
 # ---- experimental BBP v2 contiguous capsule and explicit v1.1 bridge ------
 v2-test: $(BUILD)/v2_selftest
 	$(BUILD)/v2_selftest
@@ -507,11 +516,80 @@ $(BUILD)/v2_fuzz: tests/fuzz_v2.c v2/bbp_v2.c v2/bbp_v2_profile.c $(V2_HEADERS)
 	        v2/bbp_v2_profile.c -o $@; \
 	fi
 
-tpm2-measure-test:
+bbp-stamp-test:
+	$(PYTHON) -m unittest tests.test_bbp_stamp
+
+uefi-ebs-test: $(BUILD)/uefi_ebs_selftest
+	$(BUILD)/uefi_ebs_selftest
+
+$(BUILD)/uefi_ebs_selftest: tests/uefi_ebs_selftest.c \
+		bootloader/uefi/uefi_exit.c bootloader/uefi/uefi_exit.h
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) tests/uefi_ebs_selftest.c \
+		bootloader/uefi/uefi_exit.c -o $@
+
+uefi-elf-test: $(BUILD)/uefi_elf_selftest
+	$(BUILD)/uefi_elf_selftest
+
+$(BUILD)/uefi_elf_selftest: tests/uefi_elf_selftest.c \
+		bootloader/uefi/elf64_loader.c bootloader/uefi/elf64_loader.h
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) tests/uefi_elf_selftest.c \
+		bootloader/uefi/elf64_loader.c -o $@
+
+uefi-loader-contract-test: bbp-stamp-test uefi-ebs-test uefi-elf-test
+	@echo "UEFI LOADER CONTRACT GATES PASSED"
+
+security-collector-test: $(BUILD)/security_collector_selftest
+	$(BUILD)/security_collector_selftest
+
+$(BUILD)/security_collector_selftest: tests/security_collector_selftest.c \
+		experimental/firmware/uefi/bbp_security_collector.c \
+		experimental/firmware/uefi/bbp_security_collector.h \
+		bootloader/bbp_build.c kernel/bbp_kernel.c $(BBP_HEADERS)
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/security_collector_selftest.c \
+		experimental/firmware/uefi/bbp_security_collector.c \
+		bootloader/bbp_build.c kernel/bbp_kernel.c -o $@
+
+tpm2-response-test:
+	$(PYTHON) -m unittest tests.test_tpm2_measure
+
+tpm2-measure-test: tpm2-response-test
 	$(PYTHON) tools/tpm2_measure.py
 
-auth-envelope-test:
-	$(PYTHON) -m unittest tests.test_v2_envelope
+v2-auth-test: $(BUILD)/v2_auth_selftest
+	$(BUILD)/v2_auth_selftest tests/vectors/bbp-v2-profile0-auth-v1.json
+	$(PYTHON) -m unittest tests.test_v2_envelope tests.test_v2_interop
+
+$(BUILD)/v2_auth_selftest: tests/v2_auth_selftest.c v2/bbp_v2_auth.c \
+		v2/bbp_v2.c v2/bbp_v2_profile.c include/bbp/bbp_v2_auth.h \
+		include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) $(INCLUDE) tests/v2_auth_selftest.c \
+		v2/bbp_v2_auth.c v2/bbp_v2.c v2/bbp_v2_profile.c -o $@
+
+auth-envelope-test: v2-auth-test
+
+auth2-test:
+	$(PYTHON) -m unittest tests.test_auth2
+
+rollback-test: $(BUILD)/rollback_model_selftest
+	$(BUILD)/rollback_model_selftest
+	$(PYTHON) -m unittest tests.test_rollback_state
+
+$(BUILD)/rollback_model_selftest: tests/rollback_model_selftest.c \
+		experimental/rollback/bbp_boot_state.c \
+		experimental/rollback/bbp_boot_state.h
+	@mkdir -p $(BUILD)
+	$(HOSTCC) $(HOSTFLAGS) tests/rollback_model_selftest.c \
+		experimental/rollback/bbp_boot_state.c -o $@
+
+evidence-check:
+	$(PYTHON) -m unittest tests.test_execution_evidence
+
+port-inventory-test:
+	$(PYTHON) -m unittest tests.test_port_inventory
 
 # ---- deterministic project identity + local Pages prototype ----------------
 readme-art:
@@ -528,7 +606,11 @@ site-preview: verify-site
 	$(PYTHON) -m http.server 8042 --bind 127.0.0.1
 
 # ---- everything that runs without a cross toolchain ------------------------
-check: abi test v2-test v2-profile-test v2-vectors-test auth-envelope-test fuzz importers-test bbpctl-test sdk-check release-metadata-test verify-site
+check: abi test v2-test v2-profile-test v2-vectors-test auth-envelope-test \
+	uefi-loader-contract-test security-collector-test tpm2-response-test \
+	auth2-test rollback-test evidence-check \
+	port-inventory-test fuzz importers-test bbpctl-test sdk-check \
+	release-metadata-test release-policy-test verify-site
 	@echo "ALL HOST CHECKS PASSED"
 
 # ---- compile-check every OS port against the frozen core -------------------
@@ -539,6 +621,21 @@ ports-check:
 	    fi; \
 	done
 	@echo "ALL PORTS COMPILE AGAINST THE FROZEN CORE"
+
+ports-hosted-check: port-inventory-test
+	@for p in ports/*/; do \
+	    if [ -f "$$p/Makefile" ]; then \
+	        echo "== $$p =="; $(MAKE) -C "$$p" test-hosted || exit 1; \
+	    fi; \
+	done
+	@echo "ALL PORT HOSTED ADAPTER TESTS PASSED"
+
+# ---- complete OVMF loader and TCG2 machine proofs -------------------------
+qemu-uefi-loader:
+	tests/uefi_loader_machine.sh
+
+qemu-uefi-tcg2:
+	tests/uefi_tcg2_machine.sh
 
 clean:
 	rm -rf $(BUILD) sdk/rust/bbp-wire/target

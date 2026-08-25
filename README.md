@@ -16,8 +16,8 @@ parsed by a hardened, adversarial-input-safe consumer.**
 ```
    Author:  F E R M I  ∞  H A R T  <contact@fermihart.com>
    License: BSD-3-Clause + Patent Grant (see LICENSE)
-    Status:  SDK 1.3.0 / BBP wire 1.1 — ABI frozen. x86_64 end-to-end.
-             Latest release: SDK 1.3.0. AArch64/RV64 machine proofs included.
+    Status:  SDK 1.4.0 release candidate / BBP wire 1.1 - ABI frozen.
+             Cut pending workflow. No sdk-v1.4.0 tag or release is claimed yet.
 ```
 
 > **What BBP is:** a thin integrity + portability layer between *whatever booted
@@ -44,8 +44,10 @@ BBP adds one honest thing at that seam: **every structure is CRC-64/XZ-sealed,
 and the kernel-side parser treats the entire handoff as untrusted input** —
 bounds every length, validates structure before dereferencing, rejects
 overflowing/wrapping pointers, clamps forged array counts, and bounds cyclic tag
-chains. A bad producer can make the kernel *refuse to boot*; it must not be able
-to make it fault, hang, or consume forged data. (See `SECURITY.md`.)
+chains. Given the required mapped, readable handoff window that the consumer
+keeps immutable during validation, a bad producer can make the kernel *refuse
+to boot*; it must not be able to make it fault, hang, or consume forged data.
+(See `SECURITY.md`.)
 
 You keep your bootloader. You gain an integrity-checked, portable handoff.
 
@@ -53,20 +55,22 @@ You keep your bootloader. You gain an integrity-checked, portable handoff.
 
 ## Proven today: four OS integrations
 
-BBP is not a paper ABI. The same frozen core is wired into four different kernels
-through the OSIF seam, each with its own producer of tags:
+BBP is not a paper ABI. The frozen wire ABI is wired into four different kernels
+through the OSIF seam, each with its own producer of tags. Current hosted gates
+compile the ports with the core in this checkout; older machine/OS records retain
+their historical core provenance and are not proof of an OS boot at current HEAD.
 
 | Integration | How it produces tags | Status |
 |-------------|----------------------|--------|
-| **`ports/tinalinux/`** | **native** Linux path — `e820_table`, `acpi_os_get_root_pointer()`, `saved_command_line`, `page_offset_base` | **boots under QEMU+KVM**; serial log shows `bbp: tinalinux adapter ok, 5 tags` (see `ports/tinalinux/test/serial.log`) |
-| **`ports/minix/`** | **Limine adapter** — translates Limine responses into BBP tags | real MINIX boot record shows 6 validated tags in `ports/minix/test/serial.log` |
-| **`ports/linux01/`** | **native identity-mapped adapter** — describes the 1991 fixed RAM model without inventing modern firmware | in-kernel QEMU record shows 3 validated tags and a normal userspace handoff |
-| **`ports/josh/`** | **Limine + PMM adapter** — bounded walk window and verified boot-entropy payload | real QEMU record shows 5 tags and CRC-verified entropy seeding the CSPRNG |
+| **`ports/tinalinux/`** | **native** Linux path — `e820_table`, `acpi_os_get_root_pointer()`, `saved_command_line`, `page_offset_base` | current hosted adapter gate; historical external full-OS record in `ports/tinalinux/test/serial.log` is QEMU/KVM emulator evidence, not physical hardware |
+| **`ports/minix/`** | **Limine adapter** — translates Limine responses into BBP tags | `serial.log` is a 7-tag adapter machine harness; `serial-all6-consumers.log` is the historical 6-tag full MINIX OS record; neither machine run is replayed by the hosted gate |
+| **`ports/linux01/`** | **native identity-mapped adapter** — describes the 1991 fixed RAM model without inventing modern firmware | checked `serial.log` is a hosted 3-tag proof; an in-kernel QEMU boot is reported in the conformance report but its raw serial output is not archived |
+| **`ports/josh/`** | **Limine + PMM adapter** — bounded walk window and verified boot-entropy payload | `run.log` is the hosted 6-tag proof; historical external `serial.log` is a 5-tag Josh OS record |
 
-The TinaLinux port is the clearest demonstration of the idea: it sits **next to**
-the native Linux boot path (does not disturb it), and at `late_initcall`
-synthesizes a CRC-sealed tag view of the real firmware tables. Additive,
-non-fatal, complementary — exactly the design intent.
+The archived TinaLinux QEMU/KVM record demonstrates the intended integration:
+the port sits **next to** the native Linux boot path (does not disturb it), and
+at `late_initcall` synthesizes a CRC-sealed tag view of the emulator-provided
+firmware tables. Additive, non-fatal, complementary — exactly the design intent.
 
 ---
 
@@ -84,8 +88,9 @@ kernel/bbp_kernel.{c,h}    Defensive kernel-side parser. HHDM-aware, no libc,
 bootloader/bbp_build.{c,h} Producer-side tag builder (arena + CRC sealing).
 bootloader/bbp_import*.c   Bounded Limine, Multiboot2, and UEFI translators.
 v2/ and bridge/            Freestanding v2 capsule core and explicit v1.1 bridge.
-bootloader/efi_main.c      Reference UEFI producer SKELETON (gnu-efi). A base to
-                           port against your firmware — not a finished loader.
+bootloader/efi_main.c      Constrained x86_64 UEFI ELF64 loader proof: three
+                           required tags, 4-level paging, OVMF/TCG machine gate.
+bootloader/uefi/           Bounded ELF64 and ExitBootServices state machines.
 
 ports/tinalinux/           Native Linux->BBP OSIF (boots under QEMU; see above).
 ports/minix/               Limine->BBP adapter OSIF.
@@ -117,6 +122,8 @@ make qemu          # build + boot the bare-metal round-trip under QEMU/TCG
 make qemu-aarch64  # AArch64 X0 handoff + QEMU Device Tree under TCG
 make qemu-riscv64  # RV64 A0 handoff + QEMU Device Tree via OpenSBI
 make qemu-uefi     # OVMF-load an x86_64 EFI builder/parser proof under TCG
+make qemu-uefi-loader # constrained ELF64 -> EBS -> paging -> RDI kernel proof
+make qemu-uefi-tcg2 # live OVMF TCG2 PCR16 + v1.1 SECURITY collector proof
 make importers-test # host-test bounded boot-source translation and failures
 make bbpctl-test   # verify host capture parsing, evidence, and corrupt fixtures
 make v2-test       # adversarial v2 capsule, digest, and v1.1 bridge proof
@@ -125,6 +132,10 @@ make v2-vectors-test # independent Python encoder consumed by the C parser
 make v2-fuzz       # bounded malformed capsule + Profile 0 campaign
 make tpm2-measure-test # extend the canonical v2 measurement into an emulated TPM2 PCR
 make auth-envelope-test # host-only HMAC authentication and anti-rollback policy
+make auth2-test     # host-only ECDSA P-256 public-key policy proof
+make rollback-test # persistent A/B journal policy with an injected floor
+make ports-hosted-check # run all four current-checkout hosted adapter gates
+make evidence-check # hosted/emulator/physical evidence-contract tests
 make v2-portability # compile the v2 Draft core for x86_64, AArch64, and RV64
 make sdk-check     # extracted C/host packages + no_std Rust parity tests
 make sdk-package   # reproducible local archives under build/dist/
@@ -135,10 +146,25 @@ make sdk-package   # reproducible local archives under build/dist/
 `make qemu-riscv64` requires `riscv64-linux-gnu-gcc`, GNU `timeout`, and
 `qemu-system-riscv64`.
 
-The OVMF target proves PE/COFF loading and executes the real builder plus
-bounded parser in pre-`ExitBootServices` firmware context. It does not turn the
-reference `bootloader/efi_main.c` skeleton into a complete ELF loader or prove
-its collectors, paging, EBS, and kernel-transfer path.
+The legacy `make qemu-uefi` target proves PE/COFF loading and executes the real
+builder plus bounded parser before `ExitBootServices`. The separate
+`make qemu-uefi-loader` gate executes `bootloader/efi_main.c` as a complete proof
+of its deliberately constrained x86_64 contract: bounded higher-half ELF64
+loading, physically stamped requests, final memory-map/EBS handling, four-level
+identity and HHDM paging, three required v1.1 tags, and RDI transfer into the
+kernel parser. It is not a general-purpose loader, production firmware, Secure
+Boot implementation, or physical-hardware proof.
+Its temporary identity/HHDM aliases deliberately do not provide an NX/W^X
+security boundary, so this constrained loader rejects kernels that request the
+`BBP_HF_ENABLE_NX` contract rather than claiming protection it cannot enforce.
+It also rejects non-device memory extending beyond its 4 GiB direct-map
+contract during a preflight performed before `ExitBootServices`.
+
+`make qemu-uefi-tcg2` uses OVMF's live `EFI_TCG2_PROTOCOL` and `swtpm` to extend
+SHA-256 evidence into PCR 16, publish the frozen v1.1 SECURITY measurement log,
+validate its tag and out-of-line CRCs, and independently read back the persistent
+emulated PCR. This proves the collector and UEFI/TCG2 path, not firmware identity,
+Secure Boot policy, production provisioning, or a physical TPM.
 
 The AArch64 target boots a raw Linux Image on QEMU `virt`, receives its
 QEMU-generated Device Tree in X0, copies and CRC-seals it into a v1.1 handoff,
@@ -169,8 +195,11 @@ failure-atomic host translation, not live firmware collection; see
 
 ## SDK onboarding
 
-The C SDK, host tools, and Rust crate share release version `1.3.0`. The
-compatible boot wire remains BBP v1.1. Build the allowlisted archives, then
+The C SDK, host tools, and Rust crate share release-candidate version `1.4.0`.
+The compatible boot wire remains frozen BBP v1.1. The C, host, and Rust package
+allowlists now include experimental offline v2/Profile 0/HMAC surfaces and a
+shared canonical vector; those APIs remain Draft, are not negotiated from v1.1,
+and carry no v2 stability or registry-publication claim. Build the archives, then
 exercise the same flow an extracted C consumer runs:
 
 ```sh
@@ -182,13 +211,29 @@ Inside the C archive, `make onboarding` compiles the complete SDK and writes a
 deterministic `build/conformance.json`. The report is a host builder/parser
 profile, not a firmware or machine-boot claim. The `bbp-wire` crate is always
 `no_std`, has no dependencies or allocator, validates caller-owned slices, and
-never dereferences physical addresses. See `docs/adr/0012-sdk-packaging.md`.
+never dereferences physical addresses. See `docs/adr/0012-sdk-packaging.md` and
+`docs/adr/0019-experimental-v2-sdk-surfaces.md`.
 
-Verify a port against the frozen core (example: TinaLinux):
+The experimental trust proofs remain outside the stable boot ABI. RFC 0004 and
+`make auth2-test` prove ECDSA P-256/SHA-256 exact-extent verification and key
+policy on the host, not in firmware or Secure Boot. `make rollback-test` proves
+an fsync/replace A/B journal and recovery policy bounded by a caller-injected
+monotonic floor; its in-tree provider is not persistent TPM NV. The physical
+runner contract in `docs/physical-hardware-runner.md` defines how board identity
+and raw serial must be captured, but this repository contains no physical PASS
+proof.
+
+SDK 1.4.0 is prepared as a release candidate only. Wave 25's workflow can resume
+only its own matching draft, reconciles the exact allowlisted remote assets, and
+publishes only after checksum and Sigstore verification. The tag and release are
+not present until that workflow succeeds.
+
+Verify a port against the frozen wire ABI and the core implementation in the
+current checkout (example: TinaLinux):
 
 ```sh
 cd ports/tinalinux
-make scaffold-check   # compiles+links the port vs the frozen core (freestanding)
+make scaffold-check   # compiles+links the port vs the current core (freestanding)
 make test             # hosted: "bbp: tinalinux adapter ok, 5 tags … PASS"
 ```
 
@@ -225,9 +270,10 @@ mechanism: layout drift fails the **build**, not the boot.
 ## Status & honesty
 
 This project states plainly what is exercised vs. what is structure-only. See
-**[STATUS.md](STATUS.md)** for the maturity matrix (x86_64 is proven end-to-end;
-AArch64 and RV64 have reproducible machine handoff proofs; LoongArch remains
-roadmap; the SECURITY tags are framing, not a measuring producer).
+**[STATUS.md](STATUS.md)** for the maturity matrix (the constrained x86_64 OVMF
+loader and UEFI/TCG2 SECURITY collector have machine proofs; AArch64 and RV64
+have reproducible handoff proofs; LoongArch remains roadmap; no physical run,
+Secure Boot chain, firmware P-256 verifier, or physical TPM NV is claimed).
 Trust is the product.
 
 — F E R M I  ∞  H A R T
