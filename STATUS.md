@@ -29,8 +29,8 @@ Legend:
 | Defensive kernel-side parser | 🟢 LIVE | `bbp_init_bounded` fails closed on invalid mapped extents; all four in-tree ports use it; immutable handoff memory remains a consumer precondition |
 | Canonical boot-evidence stream | 🟢 LIVE | domain-separated fixed INFO + each validated tag exactly once; byte framing asserted by `make test` |
 | `bbpctl` + BBPC v1 host captures | 🟢 LIVE | standard-library inspector/verifier/evidence tool with deterministic valid and adversarial fixtures under `make bbpctl-test`; not wire ABI |
-| Versioned C/host SDK packages | 🟢 LIVE (1.4.0 RC) | reproducible allowlisted archives, manifest verification, extracted onboarding and v2 examples, byte-identical vectors, and deterministic JSON conformance under `make sdk-check`; no 1.4.0 release publication is claimed yet |
-| Rust `bbp-wire` crate | 🟢 HOST-TESTED (1.4.0 RC) | dependency-free, always `no_std`, allocator-free slice validation with no unsafe code or physical-pointer API; frozen v1.1 plus explicitly experimental v2/Profile 0/HMAC framing, `publish = false`, and package parity under `make sdk-check` |
+| Versioned C/host SDK packages | 🟢 LIVE (1.4.0) | reproducible published archives, manifest verification, extracted onboarding and v2 examples, byte-identical vectors, and deterministic JSON conformance under `make sdk-check` |
+| Rust `bbp-wire` crate | 🟢 HOST-TESTED (1.4.0) | dependency-free, always `no_std`, allocator-free slice validation with no unsafe code or physical-pointer API; frozen v1.1 plus explicitly experimental v2/Profile 0/HMAC framing, `publish = false`, and package parity under `make sdk-check`; source package published only as a GitHub Release asset |
 | `bbp_verify_blob()` out-of-line integrity | 🟢 LIVE | exercised by the TinaLinux hosted test (cmdline CRC) |
 | `bbp_tag_array()` forged-count clamping | 🟢 LIVE | self-test + used in port consumers |
 | Producer-side tag builder (`bbp_build.c`) | 🟢 LIVE | round-trip: builder → parser agree on CRCs |
