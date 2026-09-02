@@ -131,6 +131,7 @@ make v2-profile-test # validate experimental native Profile 0 semantics
 make v2-vectors-test # shared 46-case C/Python Draft corpus gate
 make v2-fuzz       # bounded malformed capsule + Profile 0 campaign
 make tpm2-measure-test # extend the canonical v2 measurement into an emulated TPM2 PCR
+make tpm2-nv-response-test # host-test strict TPM2 NV codecs, locking, and recovery
 make auth-envelope-test # host-only HMAC authentication and anti-rollback policy
 make auth2-test     # independent OpenSSL ECDSA P-256 policy proof
 make auth2-freestanding-test # C verifier against the checked-in auth2 vectors
@@ -227,11 +228,19 @@ is closed and cross-compiled for three ISAs, but it has no firmware caller,
 provisioning, monotonic provider, or Secure Boot integration. Its zero-copy
 views require caller-owned immutable input and DMA exclusion.
 `make rollback-test` proves an fsync/replace A/B journal and recovery policy
-bounded by a caller-injected monotonic floor; its in-tree provider is not
-persistent TPM NV. The physical
-runner contract in `docs/physical-hardware-runner.md` defines how board identity
-and raw serial must be captured, but this repository contains no physical PASS
-proof.
+bounded by a caller-injected monotonic floor. The repository-only
+`Tpm2NvFloorProvider` adds a strict, index-authorized TPM2 NV counter client for
+a UID-pinned private UNIX endpoint, with exact metadata, bounded responses,
+finite provider locking, ambiguous-result reconciliation, and journal
+composition tests. The A/B journal retains ADR 0018's cooperating-writer,
+indefinitely blocking advisory lock; the provider timeout is not an end-to-end
+journal deadline.
+`make tpm2-nv-response-test` uses a fake TPM authority plus a real local UNIX
+peer-credential check; it requires Linux `SO_PEERCRED`. It does not provision or
+execute `swtpm`, authenticate a physical TPM, detect restored daemon state after
+restart, or close the online deployment gate. See ADR 0021. The physical runner
+contract in `docs/physical-hardware-runner.md` defines how board identity and raw
+serial must be captured, but this repository contains no physical PASS proof.
 
 SDK 1.4.0 is published from the signed tag
 [`sdk-v1.4.0`](https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.4.0).

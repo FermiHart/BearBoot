@@ -6,6 +6,30 @@ independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
 ## Unreleased
 
+### Host TPM2 NV rollback authority (Wave 30)
+- Added a repository-only, index-authorized TPM2 NV counter provider with exact
+  command and response extents, pinned public metadata and Name validation, a
+  canonical non-empty SHA-256 index secret of at most 32 bytes, and no
+  owner-hierarchy credential.
+- The UNIX transport requires an absolute endpoint in a protected directory,
+  validates the socket owner and live `SO_PEERCRED` UID, bounds responses and
+  the total exchange deadline, and closes descriptors on every setup or
+  exchange failure.
+- The cooperating-writer lock now requires an absolute protected domain, a
+  single-link `0600` file owned by the caller, stable inode identity, and a
+  finite acquisition timeout. A forced-overlap two-thread test proves that two
+  provider instances opening the same lock path cannot enter the authority
+  together and produce exactly one increment; no cross-process proof is claimed.
+- Increment failures reconcile authoritative state; malformed or lost responses
+  cannot hide a completed increment, post-operation uncertainty is explicit,
+  and an observed floor regression fails closed. The A/B journal now rejects
+  non-boolean or unverifiable provider CAS success before publication,
+  revalidates equal-generation retries, and reports a later concurrent floor as
+  a conflict rather than a provider failure.
+- `make check` includes the TPM2 NV host proof and journal composition recovery.
+  No live `swtpm`, provisioning, physical TPM, daemon snapshot freshness,
+  firmware integration, or production deployment is claimed; see ADR 0021.
+
 ### Freestanding P-256 public authentication (Wave 29)
 - RFC 0004 now has a zero-allocation C verifier for exact root-signed manifests
   and release/recovery envelopes using a pinned, unmodified BearSSL subset.

@@ -27,3 +27,4 @@ Format: Status / Context / Decision / Consequences.
 | 0018 | Durable generation and recovery policy              | Accepted |
 | 0019 | Experimental v2 SDK surfaces                        | Accepted |
 | 0020 | BBP v2 freeze requires executable gates             | Accepted |
+| 0021 | Host TPM2 NV rollback authority                     | Accepted |

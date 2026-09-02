@@ -106,6 +106,7 @@ AUTH2_BEARSSL_HEADERS := $(AUTH2_BEARSSL_ROOT)/inner.h \
 	v2-fuzz v2-auth-test \
 	bbp-stamp-test uefi-ebs-test uefi-elf-test uefi-loader-contract-test \
 	security-collector-test tpm2-response-test tpm2-measure-test \
+	tpm2-nv-response-test \
 	auth-envelope-test auth2-test auth2-freestanding-test auth2-portability \
 	auth2-sanitize-test auth2-vendor-check auth2-c-vectors \
 	rollback-test evidence-check port-inventory-test ports-hosted-check
@@ -608,6 +609,9 @@ $(BUILD)/security_collector_selftest: tests/security_collector_selftest.c \
 tpm2-response-test:
 	$(PYTHON) -m unittest tests.test_tpm2_measure
 
+tpm2-nv-response-test:
+	$(PYTHON) -m unittest tests.test_tpm2_nv
+
 tpm2-measure-test: tpm2-response-test
 	$(PYTHON) tools/tpm2_measure.py
 
@@ -746,6 +750,7 @@ site-preview: verify-site
 # ---- everything that runs without a cross toolchain ------------------------
 check: abi test v2-test v2-profile-test v2-vectors-test auth-envelope-test \
 	uefi-loader-contract-test security-collector-test tpm2-response-test \
+	tpm2-nv-response-test \
 	auth2-test auth2-vendor-check auth2-freestanding-test rollback-test evidence-check \
 	port-inventory-test fuzz importers-test bbpctl-test sdk-check \
 	release-metadata-test release-policy-test verify-site

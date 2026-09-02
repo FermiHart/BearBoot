@@ -59,10 +59,24 @@ freshness, or prove a physical TPM. PCR 16 is deliberately a debug PCR in these
 proofs.
 
 The durable rollback model stores operational state in an alternating A/B
-journal and refuses to lower a caller-injected monotonic floor. Its in-tree
-`MemoryFloorProvider` is a hosted test double. Journal SHA-256 is corruption
-detection, not authentication, and no physical TPM NV or firmware monotonic
-counter is implemented or claimed.
+journal and refuses to lower a caller-injected monotonic floor.
+`MemoryFloorProvider` is a hosted test double. The experimental, unpackaged
+`Tpm2NvFloorProvider` requires a pre-provisioned, written TPM2 counter with
+`AUTHREAD|AUTHWRITE|COUNTER|NO_DA`, a canonical non-empty SHA-256 index
+authorization of at most 32 bytes with no trailing zero, one absolute private
+lock domain, and a private UNIX socket whose path owner and live peer UID match
+the pinned principal. It does not hold owner-hierarchy authorization.
+Every process with the index authorization must use the same lock, and the owner
+hierarchy must separately prevent undefine/redefine. UID pinning authenticates a
+local process principal, not a physical TPM or the freshness of daemon-backed
+state. The daemon must either cancel a disconnected command before processing a
+reconciliation read or globally order commands across connections; otherwise a
+timed-out increment may execute late. Restored `swtpm` state after process
+restart remains outside this proof. The finite timeout covers the TPM provider
+lock and one socket exchange, not ADR 0018's independently blocking journal
+lock.
+Journal SHA-256 is corruption detection, not authentication, and no physical
+TPM NV or firmware monotonic counter is claimed.
 
 Execution-evidence bundles provide integrity, not operator identity or truthful
 provenance. The format cannot prevent hosted or emulator output from being
