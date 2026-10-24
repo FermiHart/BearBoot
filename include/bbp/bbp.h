@@ -439,12 +439,42 @@ struct bbp_tag_security {
     uint64_t   measurements_crc; /* over measurements[measurement_count] */
     uint64_t   public_keys_crc;  /* over the public_keys blob */
     uint64_t   entropy_crc;      /* over entropy_data[entropy_size] */
+
+    /* v1.2 (F6/F14 campaign — BearTrace): TCG2 event log and PTP startup
+     * locality. The TCG2 log is the firmware's complete measurement chain —
+     * from Boot Guard through UEFI through the bootloader. The kernel
+     * replays every digest through SHA-256 exactly as the TPM would, applies
+     * the PTP startup-locality initial-value rule (F14: PCR[0] starts at
+     * 31×0x00 + locality byte when the startup locality is nonzero), and
+     * compares against the live PCR bank read through the CRB driver.
+     * A match means the firmware's log tells the truth about what the
+     * silicon measured — a receipt, not a promise.
+     * The log is STAGED by the producer into below-1-GiB memory (the same
+     * contract as this tag itself) so the consumer never dereferences
+     * firmware-chosen addresses. Appended → v1.0/v1.1 readers ignore. */
+    bbp_phys_t tcg2_log_start;      /* staged copy of the TCG2 event log     */
+    uint32_t   tcg2_log_size;      /* staged bytes (bounded, <= 64 KiB)     */
+    uint32_t   tcg2_log_reserved;  /* alignment / future use               */
+    bbp_phys_t tcg2_final_start;   /* staged copy of the final events table */
+    uint32_t   tcg2_final_size;   /* staged bytes (bounded, <= 64 KiB)     */
+    uint32_t   tcg2_final_reserved; /* alignment / future use              */
+    uint8_t    startup_locality;    /* PTP: initial PCR[0] = 31×00 + this   */
+    uint8_t    tpm2_v2_flags;      /* BBP_TPM2_FLAG_* (v1.2)               */
+    uint16_t   tpm2_v2_reserved;   /* alignment                            */
+    uint64_t   tcg2_log_crc;       /* CRC-64/XZ over the TCG2 log blob     */
+    uint64_t   tcg2_final_crc;     /* CRC-64/XZ over the final table blob   */
 } __attribute__((packed));
-_Static_assert(sizeof(struct bbp_tag_security) == 128, "bbp_tag_security ABI");
+_Static_assert(sizeof(struct bbp_tag_security) == 176, "bbp_tag_security ABI v1.2");
 
 #define BBP_TPM_FLAG_ACTIVE          (1u << 0)
 #define BBP_TPM_FLAG_SUPPORTS_SHA384 (1u << 1)
 #define BBP_TPM_FLAG_SUPPORTS_SHA512 (1u << 2)
+
+/* v1.2 (F6/F14 campaign): TCG2 log presence and validity flags */
+#define BBP_TPM2_FLAG_TCG2_LOG_PRESENT       (1u << 0)
+#define BBP_TPM2_FLAG_TCG2_FINAL_PRESENT      (1u << 1)
+#define BBP_TPM2_FLAG_STARTUP_LOCALITY_VALID (1u << 2)
+#define BBP_TPM2_FLAG_VERIFIED               (1u << 3)
 
 /* ========================================================================
  * ACPI  (category PLATFORM / 0x0001)
