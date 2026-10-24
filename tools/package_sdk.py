@@ -44,7 +44,7 @@ C_SDK_FILES = {
     "include/bbp/bbp_v2_auth.h": "include/bbp/bbp_v2_auth.h",
     "include/bbp/bbp_v2_profile.h": "include/bbp/bbp_v2_profile.h",
     "kernel/bbp_kernel.c": "kernel/bbp_kernel.c",
-    "kernel/bbp_kernel.h": "kernel/bbp_kernel.h",
+    "include/bbp/bbp_kernel.h": "include/bbp/bbp_kernel.h",
     "bootloader/bbp_build.c": "bootloader/bbp_build.c",
     "bootloader/bbp_build.h": "bootloader/bbp_build.h",
     "bootloader/bbp_import.c": "bootloader/bbp_import.c",

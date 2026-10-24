@@ -25,7 +25,7 @@
 #include <bbp/bbp.h>
 #include <bbp/bbp_crc64.h>
 #include "../bootloader/bbp_build.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 static int failures = 0;
 
@@ -99,7 +99,7 @@ static void test_abi_sizes(void)
     CHECK(sizeof(struct bbp_measurement)    == 144, "sizeof bbp_measurement == 144 (%zu)", sizeof(struct bbp_measurement));
     CHECK(sizeof(struct bbp_pcie_device)    == 168, "sizeof bbp_pcie_device == 168 (%zu)", sizeof(struct bbp_pcie_device));
     /* v1.1 out-of-line CRC growth (ADR-0006) */
-    CHECK(sizeof(struct bbp_tag_security)   == 128, "sizeof bbp_tag_security == 128 (%zu)", sizeof(struct bbp_tag_security));
+    CHECK(sizeof(struct bbp_tag_security)   == 180, "sizeof bbp_tag_security == 180 v1.2 (%zu)", sizeof(struct bbp_tag_security));
     CHECK(sizeof(struct bbp_tag_cmdline)    == 56,  "sizeof bbp_tag_cmdline == 56 (%zu)", sizeof(struct bbp_tag_cmdline));
     CHECK(sizeof(struct bbp_display_info)   == 48,  "sizeof bbp_display_info == 48 (%zu)", sizeof(struct bbp_display_info));
     CHECK(sizeof(struct bbp_tag_devicetree) == 80,  "sizeof bbp_tag_devicetree == 80 (%zu)", sizeof(struct bbp_tag_devicetree));

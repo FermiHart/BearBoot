@@ -7,7 +7,7 @@
 #include <bbp/bbp_v2.h>
 #include "../bootloader/bbp_build.h"
 #include "../bridge/bbp_bridge.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 static int failures;
 

@@ -13,7 +13,7 @@
 #define BBP_PORT_TINALINUX_GLUE_H
 
 #include <bbp/bbp.h>
-#include "../../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 /* The CRC-validated BBP context built at boot, or NULL if validation failed
  * (in which case TinaLinux is running purely on its legacy boot path). */

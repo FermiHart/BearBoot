@@ -9,7 +9,7 @@
  * showing the contract; wire kernel_main() into your real entry trampoline.
  */
 #include <bbp/bbp.h>
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 /* ------------------------------------------------------------------ *
  *  1. Request tags: what we want the bootloader to hand us.

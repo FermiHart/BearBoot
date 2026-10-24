@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #include <bbp/bbp.h>
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 #define PROOF_HHDM UINT64_C(0xffff800000000000)
 #define PROOF_PHYSICAL_BASE UINT64_C(0x00400000)

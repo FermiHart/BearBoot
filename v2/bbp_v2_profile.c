@@ -80,8 +80,8 @@ bbp_v2_status_t bbp_v2_p0_validate(const struct bbp_v2_view *capsule,
 } else if (bit == 4u) {
             if (entry.size != sizeof(struct bbp_v2_p0_kernel_address))
                 return BBP_V2_ERR_FORMAT;
-            result.kernel_physical_base = read_u64(entry.data);
-            result.kernel_virtual_base = read_u64(entry.data + 8);
+            result.kernel_physical_base = get64(entry.data);
+            result.kernel_virtual_base = get64(entry.data + 8);
             if (result.kernel_physical_base == 0
                 || result.kernel_virtual_base < 0xffffffff80000000ULL
                 || result.kernel_virtual_base >= 0xfffffffffff00000ULL)

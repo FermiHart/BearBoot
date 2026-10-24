@@ -48,7 +48,7 @@ needed is the BBP include path (next section).
 For an in-tree mirror instead of an absolute path, copy `osif.{c,h}`,
 `adapter.{c,h}`, and `minix_glue.c` into e.g.
 `minix/kernel/arch/x86_64/bbp/` and adjust the two
-`#include "../../kernel/bbp_kernel.h"` / `"../../bootloader/bbp_build.h"` lines
+`#include <bbp/bbp_kernel.h>` / `"../../bootloader/bbp_build.h"` lines
 in `adapter.c` to point at wherever you vendor the BBP core headers. Keep the
 core headers themselves UNMODIFIED (ABI-frozen).
 
@@ -63,7 +63,7 @@ In `build_limine_full.sh`, add ONE include dir to `CFLAGS` (near line 38):
     -I/Users/admin/OS/BearBoot/include
 
 `adapter.c` reaches the two non-`include/` core headers via relative paths
-(`../../kernel/bbp_kernel.h`, `../../bootloader/bbp_build.h`) which resolve
+(`<bbp/bbp_kernel.h>`, `../../bootloader/bbp_build.h`) which resolve
 from `ports/minix/`. If you vendor the port elsewhere, either preserve that
 relative layout or change those two includes.
 

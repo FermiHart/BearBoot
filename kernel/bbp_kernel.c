@@ -9,7 +9,7 @@
  */
 #include <bbp/bbp.h>
 #include <bbp/bbp_crc64.h>
-#include "bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 static const uint8_t bbp_header_magic[BBP_MAGIC_LEN] = BBP_HEADER_MAGIC;
 static const uint8_t bbp_info_magic[BBP_MAGIC_LEN] = BBP_INFO_MAGIC;

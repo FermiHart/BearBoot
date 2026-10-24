@@ -68,12 +68,12 @@ bbp_v2_auth_status_t bbp_v2_auth_parse(
     if (get32(envelope + 12) != 0)
         return BBP_V2_AUTH_ERR_FLAGS;
 
-    capsule_size = get64(capsule_pointer + 24);
+    capsule_size = get64(envelope + 24);
     if (capsule_size > BBP_V2_AUTH_MAX_CAPSULE_SIZE ||
         capsule_size != (uint64_t)(extent - BBP_V2_AUTH_HEADER_SIZE))
         return BBP_V2_AUTH_ERR_EXTENT;
-    capsule = envelope_pointer + BBP_V2_AUTH_HEADER_SIZE;
-    rollback_index = get64(envelope_pointer + 16);
+    capsule = envelope + BBP_V2_AUTH_HEADER_SIZE;
+    rollback_index = get64(envelope + 16);
     if (rollback_index >= (1ULL << 48))
         return BBP_V2_AUTH_ERR_POLICY;
 

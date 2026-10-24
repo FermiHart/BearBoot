@@ -28,7 +28,7 @@ the `__get_free_pages` arena the adapter built the tags in — declares that
 region, and the parser then rejects any pointer outside it as corruption instead
 of trusting the architectural bound.
 
-API (kernel/bbp_kernel.h):
+API (include/bbp/bbp_kernel.h):
 - `bbp_init_bounded(out, info, hhdm_hint, arena_phys, arena_bytes)` is the
   preferred fail-closed API. Empty, wrapping, or out-of-range spans are errors,
   and `out` is untouched unless INFO validation succeeds.

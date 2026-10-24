@@ -55,7 +55,7 @@ Re-vendor after a port change:
     cp BearBoot/ports/linux01/compat/*.h   linux-0.01-modern/bbp/compat/
     # then fix the flat includes in adapter.{c,h} and linux01_bbp.{c,h}:
     sed -i '' 's#"\.\./\.\./bootloader/bbp_build.h"#"bbp_build.h"#; \
-               s#"\.\./\.\./kernel/bbp_kernel.h"#"bbp_kernel.h"#' \
+               s#"<bbp/bbp_kernel.h>"#"bbp_kernel.h"#' \
         linux-0.01-modern/bbp/adapter.c linux-0.01-modern/bbp/adapter.h \
         linux-0.01-modern/bbp/linux01_bbp.c linux-0.01-modern/bbp/linux01_bbp.h
 

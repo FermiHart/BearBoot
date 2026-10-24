@@ -8,7 +8,7 @@
 #include <bbp/bbp_sdk.h>
 
 #include "../bootloader/bbp_build.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 #define CHECK_COUNT 10
 

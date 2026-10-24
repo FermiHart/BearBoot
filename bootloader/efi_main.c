@@ -9,7 +9,7 @@
 #include <bbp/bbp.h>
 
 #include "bbp_build.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 #include "uefi/elf64_loader.h"
 #include "uefi/uefi_exit.h"
 #include "uefi/uefi_min.h"

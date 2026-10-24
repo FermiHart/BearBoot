@@ -464,7 +464,7 @@ struct bbp_tag_security {
     uint64_t   tcg2_log_crc;       /* CRC-64/XZ over the TCG2 log blob     */
     uint64_t   tcg2_final_crc;     /* CRC-64/XZ over the final table blob   */
 } __attribute__((packed));
-_Static_assert(sizeof(struct bbp_tag_security) == 176, "bbp_tag_security ABI v1.2");
+_Static_assert(sizeof(struct bbp_tag_security) == 180, "bbp_tag_security ABI v1.2 (128 v1.1 + 52 appended: 128+52=180)");
 
 #define BBP_TPM_FLAG_ACTIVE          (1u << 0)
 #define BBP_TPM_FLAG_SUPPORTS_SHA384 (1u << 1)

@@ -23,7 +23,7 @@
 #define BBP_PORT_LINUX01_ADAPTER_H
 
 #include <bbp/bbp.h>
-#include "../../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 /* One memory-map entry the caller derives from the kernel's RAM model. `type`
  * is a RAW BBP_MEM_* class already (linux-0.01 has no firmware map to decode;

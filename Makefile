@@ -55,7 +55,7 @@ IMPORT_SOURCES := bootloader/bbp_import.c bootloader/bbp_import_limine.c \
 	bootloader/bbp_import_multiboot2.c bootloader/bbp_import_uefi.c
 IMPORT_OBJECTS := $(patsubst bootloader/%.c,$(BUILD)/%.o,$(IMPORT_SOURCES))
 BBP_HEADERS := include/bbp/bbp.h include/bbp/bbp_crc64.h \
-	bootloader/bbp_build.h bootloader/bbp_import.h kernel/bbp_kernel.h
+	bootloader/bbp_build.h bootloader/bbp_import.h include/bbp/bbp_kernel.h
 V2_HEADERS := include/bbp/bbp_v2.h include/bbp/bbp_v2_profile.h bridge/bbp_bridge.h
 AUTH2_BEARSSL_ROOT := third_party/bearssl
 AUTH2_BEARSSL_SOURCES := \
@@ -311,7 +311,7 @@ $(BUILD)/boot_aarch64.o: tests/boot_aarch64.S Makefile
 	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
 
 $(BUILD)/qrt_aarch64.o: tests/qemu_roundtrip_aarch64.c bootloader/bbp_build.h \
-		kernel/bbp_kernel.h include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
+		include/bbp/bbp_kernel.h include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
 	@mkdir -p $(BUILD)
 	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
 
@@ -320,7 +320,7 @@ $(BUILD)/qrt_aarch64_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
 	@mkdir -p $(BUILD)
 	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
 
-$(BUILD)/qrt_aarch64_kernel.o: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+$(BUILD)/qrt_aarch64_kernel.o: kernel/bbp_kernel.c include/bbp/bbp_kernel.h \
 		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
 	@mkdir -p $(BUILD)
 	$(AARCH64_CC) $(AARCH64_CFLAGS) -c $< -o $@
@@ -376,7 +376,7 @@ $(BUILD)/boot_riscv64.o: tests/boot_riscv64.S Makefile
 	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
 
 $(BUILD)/qrt_riscv64.o: tests/qemu_roundtrip_riscv64.c \
-		bootloader/bbp_build.h kernel/bbp_kernel.h include/bbp/bbp.h \
+		bootloader/bbp_build.h include/bbp/bbp_kernel.h include/bbp/bbp.h \
 		include/bbp/bbp_crc64.h Makefile
 	@mkdir -p $(BUILD)
 	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
@@ -386,7 +386,7 @@ $(BUILD)/qrt_riscv64_build.o: bootloader/bbp_build.c bootloader/bbp_build.h \
 	@mkdir -p $(BUILD)
 	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
 
-$(BUILD)/qrt_riscv64_kernel.o: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+$(BUILD)/qrt_riscv64_kernel.o: kernel/bbp_kernel.c include/bbp/bbp_kernel.h \
 		include/bbp/bbp.h include/bbp/bbp_crc64.h Makefile
 	@mkdir -p $(BUILD)
 	$(RISCV64_CC) $(RISCV64_CFLAGS) -c $< -o $@
@@ -417,7 +417,7 @@ OVMF_TEST_VARS := $(BUILD)/OVMF_VARS_4M.test.fd
 
 uefi: $(UEFI_APP)
 
-$(BUILD)/uefi_roundtrip.obj: tests/uefi_roundtrip.c kernel/bbp_kernel.h \
+$(BUILD)/uefi_roundtrip.obj: tests/uefi_roundtrip.c include/bbp/bbp_kernel.h \
 		bootloader/bbp_build.h include/bbp/bbp.h Makefile
 	@mkdir -p $(BUILD)
 	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
@@ -427,7 +427,7 @@ $(BUILD)/uefi_build.obj: bootloader/bbp_build.c bootloader/bbp_build.h \
 	@mkdir -p $(BUILD)
 	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
 
-$(BUILD)/uefi_kernel.obj: kernel/bbp_kernel.c kernel/bbp_kernel.h \
+$(BUILD)/uefi_kernel.obj: kernel/bbp_kernel.c include/bbp/bbp_kernel.h \
 		include/bbp/bbp.h Makefile
 	@mkdir -p $(BUILD)
 	$(UEFI_CC) $(UEFI_CFLAGS) -c $< -o $@
