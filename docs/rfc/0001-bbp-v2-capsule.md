@@ -3,7 +3,7 @@
 - Status: **Draft**
 - Deployment: **Offline only**
 - Wire version: 2.0
-- Updated: 2026-08-22
+- Updated: 2026-08-25
 
 This RFC defines an experimental, contiguous Bear Boot Protocol capsule. It
 does not alter, extend, or negotiate the frozen BBP v1.1 ABI. A v2 producer and
@@ -39,10 +39,11 @@ The complete capsule is:
 3. one nonempty payload span per directory entry; and
 4. zero-filled bytes everywhere not occupied by those spans.
 
-Header, directory, and payload spans may be physically re-laid out subject to
-their alignment and non-overlap rules. All references to objects inside the
-capsule are offsets from byte zero. Absolute addresses are never capsule
-references.
+The header is fixed at byte zero. Directory and payload spans may be physically
+re-laid out subject to their alignment and non-overlap rules. All references to
+objects inside the capsule are offsets from byte zero. Absolute addresses are
+never capsule references. Zero trailing padding is accepted; the deterministic
+builder emits no padding after its final payload.
 
 ## Header Layout
 
@@ -117,6 +118,17 @@ lowest offset satisfying each requested alignment, zeroes every gap, computes
 payload CRCs, and computes the capsule CRC last. Identical calls produce
 byte-identical extents. Any error leaves destination bytes unchanged.
 
+The descriptor array must not overlap the output extent, payload sources must
+not overlap their resulting output extent, and `written` must not point into the
+output buffer, descriptor array, or a payload source. These conditions are
+rejected before output or source bytes are modified. Descriptor and payload
+bytes must remain immutable for the complete call.
+
+On success, `written` receives the complete extent. Ordinary failures set it to
+zero after `written` has been proven disjoint from input and output ranges. An
+alias involving `written`, excessive entry count, or wrapping source extent
+leaves `written` unchanged because safe disjointness cannot be established.
+
 ## Canonical Digest Stream
 
 `bbp_v2_digest` has no cryptographic dependency. A caller supplies an
@@ -133,7 +145,15 @@ following bytes are fed in order:
 
 Offsets, alignments, CRC values, and padding are omitted. Consequently a
 physical re-layout with unchanged semantic order and payloads yields the same
-digest stream. Reordering entries changes the stream.
+digest stream. Reordering entries changes the stream. For an entry marked
+`BBP_V2_EF_EXTERNAL_PHYS`, the digest covers the marker and the inline payload
+bytes containing the physical reference values. It does not cover the bytes of
+the referenced objects.
+
+Parsed views and entry views borrow the caller's capsule storage. That complete
+extent must remain readable and immutable until all derived views are discarded.
+Digest callbacks must not mutate it while the stream is emitted. This is a
+caller-enforced lifetime rule; CRC validation is not a lock or a copy.
 
 ## v1.1 Bridge
 
@@ -155,15 +175,30 @@ not dereference or copy them implicitly:
 
 - default conversion fails with `BBP_V2_ERR_POLICY`;
 - callers must set `BBP_V2_BRIDGE_ALLOW_EXTERNAL_PHYS` to preserve them;
-- preserved entries carry `BBP_V2_EF_EXTERNAL_PHYS`; and
+- every preserved entry whose inline payload contains such references carries
+  `BBP_V2_EF_EXTERNAL_PHYS`, and entries without them must not carry it; and
 - reverse conversion requires the same explicit opt-in.
 
-The caller is responsible for the lifetime, mapping, authorization, and CRC
-policy of preserved external objects. Both bridge directions finish all
-fallible validation and capacity planning before modifying destination bytes.
-The source INFO and every byte span returned by the map callback must remain
-immutable for the complete conversion; the bridge cannot make a mutable
-physical producer atomic.
+All capsule payloads remain inline and capsule-relative. The marker describes
+physical reference values inside an inline payload; it is not another payload
+storage mode. Known v1.1 tags are classified as self-contained only when their
+version, flags, size, and array stride match the exact known layout. Unknown
+tags and opaque extensions are conservatively marked external.
+
+The caller is responsible for the lifetime, mapping, integrity,
+authorization, and access policy of referenced external objects. Capsule CRC,
+canonical digest, and an enclosing authentication envelope cover reference
+values but do not authenticate, authorize, or make immutable the referenced
+bytes. Consumers must validate those objects separately before use. Both bridge
+directions finish all fallible validation and capacity planning before
+modifying destination bytes. Unknown policy bits and aliased result controls
+are rejected. Forward conversion also requires its caller-owned workspace,
+source descriptor, mapped source spans, destination, and result controls to be
+disjoint. An initial mapping pass proves disjointness before the workspace is
+modified, and every repeated map result is rechecked before destination
+publication. The source INFO and every byte span returned by the map callback
+must remain immutable for the complete conversion; the bridge cannot make a
+mutable physical producer atomic.
 
 ## Wire and Security Limits
 
@@ -172,7 +207,8 @@ physical producer atomic.
 | Total capsule extent | 64 MiB |
 | Directory entries | 1024 |
 | Payload alignment | 4096 bytes |
-| Cumulative CRC bytes | 96 MiB |
+| Generic parse/build CRC work | 96 MiB |
+| Bridge source-validation CRC work | 96 MiB across both passes |
 | Bridge v1 tag size | 16 MiB |
 | Bridge v1 INFO extent | 64 MiB |
 | Bridge physical ceiling | 2^48 bytes |
@@ -190,3 +226,21 @@ transport, which is why deployment is offline only.
 Native experimental semantics are defined separately by Profile 0 in
 `docs/rfc/0002-bbp-v2-profile-0.md`; the generic capsule parser remains
 registry-independent.
+
+## Shared Draft corpus
+
+`tests/vectors/bbp-v2-corpus-v1.txt` is the authoritative generated corpus for
+current Draft framing and Profile 0 behavior. Its 46 bounded positive and
+negative cases are consumed byte-for-byte by C, dependency-free Rust, and an
+independent Python validator. It includes compact and padded construction,
+physical relocation, semantic digest expectations, generic malformed inputs,
+and every current Profile 0 rule family.
+
+`python3 tools/generate_v2_corpus.py --check` proves deterministic repository
+generation. `make v2-vectors-test` checks normalized accept/reject outcomes,
+exact C generic rejection classes, output atomicity, decoded Profile 0 values,
+and semantic SHA-256 digests. The same repository corpus is consumed by Rust's
+host tests but remains outside the SDK 1.4.0 package allowlists. Native status
+taxonomies remain implementation-specific. Corpus agreement records the current
+Draft baseline; it does not freeze the wire, assign registries, or authorize
+online deployment.

@@ -17,7 +17,9 @@ are replays; lower indices are rollbacks.
 
 ## Consequences
 
-The proof detects wrong keys, tampering, truncation, replay, and rollback. It is
-not a public-key signature format and does not define firmware key provisioning,
-multi-writer locking, recovery, or a hardware monotonic counter. The envelope
-is experimental and does not alter BBP v1.1 or the v2 capsule framing.
+The proof detects wrong keys, tampering, truncation, replay, and rollback. Its
+host implementation serializes cooperating writers with an advisory lock, but
+does not provide sequence CAS, hostile-writer exclusion, recovery, or a hardware
+monotonic counter. It is not a public-key signature format and does not define
+firmware key provisioning. The envelope is experimental and does not alter BBP
+v1.1 or the v2 capsule framing.

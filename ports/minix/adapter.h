@@ -20,7 +20,7 @@
 #define BBP_PORT_MINIX_ADAPTER_H
 
 #include <bbp/bbp.h>
-#include "../../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 /* One memory-map entry, already decoded from a Limine memmap entry. `type` is
  * the RAW Limine type (LIMINE_MEMMAP_*); the adapter maps it to BBP_MEM_*. */

@@ -30,7 +30,7 @@ straight from Josh's buddy allocator and the HHDM is Josh's own direct map.
 ## 1. Vendor the core + port, preserving the relative layout
 
 Copy the following into the Josh tree, KEEPING the relative directory layout
-(`adapter.c` includes `"../../kernel/bbp_kernel.h"` and
+(`adapter.c` includes `<bbp/bbp_kernel.h>` and
 `"../../bootloader/bbp_build.h"`, so the port must sit two dirs below the core
 headers). The cleanest mirror is to drop the whole `bearboot/` subtree under
 e.g. `kernel/thirdparty/bearboot/`:

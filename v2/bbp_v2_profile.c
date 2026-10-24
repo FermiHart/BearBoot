@@ -20,17 +20,20 @@ static uint64_t get64(const uint8_t *p)
 bbp_v2_status_t bbp_v2_p0_validate(const struct bbp_v2_view *capsule,
                                     struct bbp_v2_p0_view *out)
 {
+    struct bbp_v2_view checked;
     struct bbp_v2_p0_view result = {0};
     uint32_t seen = 0;
     uint32_t i;
+    bbp_v2_status_t status;
 
     if (!capsule || !out) return BBP_V2_ERR_NULL;
-    for (i = 0; i < capsule->entry_count; i++) {
+    status = bbp_v2_parse(capsule->data, capsule->total_size, &checked);
+    if (status != BBP_V2_OK) return status;
+    for (i = 0; i < checked.entry_count; i++) {
         struct bbp_v2_entry_view entry;
-        bbp_v2_status_t status;
         uint32_t bit = 0;
 
-        status = bbp_v2_get_entry(capsule, i, &entry);
+        status = bbp_v2_get_entry(&checked, i, &entry);
         if (status != BBP_V2_OK) return status;
         if (entry.type == BBP_V2_P0_BOOT_IDENTITY) bit = 1u;
         else if (entry.type == BBP_V2_P0_MEMORY_MAP) bit = 2u;
@@ -58,11 +61,15 @@ bbp_v2_status_t bbp_v2_p0_validate(const struct bbp_v2_view *capsule,
             if (entry.size < sizeof(struct bbp_v2_p0_memory_header))
                 return BBP_V2_ERR_FORMAT;
             count = get32(entry.data);
-            if (count == 0 || count > 4096 || get32(entry.data + 4) != 32
-                || (uint64_t)count * 32u != entry.size - 8u)
+            if (count == 0 || count > 4096
+                || get32(entry.data + 4) != BBP_V2_P0_MEMORY_ENTRY_SIZE
+                || (uint64_t)count * BBP_V2_P0_MEMORY_ENTRY_SIZE !=
+                   entry.size - sizeof(struct bbp_v2_p0_memory_header))
                 return BBP_V2_ERR_FORMAT;
             for (j = 0; j < count; j++) {
-                const uint8_t *memory = entry.data + 8u + (size_t)j * 32u;
+                const uint8_t *memory = entry.data +
+                    sizeof(struct bbp_v2_p0_memory_header) +
+                    (size_t)j * BBP_V2_P0_MEMORY_ENTRY_SIZE;
                 uint64_t base = get64(memory);
                 uint64_t length = get64(memory + 8);
                 if (length == 0 || base > UINT64_MAX - length
@@ -70,12 +77,15 @@ bbp_v2_status_t bbp_v2_p0_validate(const struct bbp_v2_view *capsule,
                     return BBP_V2_ERR_FORMAT;
             }
             result.memory_entry_count = count;
-        } else if (bit == 4u) {
+} else if (bit == 4u) {
             if (entry.size != sizeof(struct bbp_v2_p0_kernel_address))
                 return BBP_V2_ERR_FORMAT;
             result.kernel_physical_base = get64(entry.data);
             result.kernel_virtual_base = get64(entry.data + 8);
-            if (result.kernel_physical_base == 0) return BBP_V2_ERR_FORMAT;
+            if (result.kernel_physical_base == 0
+                || result.kernel_virtual_base < 0xffffffff80000000ULL
+                || result.kernel_virtual_base >= 0xfffffffffff00000ULL)
+                return BBP_V2_ERR_FORMAT;
         } else {
             uint32_t size;
             if (entry.size <= sizeof(struct bbp_v2_p0_devicetree_header)

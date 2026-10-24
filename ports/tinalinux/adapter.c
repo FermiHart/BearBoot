@@ -32,7 +32,7 @@
 #include <bbp/bbp.h>
 #include <bbp/bbp_crc64.h>
 #include "../../bootloader/bbp_build.h"
-#include "../../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 #include "osif.h"
 #include "adapter.h"
 

@@ -8,7 +8,7 @@
 #include <bbp/bbp_crc64.h>
 #include "../bootloader/bbp_build.h"
 #include "../bootloader/bbp_import.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 #define ARENA_BYTES 16384u
 

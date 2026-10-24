@@ -4,6 +4,81 @@ All notable changes. BBP wire compatibility uses `MAJOR.MINOR`: MAJOR bumps on
 an ABI break and MINOR on backward-compatible wire additions. SDK packages use
 independent semantic versions. Rationale for major decisions is in `docs/adr/`.
 
+## Unreleased
+
+### Host TPM2 NV rollback authority (Wave 30)
+- Added a repository-only, index-authorized TPM2 NV counter provider with exact
+  command and response extents, pinned public metadata and Name validation, a
+  canonical non-empty SHA-256 index secret of at most 32 bytes, and no
+  owner-hierarchy credential.
+- The UNIX transport requires an absolute endpoint in a protected directory,
+  validates the socket owner and live `SO_PEERCRED` UID, bounds responses and
+  the total exchange deadline, and closes descriptors on every setup or
+  exchange failure.
+- The cooperating-writer lock now requires an absolute protected domain, a
+  single-link `0600` file owned by the caller, stable inode identity, and a
+  finite acquisition timeout. A forced-overlap two-thread test proves that two
+  provider instances opening the same lock path cannot enter the authority
+  together and produce exactly one increment; no cross-process proof is claimed.
+- Increment failures reconcile authoritative state; malformed or lost responses
+  cannot hide a completed increment, post-operation uncertainty is explicit,
+  and an observed floor regression fails closed. The A/B journal now rejects
+  non-boolean or unverifiable provider CAS success before publication,
+  revalidates equal-generation retries, and reports a later concurrent floor as
+  a conflict rather than a provider failure.
+- `make check` includes the TPM2 NV host proof and journal composition recovery.
+  No live `swtpm`, provisioning, physical TPM, daemon snapshot freshness,
+  firmware integration, or production deployment is claimed; see ADR 0021.
+
+### Freestanding P-256 public authentication (Wave 29)
+- RFC 0004 now has a zero-allocation C verifier for exact root-signed manifests
+  and release/recovery envelopes using a pinned, unmodified BearSSL subset.
+- Checked-in release and recovery vectors pass the independent OpenSSL host
+  verifier and the C backend, including low-S malleability, point, scalar,
+  lifecycle, generation, exact-extent, policy, alias, and truncation failures.
+- The same closed relocatable object links without unresolved symbols for
+  x86_64, AArch64, and RV64, exports only the three public auth2 functions, and
+  rejects x86 SIMD generation; ASan/UBSan and a 2048-byte frame warning gate
+  cover the current offline proof.
+- The API is zero-copy: callers must provide stable, immutable, caller-owned
+  input storage and snapshot or isolate DMA-visible bytes. No firmware path,
+  key provisioning, monotonic provider, downgrade selection, Secure Boot, or
+  production deployment is claimed.
+
+### BBP v2 explicit bridge ownership (Wave 28)
+- Every v2 payload remains inline; the bridge marker now exactly identifies
+  inline v1.1 payloads containing physical references outside the capsule.
+- The bridge rejects false markers, unknown policy bits, nonzero normalized
+  INFO reserved bytes, opaque known-tag extensions without opt-in, and aliases
+  among source, workspace, output, and result controls before publication.
+- CRC, digest, and authentication scope is explicit: reference values are
+  covered, but referenced external bytes require separate lifetime, integrity,
+  authorization, and access policy.
+
+### BBP v2 shared Draft corpus (Wave 27)
+- A deterministic 46-case corpus now covers accepted physical layouts, generic
+  framing failures, and every current Profile 0 rule family in C, Rust, and
+  independent Python validators.
+- `make v2-vectors-test` checks generated corpus freshness, C failure atomicity,
+  semantic digests, Profile 0 values, and byte identity with the existing
+  authenticated vector; the corpus remains outside SDK 1.4.0 allowlists.
+- Profile 0 now guards every normative packed-field offset and uses its existing
+  stride constant without claiming a frozen registry or wire ABI.
+- Capsule and Profile 0 remain offline Drafts; profile identity, critical-entry
+  behavior, registries, memory policy, Device Tree policy, and compatibility are
+  still explicit blockers.
+
+### BBP v2 freeze preparation (Wave 26)
+- The one-shot builder rejects descriptor, payload, output, and result-pointer
+  aliasing before modification, closing a failure-atomicity gap in the Draft API.
+- Profile 0 reparses its borrowed capsule before semantic validation so a
+  mutation that invalidates framing, padding, or CRC does not publish output.
+- ADR 0020 defines executable capsule, profile, authentication, deployment, and
+  freeze stages; Profile 0 remains Draft pending profile identity, critical
+  entries, registries, Device Tree semantics, and compatibility policy.
+- RFCs now state exact borrowed-view, aliasing, current Profile 0 field, and
+  cooperating-writer lock behavior without broadening any v1.1 claim.
+
 ## BearBoot SDK 1.4.0 (BBP wire 1.1) - 2026-08-25
 
 Published from signed tag

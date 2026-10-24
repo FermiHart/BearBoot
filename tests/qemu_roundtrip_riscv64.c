@@ -6,7 +6,7 @@
 #include <bbp/bbp.h>
 #include <bbp/bbp_crc64.h>
 #include "../bootloader/bbp_build.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 #define UART_BASE        0x10000000u
 #define TEST_BASE        0x00100000u

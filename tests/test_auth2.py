@@ -37,6 +37,7 @@ class Auth2Tests(unittest.TestCase):
         cls.payload = (VECTORS / "payload.dat").read_bytes()
         cls.manifest = (VECTORS / "manifest.auth2").read_bytes()
         cls.envelope = (VECTORS / "release.auth2").read_bytes()
+        cls.recovery_envelope = (VECTORS / "recovery.auth2").read_bytes()
         cls.root_private = VECTORS / "root.test-only.private.pem"
         cls.root_public = VECTORS / "root.public.pem"
         cls.wrong_root_public = VECTORS / "wrong-root.public.pem"
@@ -148,6 +149,14 @@ class Auth2Tests(unittest.TestCase):
                             allow_recovery=True).payload,
             self.payload,
         )
+        with self.assertRaisesRegex(Auth2Error, "recovery role"):
+            verify_envelope(self.recovery_envelope, self.manifest,
+                            self.root_public)
+        self.assertEqual(
+            verify_envelope(self.recovery_envelope, self.manifest,
+                            self.root_public, allow_recovery=True).payload,
+            self.payload,
+        )
 
         mislabeled = sign_envelope(self.payload, self.release_private, 7,
                                    ROLE_RECOVERY)
@@ -188,6 +197,10 @@ class Auth2Tests(unittest.TestCase):
              self.envelope[ENVELOPE_SIGNATURE_OFFSET:
                            ENVELOPE_SIGNATURE_OFFSET + 64],
              self.release_public),
+            (envelope_signing_bytes(self.recovery_envelope),
+             self.recovery_envelope[ENVELOPE_SIGNATURE_OFFSET:
+                                    ENVELOPE_SIGNATURE_OFFSET + 64],
+             self.recovery_public),
         )
         for signed_bytes, raw_signature, public_key in cases:
             with tempfile.TemporaryDirectory() as directory:

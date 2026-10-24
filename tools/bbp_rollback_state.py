@@ -31,7 +31,7 @@ class PolicyError(RollbackStateError):
 
 
 class JournalConflictError(RollbackStateError):
-    """The caller's expected journal sequence is stale."""
+    """The journal sequence or monotonic authority changed concurrently."""
 
 
 class CorruptJournalError(RollbackStateError):
@@ -39,7 +39,13 @@ class CorruptJournalError(RollbackStateError):
 
 
 class FloorProvider(ABC):
-    """Abstract monotonic authority; implementations define their trust model."""
+    """Abstract monotonic authority; implementations define their trust model.
+
+    Floors are uint64 values that never decrease over the promised lifecycle.
+    CAS returns an exact bool. True means this call linearized expected to
+    expected + 1; a later read may already be higher after another writer.
+    False and exceptions make no success claim and may require reconciliation.
+    """
 
     @abstractmethod
     def read_floor(self) -> int:
@@ -47,7 +53,7 @@ class FloorProvider(ABC):
 
     @abstractmethod
     def compare_and_advance(self, expected: int, new: int) -> bool:
-        """Atomically advance expected to expected + 1, or report a conflict."""
+        """Atomically advance one generation, or make no success claim."""
 
 
 class MemoryFloorProvider(FloorProvider):
@@ -322,10 +328,41 @@ class RollbackJournal:
                     raise PolicyError("journal sequence is exhausted")
                 action = _policy(floor, generation, role)
                 if action == "retry":
+                    confirmed = _uint64(
+                        self.floor_provider.read_floor(), "provider floor"
+                    )
+                    if confirmed < floor:
+                        raise RollbackStateError(
+                            "floor provider regressed during retry confirmation"
+                        )
+                    if confirmed == floor:
+                        break
+                    continue
+                advanced = self.floor_provider.compare_and_advance(
+                    floor, generation
+                )
+                if type(advanced) is not bool:
+                    raise RollbackStateError(
+                        "floor provider returned a non-boolean CAS result"
+                    )
+                observed = _uint64(
+                    self.floor_provider.read_floor(), "provider floor"
+                )
+                if advanced:
+                    if observed < generation:
+                        raise RollbackStateError(
+                            "floor provider claimed advancement without authority"
+                        )
+                    if observed > generation:
+                        raise JournalConflictError(
+                            "floor advanced beyond the requested generation"
+                        )
                     break
-                if self.floor_provider.compare_and_advance(floor, generation):
-                    break
-                if self.floor_provider.read_floor() == floor:
+                if observed < floor:
+                    raise RollbackStateError(
+                        "floor provider regressed after compare-and-advance"
+                    )
+                if observed == floor:
                     raise JournalConflictError("floor provider refused compare-and-advance")
 
             state = BootState(

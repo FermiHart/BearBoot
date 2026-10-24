@@ -302,10 +302,32 @@ bbp_v2_status_t bbp_v2_build(void *output_pointer, size_t capacity,
     uint32_t i;
     static const uint8_t magic[8] = BBP_V2_MAGIC_BYTES;
 
-    if (written) *written = 0;
-    if (!output || !written || (entry_count != 0 && !entries))
-        return BBP_V2_ERR_NULL;
+    if (!written) return BBP_V2_ERR_NULL;
     if (entry_count > BBP_V2_MAX_ENTRIES) return BBP_V2_ERR_COUNT;
+    if (output &&
+        memory_ranges_overlap(output, capacity, written, sizeof(*written)))
+        return BBP_V2_ERR_SOURCE;
+    if (entry_count != 0 && !entries) {
+        *written = 0;
+        return BBP_V2_ERR_NULL;
+    }
+    if (entry_count != 0 &&
+        memory_ranges_overlap(entries,
+                              (size_t)entry_count * sizeof(*entries),
+                              written, sizeof(*written)))
+        return BBP_V2_ERR_SOURCE;
+    for (i = 0; i < entry_count; i++) {
+        uintptr_t source;
+        if (!entries[i].data || entries[i].size == 0) continue;
+        source = (uintptr_t)entries[i].data;
+        if (entries[i].size > (uintptr_t)-1 - source)
+            return BBP_V2_ERR_OVERFLOW;
+        if (memory_ranges_overlap(entries[i].data, entries[i].size,
+                                  written, sizeof(*written)))
+            return BBP_V2_ERR_SOURCE;
+    }
+    *written = 0;
+    if (!output) return BBP_V2_ERR_NULL;
     cursor = BBP_V2_HEADER_SIZE + (size_t)entry_count * BBP_V2_DIRENT_SIZE;
     for (i = 0; i < entry_count; i++) {
         if (!entries[i].data || entries[i].size == 0)
@@ -326,6 +348,10 @@ bbp_v2_status_t bbp_v2_build(void *output_pointer, size_t capacity,
     if (total > BBP_V2_MAX_CRC_WORK - payload_work)
         return BBP_V2_ERR_WORK;
     if (total > capacity) return BBP_V2_ERR_CAPACITY;
+    if (entry_count != 0 &&
+        memory_ranges_overlap(output, total, entries,
+                              (size_t)entry_count * sizeof(*entries)))
+        return BBP_V2_ERR_SOURCE;
     for (i = 0; i < entry_count; i++) {
         if (memory_ranges_overlap(output, total, entries[i].data,
                                   entries[i].size))

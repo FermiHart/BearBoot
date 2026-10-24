@@ -12,7 +12,7 @@
 
 #include <bbp/bbp.h>
 #include "../bootloader/bbp_build.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 typedef void *efi_handle_t;
 typedef struct efi_system_table efi_system_table_t;

@@ -49,7 +49,7 @@ C_PACKAGE_FILES = {
     "include/bbp/bbp_v2_auth.h",
     "include/bbp/bbp_v2_profile.h",
     "kernel/bbp_kernel.c",
-    "kernel/bbp_kernel.h",
+    "include/bbp/bbp_kernel.h",
     VECTOR,
     "v2/bbp_v2.c",
     "v2/bbp_v2_auth.c",

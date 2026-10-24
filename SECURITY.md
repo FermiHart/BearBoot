@@ -45,9 +45,12 @@ treated as a complete image of boot state or as BBP wire input.
 SDK 1.4.0 keeps BBP wire 1.1 frozen. Its v2 capsule, Profile 0, HMAC envelope,
 and public-key policy are experimental offline surfaces, not a deployed boot
 protocol. The C, Rust, and host packages expose only the v2/Profile 0/HMAC
-surfaces described by RFCs 0001 through 0003. RFC 0004's ECDSA P-256/SHA-256
-proof remains host tooling; it is not a firmware verifier, Secure Boot
-implementation, production key store, or hardware root of trust.
+surfaces described by RFCs 0001 through 0003. RFC 0004 now has an unpackaged
+freestanding C verification proof, but no firmware caller, key provisioning,
+monotonic provider, downgrade selection, or hardware root of trust. Its
+zero-copy inputs must remain in immutable caller-owned storage through use of
+the returned view; DMA-visible or shared input requires a protected snapshot or
+equivalent exclusion. It is not a Secure Boot implementation.
 
 The UEFI/TCG2 machine gate proves that OVMF can extend an exact digest into PCR
 16 of `swtpm` and publish a CRC-sealed v1.1 SECURITY measurement log. It does not
@@ -56,10 +59,24 @@ freshness, or prove a physical TPM. PCR 16 is deliberately a debug PCR in these
 proofs.
 
 The durable rollback model stores operational state in an alternating A/B
-journal and refuses to lower a caller-injected monotonic floor. Its in-tree
-`MemoryFloorProvider` is a hosted test double. Journal SHA-256 is corruption
-detection, not authentication, and no physical TPM NV or firmware monotonic
-counter is implemented or claimed.
+journal and refuses to lower a caller-injected monotonic floor.
+`MemoryFloorProvider` is a hosted test double. The experimental, unpackaged
+`Tpm2NvFloorProvider` requires a pre-provisioned, written TPM2 counter with
+`AUTHREAD|AUTHWRITE|COUNTER|NO_DA`, a canonical non-empty SHA-256 index
+authorization of at most 32 bytes with no trailing zero, one absolute private
+lock domain, and a private UNIX socket whose path owner and live peer UID match
+the pinned principal. It does not hold owner-hierarchy authorization.
+Every process with the index authorization must use the same lock, and the owner
+hierarchy must separately prevent undefine/redefine. UID pinning authenticates a
+local process principal, not a physical TPM or the freshness of daemon-backed
+state. The daemon must either cancel a disconnected command before processing a
+reconciliation read or globally order commands across connections; otherwise a
+timed-out increment may execute late. Restored `swtpm` state after process
+restart remains outside this proof. The finite timeout covers the TPM provider
+lock and one socket exchange, not ADR 0018's independently blocking journal
+lock.
+Journal SHA-256 is corruption detection, not authentication, and no physical
+TPM NV or firmware monotonic counter is claimed.
 
 Execution-evidence bundles provide integrity, not operator identity or truthful
 provenance. The format cannot prevent hosted or emulator output from being

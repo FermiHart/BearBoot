@@ -19,7 +19,7 @@
 #define BBP_PORT_LINUX01_GLUE_H
 
 #include <bbp/bbp.h>
-#include "../../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 /* Run the adapter once, early in main() (after trap_init/sched are NOT
  * required — the adapter touches no interrupts; call it any time the kernel is

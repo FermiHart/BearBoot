@@ -47,7 +47,7 @@ Re-vendor after a port change:
     cp BearBoot/ports/tinalinux/compat/*.h kernel/arch/x86/bbp/port/compat/
     # then fix the two flat includes in adapter.{c,h} and tina_bbp.h:
     sed -i 's#"\.\./\.\./bootloader/bbp_build.h"#"bbp_build.h"#; \
-            s#"\.\./\.\./kernel/bbp_kernel.h"#"bbp_kernel.h"#' \
+            s#"<bbp/bbp_kernel.h>"#"bbp_kernel.h"#' \
         kernel/arch/x86/bbp/adapter.c kernel/arch/x86/bbp/adapter.h \
         kernel/arch/x86/bbp/tina_bbp.h
 

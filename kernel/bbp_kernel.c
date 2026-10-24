@@ -9,7 +9,7 @@
  */
 #include <bbp/bbp.h>
 #include <bbp/bbp_crc64.h>
-#include "bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 static const uint8_t bbp_header_magic[BBP_MAGIC_LEN] = BBP_HEADER_MAGIC;
 static const uint8_t bbp_info_magic[BBP_MAGIC_LEN] = BBP_INFO_MAGIC;
@@ -178,7 +178,9 @@ bbp_status_t bbp_init_win(struct bbp_kctx *out, const struct bbp_info *info,
     const struct bbp_tag_header *t = bbp_find_tag(out, BBP_TAG_HHDM);
     if (hhdm_hint == 0 && t && t->tag_size >= sizeof(struct bbp_tag_hhdm)) {
         const struct bbp_tag_hhdm *h = (const struct bbp_tag_hhdm *)t;
-        out->hhdm_offset = h->offset;
+        if (h->offset < (1ULL << 40) && (h->offset & 0xFFF) == 0) {
+            out->hhdm_offset = h->offset;
+        }
     }
     return BBP_OK;
 }

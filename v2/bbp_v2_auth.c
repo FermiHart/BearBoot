@@ -74,6 +74,8 @@ bbp_v2_auth_status_t bbp_v2_auth_parse(
         return BBP_V2_AUTH_ERR_EXTENT;
     capsule = envelope + BBP_V2_AUTH_HEADER_SIZE;
     rollback_index = get64(envelope + 16);
+    if (rollback_index >= (1ULL << 48))
+        return BBP_V2_AUTH_ERR_POLICY;
 
     bytes_copy(authenticated_header, envelope, sizeof(authenticated_header));
     bytes_zero(authenticated_header + BBP_V2_AUTH_TAG_OFFSET,

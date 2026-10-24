@@ -25,7 +25,7 @@
  * the standalone scaffold Makefile).
  */
 #include <bbp/bbp.h>
-#include "../../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 #include "osif.h"
 #include "adapter.h"
 #include "linux01_bbp.h"

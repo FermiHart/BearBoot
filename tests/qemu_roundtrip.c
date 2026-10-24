@@ -19,7 +19,7 @@
 #include <bbp/bbp.h>
 #include <bbp/bbp_crc64.h>
 #include "../bootloader/bbp_build.h"
-#include "../kernel/bbp_kernel.h"
+#include <bbp/bbp_kernel.h>
 
 /* ---- COM1 serial ---------------------------------------------------------*/
 static inline void outb(uint16_t p, uint8_t v){ __asm__ volatile("outb %0,%1"::"a"(v),"Nd"(p)); }

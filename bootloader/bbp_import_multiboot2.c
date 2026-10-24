@@ -229,10 +229,10 @@ static bbp_import_status scan_mbi(const struct bbp_multiboot2_snapshot *snapshot
             bbp_import_status status;
             uint32_t start, end;
             if (size < 17) return BBP_IMPORT_ERR_FRAMING;
-            start = read_u32(data + offset + 8);
+start = read_u32(data + offset + 8);
             end = read_u32(data + offset + 12);
             if (end <= start || !bbp_import_phys_range_valid(start,
-                                                              (uint64_t)end - start))
+                                                              (uint64_t)(end - start)))
                 return BBP_IMPORT_ERR_RANGE;
             status = exact_string(data + offset + 16, size - 16u);
             if (status != BBP_IMPORT_OK) return status;

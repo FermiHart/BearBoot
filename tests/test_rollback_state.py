@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Wave 20 durable rollback journal regression tests."""
 
+import fcntl
 import json
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -13,6 +15,7 @@ from tools.bbp_rollback_state import (
     MemoryFloorProvider,
     PolicyError,
     RollbackJournal,
+    RollbackStateError,
 )
 
 
@@ -54,13 +57,34 @@ class RollbackJournalTests(unittest.TestCase):
             self.assertEqual(provider.read_floor(), current.generation)
 
     def test_two_writers_use_sequence_cas_without_floor_regression(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            journal, provider = self.journal(temporary)
-            barrier = threading.Barrier(3)
-            results = []
+        class BlockingProvider(MemoryFloorProvider):
+            def __init__(self):
+                super().__init__(0)
+                self.first_read_entered = threading.Event()
+                self.release_first_read = threading.Event()
+                self.read_guard = threading.Lock()
+                self.read_started = False
 
-            def writer(active_slot: str) -> None:
-                barrier.wait()
+            def read_floor(self) -> int:
+                with self.read_guard:
+                    first = not self.read_started
+                    self.read_started = True
+                if first:
+                    self.first_read_entered.set()
+                    if not self.release_first_read.wait(timeout=5):
+                        raise AssertionError("first journal writer was not released")
+                return super().read_floor()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            provider = BlockingProvider()
+            journals = [
+                RollbackJournal(Path(temporary) / "boot-state", provider)
+                for _ in range(2)
+            ]
+            results = []
+            errors = []
+
+            def writer(journal, active_slot: str) -> None:
                 try:
                     state = journal.commit(
                         1, "release", active_slot, None,
@@ -69,19 +93,42 @@ class RollbackJournalTests(unittest.TestCase):
                     results.append(("ok", state.sequence))
                 except JournalConflictError:
                     results.append(("conflict", None))
+                except Exception as error:  # surfaced after both threads join
+                    errors.append(error)
 
-            threads = [threading.Thread(target=writer, args=(slot,))
-                       for slot in ("A", "B")]
-            for thread in threads:
-                thread.start()
-            barrier.wait()
-            for thread in threads:
-                thread.join()
+            threads = [
+                threading.Thread(target=writer, args=(journal, slot))
+                for journal, slot in zip(journals, ("A", "B"))
+            ]
+            threads[0].start()
+            first_entered = provider.first_read_entered.wait(timeout=5)
 
+            lock_held = False
+            if first_entered:
+                fd = os.open(journals[0].lock_path, os.O_RDWR)
+                try:
+                    try:
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        lock_held = True
+                    else:
+                        fcntl.flock(fd, fcntl.LOCK_UN)
+                finally:
+                    os.close(fd)
+
+            threads[1].start()
+            provider.release_first_read.set()
+            for thread in threads:
+                thread.join(timeout=5)
+
+            self.assertTrue(first_entered)
+            self.assertTrue(lock_held)
+            self.assertFalse(any(thread.is_alive() for thread in threads))
+            self.assertEqual(errors, [])
             self.assertEqual(sorted(kind for kind, _ in results),
                              ["conflict", "ok"])
             self.assertEqual(provider.read_floor(), 1)
-            self.assertEqual(journal.load().generation, 1)
+            self.assertEqual(journals[0].load().generation, 1)
 
     def test_equal_generation_recovery_repairs_floor_first_interruption(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -149,6 +196,117 @@ class RollbackJournalTests(unittest.TestCase):
             persisted.write_bytes(b"x" * (RollbackJournal.MAX_RECORD_BYTES + 1))
             with self.assertRaises(CorruptJournalError):
                 exhausted.load()
+
+    def test_provider_cannot_claim_advancement_without_authority(self) -> None:
+        class BrokenProvider(MemoryFloorProvider):
+            def __init__(self, result):
+                super().__init__(0)
+                self.result = result
+
+            def compare_and_advance(self, expected: int, new: int) -> bool:
+                return self.result
+
+        for result in (0, 1, None, True):
+            with self.subTest(result=result):
+                with tempfile.TemporaryDirectory() as temporary:
+                    provider = BrokenProvider(result)
+                    journal = RollbackJournal(
+                        Path(temporary) / "boot-state", provider
+                    )
+                    with self.assertRaises(RollbackStateError):
+                        journal.commit(
+                            1, "release", "A", None, expected_sequence=0
+                        )
+                    self.assertEqual(provider.read_floor(), 0)
+                    self.assertFalse(
+                        any(path.exists() for path in journal.slot_paths)
+                    )
+
+    def test_later_concurrent_floor_advance_is_a_conflict_not_provider_lie(
+            self) -> None:
+        class ConcurrentAdvanceProvider(MemoryFloorProvider):
+            def __init__(self):
+                super().__init__(0)
+                self.advance_before_confirmation = False
+
+            def compare_and_advance(self, expected: int, new: int) -> bool:
+                advanced = super().compare_and_advance(expected, new)
+                if advanced:
+                    self.advance_before_confirmation = True
+                return advanced
+
+            def read_floor(self) -> int:
+                if self.advance_before_confirmation:
+                    self.advance_before_confirmation = False
+                    if not super().compare_and_advance(1, 2):
+                        raise AssertionError("simulated concurrent CAS failed")
+                return super().read_floor()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            provider = ConcurrentAdvanceProvider()
+            journal = RollbackJournal(
+                Path(temporary) / "boot-state", provider
+            )
+            with self.assertRaises(JournalConflictError):
+                journal.commit(
+                    1, "release", "A", None, expected_sequence=0
+                )
+            self.assertEqual(provider.read_floor(), 2)
+            self.assertFalse(any(path.exists() for path in journal.slot_paths))
+
+    def test_retry_revalidates_floor_before_journal_publication(self) -> None:
+        class AdvanceOnConfirmationProvider(MemoryFloorProvider):
+            def __init__(self):
+                super().__init__(1)
+                self.reads = 0
+
+            def read_floor(self) -> int:
+                with self._lock:
+                    self.reads += 1
+                    if self.reads == 2:
+                        self._floor = 2
+                    return self._floor
+
+        with tempfile.TemporaryDirectory() as temporary:
+            provider = AdvanceOnConfirmationProvider()
+            journal = RollbackJournal(
+                Path(temporary) / "boot-state", provider
+            )
+            with self.assertRaises(PolicyError):
+                journal.commit(
+                    1, "recovery", "A", None, expected_sequence=0
+                )
+            self.assertEqual(provider.read_floor(), 2)
+            self.assertFalse(any(path.exists() for path in journal.slot_paths))
+
+    def test_false_provider_cas_reconciles_unchanged_and_later_floors(
+            self) -> None:
+        class RefusingProvider(MemoryFloorProvider):
+            def compare_and_advance(self, expected: int, new: int) -> bool:
+                return False
+
+        class RacedProvider(MemoryFloorProvider):
+            def compare_and_advance(self, expected: int, new: int) -> bool:
+                with self._lock:
+                    self._floor = new + 1
+                    return False
+
+        for provider_type, expected_error in (
+                (RefusingProvider, JournalConflictError),
+                (RacedProvider, PolicyError)):
+            with self.subTest(provider=provider_type.__name__):
+                with tempfile.TemporaryDirectory() as temporary:
+                    provider = provider_type(0)
+                    journal = RollbackJournal(
+                        Path(temporary) / "boot-state", provider
+                    )
+                    with self.assertRaises(expected_error):
+                        journal.commit(
+                            1, "release", "A", None, expected_sequence=0
+                        )
+                    self.assertFalse(
+                        any(path.exists() for path in journal.slot_paths)
+                    )
 
 
 if __name__ == "__main__":

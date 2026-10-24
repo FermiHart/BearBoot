@@ -243,17 +243,29 @@ def parse_capture(raw: bytes) -> Capture:
     entries: List[DirectoryEntry] = []
     count = header["count"] if header["count"] <= MAX_TAGS else 0
     directory_end = DIRECTORY_OFFSET + count * DIRECTORY_ENTRY_SIZE
+    expected_data = align8(directory_end)
+    
     if directory_end > len(raw):
         errors.append("directory extends beyond the file")
     else:
+        candidate_offsets: List[Tuple[int, int, int]] = []
         for index in range(count):
             offset = DIRECTORY_OFFSET + index * DIRECTORY_ENTRY_SIZE
             source_phys, payload_offset, data_size, flags = DIRECTORY_STRUCT.unpack_from(raw, offset)
             end = payload_offset + data_size
-            payload = raw[payload_offset:end] if end >= payload_offset and end <= len(raw) else b""
-            entries.append(DirectoryEntry(index, source_phys, payload_offset, data_size, flags, payload))
+            if end > UINT64_MAX or payload_offset > UINT64_MAX - data_size:
+                errors.append(f"payload range for entries {index} wraps")
+            else:
+                candidate_offsets.append((payload_offset, end, index, source_phys, flags))
+        
+        for i, (offset1, end1, idx1, src1, flags1) in enumerate(candidate_offsets):
+            for offset2, end2, idx2, src2, flags2 in candidate_offsets[:i]:
+                if offset1 < end2 and offset2 < end1:
+                    errors.append(f"payload ranges for entries {idx2} and {idx1} overlap")
+            if offset1 >= expected_data and end1 <= len(raw):
+                payload = raw[offset1:end1]
+                entries.append(DirectoryEntry(idx1, src1, offset1, end1 - offset1, flags1, payload))
 
-    expected_data = align8(directory_end)
     if directory_end <= len(raw) and expected_data <= len(raw):
         if any(raw[directory_end:expected_data]):
             errors.append("nonzero padding between directory and payload area")

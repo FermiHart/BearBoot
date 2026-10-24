@@ -20,7 +20,7 @@ CORE_FILES = [
     "include/bbp/bbp_crc64.h",
     "include/bbp/bbp_osif.h",
     "kernel/bbp_kernel.c",
-    "kernel/bbp_kernel.h",
+    "include/bbp/bbp_kernel.h",
     "bootloader/bbp_build.c",
     "bootloader/bbp_build.h",
     "tests/abi_selftest.c",

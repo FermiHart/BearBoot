@@ -6,10 +6,13 @@ welcome — within the constraints that keep the protocol trustworthy.
 
 ## The one hard rule: the core ABI is frozen
 
-`include/bbp/*`, `kernel/bbp_kernel.c`, and `bootloader/bbp_build.c` are
-**ABI-frozen** within a major version. Every cross-boundary struct is guarded by
-`_Static_assert(sizeof(...) == N)`. A change that alters a struct layout is a
-**breaking** change and bumps `BBP_VERSION_MAJOR` — it is not a casual PR.
+The v1.1 surfaces `include/bbp/bbp.h`, `include/bbp/bbp_crc64.h`,
+`include/bbp/bbp_osif.h`, `kernel/bbp_kernel.{c,h}`, and
+`bootloader/bbp_build.{c,h}` are **ABI-frozen**. Every cross-boundary struct is
+guarded by `_Static_assert(sizeof(...) == N)`. A change that alters a frozen
+struct layout is a **breaking** change and bumps `BBP_VERSION_MAJOR` — it is not
+a casual PR. Files named `bbp_v2*` remain governed by their Draft RFCs until a
+separate freeze decision and CI guard are recorded.
 
 Within a major version you MAY:
 - add a new tag (consumers ignore unknown tags);

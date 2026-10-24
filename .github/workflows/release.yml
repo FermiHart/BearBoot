@@ -118,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           make check
-          make v2-portability v2-fuzz
+          make v2-portability v2-fuzz auth2-portability auth2-sanitize-test
           make tpm2-measure-test
           make freestanding CROSS=
           make qemu

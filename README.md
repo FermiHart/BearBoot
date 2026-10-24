@@ -128,15 +128,20 @@ make importers-test # host-test bounded boot-source translation and failures
 make bbpctl-test   # verify host capture parsing, evidence, and corrupt fixtures
 make v2-test       # adversarial v2 capsule, digest, and v1.1 bridge proof
 make v2-profile-test # validate experimental native Profile 0 semantics
-make v2-vectors-test # independent Python encoder consumed by the C parser
+make v2-vectors-test # shared 46-case C/Python Draft corpus gate
 make v2-fuzz       # bounded malformed capsule + Profile 0 campaign
 make tpm2-measure-test # extend the canonical v2 measurement into an emulated TPM2 PCR
+make tpm2-nv-response-test # host-test strict TPM2 NV codecs, locking, and recovery
 make auth-envelope-test # host-only HMAC authentication and anti-rollback policy
-make auth2-test     # host-only ECDSA P-256 public-key policy proof
+make auth2-test     # independent OpenSSL ECDSA P-256 policy proof
+make auth2-freestanding-test # C verifier against the checked-in auth2 vectors
+make auth2-portability # link auth2 freestanding for x86_64, AArch64, and RV64
+make auth2-sanitize-test # run the C verifier/provider under ASan and UBSan
+make auth2-vendor-check # verify every pinned BearSSL source/header checksum
 make rollback-test # persistent A/B journal policy with an injected floor
 make ports-hosted-check # run all four current-checkout hosted adapter gates
 make evidence-check # hosted/emulator/physical evidence-contract tests
-make v2-portability # compile the v2 Draft core for x86_64, AArch64, and RV64
+make v2-portability # compile the v2 Draft core/bridge for x86_64, AArch64, and RV64
 make sdk-check     # extracted C/host packages + no_std Rust parity tests
 make sdk-package   # reproducible local archives under build/dist/
 ```
@@ -185,8 +190,10 @@ The separate BBP v2 contiguous capsule is an offline-only Draft. It does not
 change or negotiate the frozen v1.1 ABI. `make v2-test` proves its bounded
 parser, deterministic builder, layout-independent digest stream, and explicit
 v1.1 bridge. Experimental Profile 0 adds a separate semantic validator without
-coupling the generic parser to a registry; see `docs/rfc/0001-bbp-v2-capsule.md`
-and `docs/rfc/0002-bbp-v2-profile-0.md`.
+coupling the generic parser to a registry. A generated positive/negative corpus
+pins the current Draft behavior across C, Rust, and an independent Python
+validator without freezing the wire; see `docs/rfc/0001-bbp-v2-capsule.md` and
+`docs/rfc/0002-bbp-v2-profile-0.md`.
 
 The importer suite translates bounded Limine snapshots, raw Multiboot2 bytes,
 and normalized final UEFI snapshots into the same BBP builder. It proves
@@ -199,8 +206,8 @@ The C SDK, host tools, and Rust crate share release version `1.4.0`.
 The compatible boot wire remains frozen BBP v1.1. The C, host, and Rust package
 allowlists now include experimental offline v2/Profile 0/HMAC surfaces and a
 shared canonical vector; those APIs remain Draft, are not negotiated from v1.1,
-and carry no v2 stability or registry-publication claim. Build the archives, then
-exercise the same flow an extracted C consumer runs:
+and carry no v2 stability or registry-publication claim. Build the archives,
+then exercise the same flow an extracted C consumer runs:
 
 ```sh
 make sdk-package
@@ -215,13 +222,25 @@ never dereferences physical addresses. See `docs/adr/0012-sdk-packaging.md` and
 `docs/adr/0019-experimental-v2-sdk-surfaces.md`.
 
 The experimental trust proofs remain outside the stable boot ABI. RFC 0004 and
-`make auth2-test` prove ECDSA P-256/SHA-256 exact-extent verification and key
-policy on the host, not in firmware or Secure Boot. `make rollback-test` proves
-an fsync/replace A/B journal and recovery policy bounded by a caller-injected
-monotonic floor; its in-tree provider is not persistent TPM NV. The physical
-runner contract in `docs/physical-hardware-runner.md` defines how board identity
-and raw serial must be captured, but this repository contains no physical PASS
-proof.
+the auth2 gates prove ECDSA P-256/SHA-256 exact-extent verification and key
+policy through independent OpenSSL and freestanding C backends. The C artifact
+is closed and cross-compiled for three ISAs, but it has no firmware caller,
+provisioning, monotonic provider, or Secure Boot integration. Its zero-copy
+views require caller-owned immutable input and DMA exclusion.
+`make rollback-test` proves an fsync/replace A/B journal and recovery policy
+bounded by a caller-injected monotonic floor. The repository-only
+`Tpm2NvFloorProvider` adds a strict, index-authorized TPM2 NV counter client for
+a UID-pinned private UNIX endpoint, with exact metadata, bounded responses,
+finite provider locking, ambiguous-result reconciliation, and journal
+composition tests. The A/B journal retains ADR 0018's cooperating-writer,
+indefinitely blocking advisory lock; the provider timeout is not an end-to-end
+journal deadline.
+`make tpm2-nv-response-test` uses a fake TPM authority plus a real local UNIX
+peer-credential check; it requires Linux `SO_PEERCRED`. It does not provision or
+execute `swtpm`, authenticate a physical TPM, detect restored daemon state after
+restart, or close the online deployment gate. See ADR 0021. The physical runner
+contract in `docs/physical-hardware-runner.md` defines how board identity and raw
+serial must be captured, but this repository contains no physical PASS proof.
 
 SDK 1.4.0 is published from the signed tag
 [`sdk-v1.4.0`](https://github.com/FermiHart/BearBoot/releases/tag/sdk-v1.4.0).

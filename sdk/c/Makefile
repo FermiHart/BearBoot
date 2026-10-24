@@ -44,7 +44,7 @@ report: $(CONFORMANCE)
 
 $(CONFORMANCE): $(ROOT)/examples/sdk_roundtrip.c $(CORE_SOURCES) \
 		$(ROOT)/include/bbp/bbp.h $(ROOT)/include/bbp/bbp_crc64.h \
-		$(ROOT)/bootloader/bbp_build.h $(ROOT)/kernel/bbp_kernel.h \
+		$(ROOT)/bootloader/bbp_build.h $(ROOT)/include/bbp/bbp_kernel.h \
 		$(SDK_INCLUDE)/bbp/bbp_sdk.h
 	@mkdir -p $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ROOT)/examples/sdk_roundtrip.c \
